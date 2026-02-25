@@ -114,6 +114,11 @@ type Enable2FAResponse struct {
 	QRCode string `json:"qr_code" example:"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA..."` // Código QR en formato Data URI
 }
 
+// BackupCodesResponse representa la respuesta con los códigos de respaldo 2FA
+type BackupCodesResponse struct {
+	BackupCodes []string `json:"backup_codes" example:"[\"ABC123DEF4\", \"GHI567JKL8\"]"` // Lista de 10 códigos de respaldo
+}
+
 // SessionResponse representa la información de una sesión activa
 type SessionResponse struct {
 	ID         string `json:"id" example:"650e8400-e29b-41d4-a716-446655440001"`     // ID de la sesión

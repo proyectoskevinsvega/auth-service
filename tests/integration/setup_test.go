@@ -143,6 +143,8 @@ func SetupTestServer(t *testing.T) *TestServer {
 		cfg,
 		riskService,
 		roleRepo,
+		postgresadapter.NewBackupCodeRepository(dbPool),
+		totpService,
 	)
 
 	sessionUC := usecase.NewSessionUseCase(
@@ -153,7 +155,10 @@ func SetupTestServer(t *testing.T) *TestServer {
 
 	twofaUC := usecase.NewTwoFAUseCase(
 		userRepo,
+		postgresadapter.NewBackupCodeRepository(dbPool),
 		totpService,
+		passwordHasher,
+		tokenGenerator,
 		logger,
 	)
 

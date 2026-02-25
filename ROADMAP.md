@@ -47,7 +47,7 @@ Prioridades basadas en impacto de seguridad, demanda de funcionalidad y compleji
 | **Session geofencing**           | ✅ Completado | Restricción de acceso basada en perímetros geográficos y prevención de saltos de IP sospechosos.     |
 | **Compliance & Audit Reporting** | ❌ Pendiente  | Generación automática de reportes de cumplimiento para normativas GDPR, SOC2 e HIPAA.                |
 | **Advanced Threat Intelligence** | ✅ Completado | Integración con bases de datos de amenazas externas para bloquear IPs maliciosas de forma proactiva. |
-| **Backup codes regeneration**    | ❌ Pendiente  | Workflow de recuperación de emergencia ante pérdida de dispositivo MFA.                              |
+| **Backup codes regeneration**    | ✅ Completado | Workflow de recuperación de emergencia ante pérdida de dispositivo MFA.                              |
 | **Login analytics dashboard**    | ❌ Pendiente  | Analíticas avanzadas de uso, retención y patrones de autenticación por aplicación.                   |
 
 ---
@@ -68,6 +68,7 @@ Prioridades basadas en impacto de seguridad, demanda de funcionalidad y compleji
 
 | Feature                                          | Versión |
 | ------------------------------------------------ | ------- |
+| 2FA Backup Codes                                 | v1.5    |
 | Advanced Threat Intelligence                     | v1.5    |
 | Client Credentials Flow                          | v1.5    |
 | Session geofencing                               | v1.4    |

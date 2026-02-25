@@ -65,6 +65,8 @@ func BenchmarkLogin(b *testing.B) {
 		cfg,
 		nil, // riskService
 		roleRepo,
+		new(mocks.MockBackupCodeRepository),
+		new(mocks.MockTOTPService),
 	)
 
 	ctx := context.Background()
@@ -78,6 +80,7 @@ func BenchmarkLogin(b *testing.B) {
 
 	existingUser := &domain.User{
 		ID:               uuid.New().String(),
+		TenantID:         "test-tenant",
 		Username:         "benchuser",
 		Email:            "bench@example.com",
 		PasswordHash:     "$argon2id$hashed_password",
@@ -90,7 +93,7 @@ func BenchmarkLogin(b *testing.B) {
 	// Mock expectations
 	rateLimiter.On("CheckLimit", ctx, "login:192.168.1.1", 5, time.Minute).Return(false, nil)
 	rateLimiter.On("Increment", ctx, "login:192.168.1.1", time.Minute).Return(1, nil)
-	userRepo.On("GetByEmailOrUsername", ctx, input.Identifier).Return(existingUser, nil)
+	userRepo.On("GetByEmailOrUsername", ctx, "test-tenant", input.Identifier).Return(existingUser, nil)
 	passwordHasher.On("Verify", input.Password, existingUser.PasswordHash).Return(true, nil)
 	tokenGen.On("GenerateSecureToken", 32).Return("secure_refresh_token_value", nil)
 	geoService.On("GetLocation", ctx, input.IPAddress).Return(&domain.Geolocation{Country: "US"}, nil)
@@ -161,6 +164,8 @@ func BenchmarkRegister(b *testing.B) {
 		cfg,
 		nil, // riskService
 		roleRepo,
+		new(mocks.MockBackupCodeRepository),
+		new(mocks.MockTOTPService),
 	)
 
 	ctx := context.Background()
@@ -168,8 +173,8 @@ func BenchmarkRegister(b *testing.B) {
 	// Mock expectations
 	rateLimiter.On("CheckLimit", ctx, "register:192.168.1.1", 3, time.Hour).Return(false, nil)
 	rateLimiter.On("Increment", ctx, "register:192.168.1.1", time.Hour).Return(1, nil)
-	userRepo.On("GetByUsername", ctx, "benchuser").Return(nil, domain.ErrUserNotFound)
-	userRepo.On("GetByEmail", ctx, "bench@example.com").Return(nil, domain.ErrUserNotFound)
+	userRepo.On("GetByUsername", ctx, "test-tenant", "benchuser").Return(nil, domain.ErrUserNotFound)
+	userRepo.On("GetByEmail", ctx, "test-tenant", "bench@example.com").Return(nil, domain.ErrUserNotFound)
 	passwordHasher.On("Hash", "BenchPass123!").Return("$argon2id$hashed_password", nil)
 	userRepo.On("Create", ctx, mock.AnythingOfType("*domain.User"), "$argon2id$hashed_password").Return(nil)
 	geoService.On("GetLocation", ctx, "192.168.1.1").Return(&domain.Geolocation{Country: "US"}, nil)
@@ -183,6 +188,7 @@ func BenchmarkRegister(b *testing.B) {
 	// Run benchmark
 	for i := 0; i < b.N; i++ {
 		input := usecase.RegisterInput{
+			TenantID:  "test-tenant",
 			Username:  "benchuser",
 			Email:     "bench@example.com",
 			Password:  "BenchPass123!",
@@ -194,7 +200,6 @@ func BenchmarkRegister(b *testing.B) {
 }
 
 // BenchmarkPasswordHashing benchmarks password hashing operations
-// This is critical for understanding registration/login performance
 func BenchmarkPasswordVerification(b *testing.B) {
 	passwordHasher := new(mocks.MockPasswordHasher)
 	password := "SecurePassword123!"

@@ -31,6 +31,8 @@ type AuthUseCaseMocks struct {
 	notifier       *mocks.MockNotificationPublisher
 	riskService    *mocks.MockRiskService
 	roleRepo       *mocks.MockRoleRepository
+	backupCodeRepo *mocks.MockBackupCodeRepository
+	totpService    *mocks.MockTOTPService
 }
 
 func setupAuthUseCase(_ *testing.T) *AuthUseCaseMocks {
@@ -84,6 +86,8 @@ func setupAuthUseCase(_ *testing.T) *AuthUseCaseMocks {
 		cfg,
 		riskService,
 		roleRepo,
+		new(mocks.MockBackupCodeRepository),
+		new(mocks.MockTOTPService),
 	)
 
 	return &AuthUseCaseMocks{

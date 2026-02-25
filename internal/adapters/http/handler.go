@@ -148,6 +148,7 @@ func (h *Handler) SetupRoutes(telemetryEnabled bool) http.Handler {
 			r.Post("/auth/2fa/enable", h.Enable2FA)
 			r.Post("/auth/2fa/verify", h.Verify2FA)
 			r.Post("/auth/2fa/disable", h.Disable2FA)
+			r.Post("/auth/2fa/backup-codes", h.RegenerateBackupCodes)
 
 			// Email verification (resend)
 			r.Post("/auth/resend-verification", h.ResendVerificationEmail)
@@ -1030,6 +1031,42 @@ func (h *Handler) Disable2FA(w http.ResponseWriter, r *http.Request) {
 
 	respondWithJSON(w, http.StatusOK, MessageResponse{
 		Message: "2FA disabled successfully",
+	})
+}
+
+// RegenerateBackupCodes godoc
+// @Summary      Regenerar códigos de respaldo 2FA
+// @Description  Genera 10 nuevos códigos de respaldo para el usuario. Esto invalida cualquier código de respaldo anterior.
+// @Tags         Two-Factor Authentication
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Success      200 {object} BackupCodesResponse
+// @Failure      400 {object} ErrorResponse "2FA no habilitado"
+// @Failure      401 {object} ErrorResponse "No autenticado"
+// @Failure      500 {object} ErrorResponse
+// @Router       /auth/2fa/backup-codes [post]
+func (h *Handler) RegenerateBackupCodes(w http.ResponseWriter, r *http.Request) {
+	userID, ok := GetUserIDFromContext(r.Context())
+	if !ok {
+		respondWithError(w, http.StatusUnauthorized, "unauthorized", "UNAUTHORIZED")
+		return
+	}
+
+	tenantID, _ := GetTenantIDFromContext(r.Context())
+	codes, err := h.twofaUC.GenerateBackupCodes(r.Context(), tenantID, userID)
+	if err != nil {
+		h.logger.Error().Err(err).Str("user_id", userID).Msg("failed to regenerate backup codes")
+		if err == domain.Err2FANotEnabled {
+			respondWithError(w, http.StatusBadRequest, "2FA not enabled", "2FA_NOT_ENABLED")
+			return
+		}
+		respondWithError(w, http.StatusInternalServerError, "failed to regenerate backup codes", "INTERNAL_ERROR")
+		return
+	}
+
+	respondWithJSON(w, http.StatusOK, BackupCodesResponse{
+		BackupCodes: codes,
 	})
 }
 

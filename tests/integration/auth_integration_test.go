@@ -156,6 +156,7 @@ func setupTestSuite(t *testing.T) *TestSuite {
 	)
 	passwordHasher := cryptoadapter.NewArgon2Hasher()
 	tokenGenerator := cryptoadapter.NewSecureTokenGenerator()
+	totpService := cryptoadapter.NewTOTPService(cfg.JWT.Issuer)
 	riskService := usecase.NewRiskService(nil, tenantRepo, nil, cfg)
 
 	// Inicializar adaptadores Redis
@@ -198,6 +199,8 @@ func setupTestSuite(t *testing.T) *TestSuite {
 		cfg,
 		riskService,
 		roleRepo,
+		postgresadapter.NewBackupCodeRepository(dbPool),
+		totpService,
 	)
 
 	return &TestSuite{

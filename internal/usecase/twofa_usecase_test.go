@@ -16,22 +16,31 @@ import (
 )
 
 type TwoFAUseCaseMocks struct {
-	uc          *TwoFAUseCase
-	userRepo    *mocks.MockUserRepository
-	totpService *mocks.MockTOTPService
+	uc             *TwoFAUseCase
+	userRepo       *mocks.MockUserRepository
+	backupCodeRepo *mocks.MockBackupCodeRepository
+	totpService    *mocks.MockTOTPService
+	hasher         *mocks.MockPasswordHasher
+	tokenGen       *mocks.MockTokenGenerator
 }
 
 func setupTwoFAUseCase(_ *testing.T) TwoFAUseCaseMocks {
 	userRepo := new(mocks.MockUserRepository)
+	backupCodeRepo := new(mocks.MockBackupCodeRepository)
 	totpService := new(mocks.MockTOTPService)
+	hasher := new(mocks.MockPasswordHasher)
+	tokenGen := new(mocks.MockTokenGenerator)
 	logger := zerolog.New(os.Stdout).Level(zerolog.Disabled)
 
-	uc := NewTwoFAUseCase(userRepo, totpService, logger)
+	uc := NewTwoFAUseCase(userRepo, backupCodeRepo, totpService, hasher, tokenGen, logger)
 
 	return TwoFAUseCaseMocks{
-		uc:          uc,
-		userRepo:    userRepo,
-		totpService: totpService,
+		uc:             uc,
+		userRepo:       userRepo,
+		backupCodeRepo: backupCodeRepo,
+		totpService:    totpService,
+		hasher:         hasher,
+		tokenGen:       tokenGen,
 	}
 }
 

@@ -112,3 +112,10 @@ type ClientRepository interface {
 	Update(ctx context.Context, client *domain.Client) error
 	Delete(ctx context.Context, clientID string) error
 }
+
+type BackupCodeRepository interface {
+	CreateMany(ctx context.Context, codes []*domain.BackupCode) error
+	GetActiveByUserID(ctx context.Context, tenantID, userID string) ([]*domain.BackupCode, error)
+	MarkAsUsed(ctx context.Context, id string) error
+	DeleteAllByUserID(ctx context.Context, tenantID, userID string) error
+}

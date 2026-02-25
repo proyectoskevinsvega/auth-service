@@ -11,20 +11,29 @@ import (
 )
 
 type TwoFAUseCase struct {
-	userRepo    ports.UserRepository
-	totpService ports.TOTPService
-	logger      zerolog.Logger
+	userRepo       ports.UserRepository
+	backupCodeRepo ports.BackupCodeRepository
+	totpService    ports.TOTPService
+	hasher         ports.PasswordHasher
+	tokenGen       ports.TokenGenerator
+	logger         zerolog.Logger
 }
 
 func NewTwoFAUseCase(
 	userRepo ports.UserRepository,
+	backupCodeRepo ports.BackupCodeRepository,
 	totpService ports.TOTPService,
+	hasher ports.PasswordHasher,
+	tokenGen ports.TokenGenerator,
 	logger zerolog.Logger,
 ) *TwoFAUseCase {
 	return &TwoFAUseCase{
-		userRepo:    userRepo,
-		totpService: totpService,
-		logger:      logger,
+		userRepo:       userRepo,
+		backupCodeRepo: backupCodeRepo,
+		totpService:    totpService,
+		hasher:         hasher,
+		tokenGen:       tokenGen,
+		logger:         logger,
 	}
 }
 
@@ -151,4 +160,52 @@ func (uc *TwoFAUseCase) Disable2FA(ctx context.Context, tenantID, userID, code s
 	uc.logger.Info().Str("user_id", userID).Msg("2FA disabled successfully")
 
 	return nil
+}
+
+// GenerateBackupCodes generates 10 new backup codes for the user
+func (uc *TwoFAUseCase) GenerateBackupCodes(ctx context.Context, tenantID, userID string) ([]string, error) {
+	// Verify user exists
+	user, err := uc.userRepo.GetByID(ctx, tenantID, userID)
+	if err != nil {
+		return nil, domain.ErrUserNotFound
+	}
+
+	if !user.TwoFactorEnabled {
+		return nil, domain.Err2FANotEnabled
+	}
+
+	// Generate 10 codes
+	plainCodes := make([]string, 10)
+	var backupCodes []*domain.BackupCode
+
+	for i := 0; i < 10; i++ {
+		// Create a 10-char alphanumeric code
+		code, err := uc.tokenGen.GenerateSecureToken(10)
+		if err != nil {
+			return nil, fmt.Errorf("failed to generate secure token: %w", err)
+		}
+		plainCodes[i] = code
+
+		// Hash code for storage
+		hash, err := uc.hasher.Hash(code)
+		if err != nil {
+			return nil, fmt.Errorf("failed to hash backup code: %w", err)
+		}
+
+		backupCodes = append(backupCodes, domain.NewBackupCode(tenantID, userID, hash))
+	}
+
+	// Delete existing codes first (only 10 active at a time)
+	if err := uc.backupCodeRepo.DeleteAllByUserID(ctx, tenantID, userID); err != nil {
+		return nil, err
+	}
+
+	// Save new ones
+	if err := uc.backupCodeRepo.CreateMany(ctx, backupCodes); err != nil {
+		return nil, err
+	}
+
+	uc.logger.Info().Str("user_id", userID).Msg("Backup codes regenerated")
+
+	return plainCodes, nil
 }

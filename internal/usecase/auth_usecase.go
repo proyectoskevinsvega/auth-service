@@ -33,6 +33,8 @@ type AuthUseCase struct {
 	config         *config.Config
 	riskService    ports.RiskService
 	roleRepo       ports.RoleRepository // Added for RBAC
+	backupCodeRepo ports.BackupCodeRepository
+	totpService    ports.TOTPService
 }
 
 func NewAuthUseCase(
@@ -53,6 +55,8 @@ func NewAuthUseCase(
 	cfg *config.Config,
 	riskService ports.RiskService,
 	roleRepo ports.RoleRepository,
+	backupCodeRepo ports.BackupCodeRepository,
+	totpService ports.TOTPService,
 ) *AuthUseCase {
 	return &AuthUseCase{
 		userRepo:       userRepo,
@@ -72,6 +76,8 @@ func NewAuthUseCase(
 		config:         cfg,
 		riskService:    riskService,
 		roleRepo:       roleRepo,
+		backupCodeRepo: backupCodeRepo,
+		totpService:    totpService,
 	}
 }
 
@@ -199,6 +205,39 @@ func (uc *AuthUseCase) Login(ctx context.Context, input LoginInput) (*LoginRespo
 	// Check 2FA if enabled or forced by risk
 	if (user.TwoFactorEnabled || isMFAForced) && input.TwoFACode == "" {
 		return nil, domain.Err2FARequired
+	}
+
+	// Verify 2FA code (TOTP or Backup Code)
+	if (user.TwoFactorEnabled || isMFAForced) && input.TwoFACode != "" {
+		// 1. Try TOTP first
+		valid, err := uc.totpService.Verify(input.TwoFACode, user.TwoFactorSecret)
+		if err == nil && valid {
+			// TOTP valid - proceed
+		} else {
+			// 2. Try Backup Codes
+			activeCodes, err := uc.backupCodeRepo.GetActiveByUserID(ctx, user.TenantID, user.ID)
+			if err != nil {
+				return nil, fmt.Errorf("failed to verify backup code: %w", err)
+			}
+
+			found := false
+			for _, bc := range activeCodes {
+				valid, err := uc.passwordHasher.Verify(input.TwoFACode, bc.CodeHash)
+				if err == nil && valid {
+					// Mark as used
+					if err := uc.backupCodeRepo.MarkAsUsed(ctx, bc.ID); err != nil {
+						return nil, fmt.Errorf("failed to use backup code: %w", err)
+					}
+					found = true
+					break
+				}
+			}
+
+			if !found {
+				_ = uc.auditRepo.Create(ctx, domain.NewAuditLogEntry(user.TenantID, user.ID, "login_failed_2fa", input.IPAddress, input.UserAgent, "", false, "invalid 2FA code", nil))
+				return nil, domain.ErrInvalid2FACode
+			}
+		}
 	}
 
 	country := "XX"
