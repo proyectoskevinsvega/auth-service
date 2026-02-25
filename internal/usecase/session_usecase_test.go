@@ -41,12 +41,14 @@ func TestListUserSessions_Success(t *testing.T) {
 	ctx := context.Background()
 
 	userID := uuid.New().String()
+	tenantID := "test-tenant"
 	currentJTI := uuid.New().String()
 	otherJTI := uuid.New().String()
 
 	sessions := []*domain.Session{
 		{
 			ID:        uuid.New().String(),
+			TenantID:  tenantID,
 			UserID:    userID,
 			JTI:       currentJTI,
 			Device:    "Desktop",
@@ -58,6 +60,7 @@ func TestListUserSessions_Success(t *testing.T) {
 		},
 		{
 			ID:        uuid.New().String(),
+			TenantID:  tenantID,
 			UserID:    userID,
 			JTI:       otherJTI,
 			Device:    "Mobile",
@@ -70,10 +73,10 @@ func TestListUserSessions_Success(t *testing.T) {
 	}
 
 	// Mock expectations
-	m.sessionRepo.On("GetByUserID", ctx, userID).Return(sessions, nil)
+	m.sessionRepo.On("GetByUserID", ctx, tenantID, userID).Return(sessions, nil)
 
 	// Execute
-	result, err := m.uc.ListUserSessions(ctx, userID, currentJTI)
+	result, err := m.uc.ListUserSessions(ctx, tenantID, userID, currentJTI)
 
 	// Assert
 	assert.NoError(t, err)
@@ -100,13 +103,14 @@ func TestListUserSessions_RepositoryError(t *testing.T) {
 	ctx := context.Background()
 
 	userID := uuid.New().String()
+	tenantID := "test-tenant"
 	currentJTI := uuid.New().String()
 
 	// Mock expectations
-	m.sessionRepo.On("GetByUserID", ctx, userID).Return(nil, domain.ErrSessionExpired)
+	m.sessionRepo.On("GetByUserID", ctx, tenantID, userID).Return(nil, domain.ErrSessionExpired)
 
 	// Execute
-	result, err := m.uc.ListUserSessions(ctx, userID, currentJTI)
+	result, err := m.uc.ListUserSessions(ctx, tenantID, userID, currentJTI)
 
 	// Assert
 	assert.Error(t, err)
@@ -122,10 +126,12 @@ func TestRevokeSession_Success(t *testing.T) {
 	ctx := context.Background()
 
 	userID := uuid.New().String()
+	tenantID := "test-tenant"
 	sessionID := uuid.New().String()
 
 	session := &domain.Session{
 		ID:        sessionID,
+		TenantID:  tenantID,
 		UserID:    userID,
 		JTI:       uuid.New().String(),
 		Device:    "Desktop",
@@ -134,11 +140,11 @@ func TestRevokeSession_Success(t *testing.T) {
 	}
 
 	// Mock expectations
-	m.sessionRepo.On("GetByID", ctx, sessionID).Return(session, nil)
-	m.sessionRepo.On("Revoke", ctx, sessionID, "user", "revoked by user").Return(nil)
+	m.sessionRepo.On("GetByID", ctx, tenantID, sessionID).Return(session, nil)
+	m.sessionRepo.On("Revoke", ctx, tenantID, sessionID, "user", "revoked by user").Return(nil)
 
 	// Execute
-	err := m.uc.RevokeSession(ctx, userID, sessionID)
+	err := m.uc.RevokeSession(ctx, tenantID, userID, sessionID)
 
 	// Assert
 	assert.NoError(t, err)
@@ -151,13 +157,14 @@ func TestRevokeSession_SessionNotFound(t *testing.T) {
 	ctx := context.Background()
 
 	userID := uuid.New().String()
+	tenantID := "test-tenant"
 	sessionID := uuid.New().String()
 
 	// Mock expectations
-	m.sessionRepo.On("GetByID", ctx, sessionID).Return(nil, domain.ErrSessionNotFound)
+	m.sessionRepo.On("GetByID", ctx, tenantID, sessionID).Return(nil, domain.ErrSessionNotFound)
 
 	// Execute
-	err := m.uc.RevokeSession(ctx, userID, sessionID)
+	err := m.uc.RevokeSession(ctx, tenantID, userID, sessionID)
 
 	// Assert
 	assert.Error(t, err)
@@ -171,11 +178,13 @@ func TestRevokeSession_WrongUser(t *testing.T) {
 	ctx := context.Background()
 
 	userID := uuid.New().String()
+	tenantID := "test-tenant"
 	otherUserID := uuid.New().String()
 	sessionID := uuid.New().String()
 
 	session := &domain.Session{
 		ID:        sessionID,
+		TenantID:  tenantID,
 		UserID:    otherUserID, // Sesión pertenece a otro usuario
 		JTI:       uuid.New().String(),
 		Device:    "Desktop",
@@ -184,10 +193,10 @@ func TestRevokeSession_WrongUser(t *testing.T) {
 	}
 
 	// Mock expectations
-	m.sessionRepo.On("GetByID", ctx, sessionID).Return(session, nil)
+	m.sessionRepo.On("GetByID", ctx, tenantID, sessionID).Return(session, nil)
 
 	// Execute
-	err := m.uc.RevokeSession(ctx, userID, sessionID)
+	err := m.uc.RevokeSession(ctx, tenantID, userID, sessionID)
 
 	// Assert
 	assert.Error(t, err)
@@ -204,13 +213,14 @@ func TestRevokeSession_DatabaseError(t *testing.T) {
 	ctx := context.Background()
 
 	userID := uuid.New().String()
+	tenantID := "test-tenant"
 	sessionID := uuid.New().String()
 
 	// Mock expectations - error genérico de base de datos
-	m.sessionRepo.On("GetByID", ctx, sessionID).Return(nil, fmt.Errorf("database connection error"))
+	m.sessionRepo.On("GetByID", ctx, tenantID, sessionID).Return(nil, fmt.Errorf("database connection error"))
 
 	// Execute
-	err := m.uc.RevokeSession(ctx, userID, sessionID)
+	err := m.uc.RevokeSession(ctx, tenantID, userID, sessionID)
 
 	// Assert
 	assert.Error(t, err)
@@ -227,10 +237,12 @@ func TestRevokeSession_RevokeError(t *testing.T) {
 	ctx := context.Background()
 
 	userID := uuid.New().String()
+	tenantID := "test-tenant"
 	sessionID := uuid.New().String()
 
 	session := &domain.Session{
 		ID:        sessionID,
+		TenantID:  tenantID,
 		UserID:    userID,
 		JTI:       uuid.New().String(),
 		Device:    "Desktop",
@@ -239,11 +251,11 @@ func TestRevokeSession_RevokeError(t *testing.T) {
 	}
 
 	// Mock expectations
-	m.sessionRepo.On("GetByID", ctx, sessionID).Return(session, nil)
-	m.sessionRepo.On("Revoke", ctx, sessionID, "user", "revoked by user").Return(fmt.Errorf("revoke failed"))
+	m.sessionRepo.On("GetByID", ctx, tenantID, sessionID).Return(session, nil)
+	m.sessionRepo.On("Revoke", ctx, tenantID, sessionID, "user", "revoked by user").Return(fmt.Errorf("revoke failed"))
 
 	// Execute
-	err := m.uc.RevokeSession(ctx, userID, sessionID)
+	err := m.uc.RevokeSession(ctx, tenantID, userID, sessionID)
 
 	// Assert
 	assert.Error(t, err)
@@ -257,41 +269,45 @@ func TestRevokeAllSessions_Success(t *testing.T) {
 	ctx := context.Background()
 
 	userID := uuid.New().String()
+	tenantID := "test-tenant"
 	currentJTI := uuid.New().String()
 
 	sessions := []*domain.Session{
 		{
-			ID:     uuid.New().String(),
-			UserID: userID,
-			JTI:     currentJTI, // Sesión actual - no debe ser revocada
-			Device:  "Desktop",
-			Revoked: false,
+			ID:       uuid.New().String(),
+			TenantID: tenantID,
+			UserID:   userID,
+			JTI:      currentJTI, // Sesión actual - no debe ser revocada
+			Device:   "Desktop",
+			Revoked:  false,
 		},
 		{
-			ID:      uuid.New().String(),
-			UserID:  userID,
-			JTI:     uuid.New().String(),
-			Device:  "Mobile",
-			Revoked: false,
+			ID:       uuid.New().String(),
+			TenantID: tenantID,
+			UserID:   userID,
+			JTI:      uuid.New().String(),
+			Device:   "Mobile",
+			Revoked:  false,
 		},
 		{
-			ID:      uuid.New().String(),
-			UserID:  userID,
-			JTI:     uuid.New().String(),
-			Device:  "Tablet",
-			Revoked: false,
+			ID:       uuid.New().String(),
+			TenantID: tenantID,
+			UserID:   userID,
+			JTI:      uuid.New().String(),
+			Device:   "Tablet",
+			Revoked:  false,
 		},
 	}
 
 	// Mock expectations
-	m.sessionRepo.On("GetByUserID", ctx, userID).Return(sessions, nil)
+	m.sessionRepo.On("GetByUserID", ctx, tenantID, userID).Return(sessions, nil)
 
 	// Solo debe revocar las 2 sesiones que no son la actual
-	m.sessionRepo.On("Revoke", ctx, sessions[1].ID, "user", "revoked all sessions").Return(nil).Once()
-	m.sessionRepo.On("Revoke", ctx, sessions[2].ID, "user", "revoked all sessions").Return(nil).Once()
+	m.sessionRepo.On("Revoke", ctx, tenantID, sessions[1].ID, "user", "revoked all sessions").Return(nil).Once()
+	m.sessionRepo.On("Revoke", ctx, tenantID, sessions[2].ID, "user", "revoked all sessions").Return(nil).Once()
 
 	// Execute
-	count, err := m.uc.RevokeAllSessions(ctx, userID, currentJTI)
+	count, err := m.uc.RevokeAllSessions(ctx, tenantID, userID, currentJTI)
 
 	// Assert
 	assert.NoError(t, err)
@@ -305,23 +321,25 @@ func TestRevokeAllSessions_OnlyCurrentSession(t *testing.T) {
 	ctx := context.Background()
 
 	userID := uuid.New().String()
+	tenantID := "test-tenant"
 	currentJTI := uuid.New().String()
 
 	sessions := []*domain.Session{
 		{
-			ID:     uuid.New().String(),
-			UserID: userID,
-			JTI:     currentJTI,
-			Device:  "Desktop",
-			Revoked: false,
+			ID:       uuid.New().String(),
+			TenantID: tenantID,
+			UserID:   userID,
+			JTI:      currentJTI,
+			Device:   "Desktop",
+			Revoked:  false,
 		},
 	}
 
 	// Mock expectations
-	m.sessionRepo.On("GetByUserID", ctx, userID).Return(sessions, nil)
+	m.sessionRepo.On("GetByUserID", ctx, tenantID, userID).Return(sessions, nil)
 
 	// Execute
-	count, err := m.uc.RevokeAllSessions(ctx, userID, currentJTI)
+	count, err := m.uc.RevokeAllSessions(ctx, tenantID, userID, currentJTI)
 
 	// Assert
 	assert.NoError(t, err)
@@ -338,42 +356,46 @@ func TestRevokeAllSessions_PartialFailure(t *testing.T) {
 	ctx := context.Background()
 
 	userID := uuid.New().String()
+	tenantID := "test-tenant"
 	currentJTI := uuid.New().String()
 
 	sessions := []*domain.Session{
 		{
-			ID:     uuid.New().String(),
-			UserID: userID,
-			JTI:     currentJTI,
-			Device:  "Desktop",
-			Revoked: false,
+			ID:       uuid.New().String(),
+			TenantID: tenantID,
+			UserID:   userID,
+			JTI:      currentJTI,
+			Device:   "Desktop",
+			Revoked:  false,
 		},
 		{
-			ID:      uuid.New().String(),
-			UserID:  userID,
-			JTI:     uuid.New().String(),
-			Device:  "Mobile",
-			Revoked: false,
+			ID:       uuid.New().String(),
+			TenantID: tenantID,
+			UserID:   userID,
+			JTI:      uuid.New().String(),
+			Device:   "Mobile",
+			Revoked:  false,
 		},
 		{
-			ID:      uuid.New().String(),
-			UserID:  userID,
-			JTI:     uuid.New().String(),
-			Device:  "Tablet",
-			Revoked: false,
+			ID:       uuid.New().String(),
+			TenantID: tenantID,
+			UserID:   userID,
+			JTI:      uuid.New().String(),
+			Device:   "Tablet",
+			Revoked:  false,
 		},
 	}
 
 	// Mock expectations
-	m.sessionRepo.On("GetByUserID", ctx, userID).Return(sessions, nil)
+	m.sessionRepo.On("GetByUserID", ctx, tenantID, userID).Return(sessions, nil)
 
 	// Primera revocación exitosa
-	m.sessionRepo.On("Revoke", ctx, sessions[1].ID, "user", "revoked all sessions").Return(nil).Once()
+	m.sessionRepo.On("Revoke", ctx, tenantID, sessions[1].ID, "user", "revoked all sessions").Return(nil).Once()
 	// Segunda revocación falla
-	m.sessionRepo.On("Revoke", ctx, sessions[2].ID, "user", "revoked all sessions").Return(domain.ErrSessionExpired).Once()
+	m.sessionRepo.On("Revoke", ctx, tenantID, sessions[2].ID, "user", "revoked all sessions").Return(domain.ErrSessionExpired).Once()
 
 	// Execute
-	count, err := m.uc.RevokeAllSessions(ctx, userID, currentJTI)
+	count, err := m.uc.RevokeAllSessions(ctx, tenantID, userID, currentJTI)
 
 	// Assert
 	assert.NoError(t, err, "No debe retornar error incluso si algunas revocaciones fallan")

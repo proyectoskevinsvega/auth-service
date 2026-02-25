@@ -20,8 +20,8 @@ func NewAuditLogRepository(db *pgxpool.Pool) *AuditLogRepository {
 func (r *AuditLogRepository) Create(ctx context.Context, entry *domain.AuditLogEntry) error {
 	query := `
 		INSERT INTO auth_audit_log (
-			id, user_id, action, ip_address, user_agent, country, success, error_msg, metadata, created_at
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+			id, tenant_id, user_id, action, ip_address, user_agent, country, success, error_msg, metadata, created_at
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 	`
 
 	metadataJSON, err := json.Marshal(entry.Metadata)
@@ -30,7 +30,7 @@ func (r *AuditLogRepository) Create(ctx context.Context, entry *domain.AuditLogE
 	}
 
 	_, err = r.db.Exec(ctx, query,
-		entry.ID, entry.UserID, entry.Action, entry.IPAddress, entry.UserAgent, entry.Country,
+		entry.ID, entry.TenantID, entry.UserID, entry.Action, entry.IPAddress, entry.UserAgent, entry.Country,
 		entry.Success, entry.ErrorMsg, metadataJSON, entry.CreatedAt,
 	)
 
@@ -41,16 +41,16 @@ func (r *AuditLogRepository) Create(ctx context.Context, entry *domain.AuditLogE
 	return nil
 }
 
-func (r *AuditLogRepository) GetByUserID(ctx context.Context, userID string, limit, offset int) ([]*domain.AuditLogEntry, error) {
+func (r *AuditLogRepository) GetByUserID(ctx context.Context, tenantID, userID string, limit, offset int) ([]*domain.AuditLogEntry, error) {
 	query := `
-		SELECT id, user_id, action, ip_address, user_agent, country, success, error_msg, metadata, created_at
+		SELECT id, tenant_id, user_id, action, ip_address, user_agent, country, success, error_msg, metadata, created_at
 		FROM auth_audit_log
-		WHERE user_id = $1
+		WHERE tenant_id = $1 AND user_id = $2
 		ORDER BY created_at DESC
-		LIMIT $2 OFFSET $3
+		LIMIT $3 OFFSET $4
 	`
 
-	rows, err := r.db.Query(ctx, query, userID, limit, offset)
+	rows, err := r.db.Query(ctx, query, tenantID, userID, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get audit logs: %w", err)
 	}
@@ -62,7 +62,7 @@ func (r *AuditLogRepository) GetByUserID(ctx context.Context, userID string, lim
 		var metadataJSON []byte
 
 		err := rows.Scan(
-			&entry.ID, &entry.UserID, &entry.Action, &entry.IPAddress, &entry.UserAgent, &entry.Country,
+			&entry.ID, &entry.TenantID, &entry.UserID, &entry.Action, &entry.IPAddress, &entry.UserAgent, &entry.Country,
 			&entry.Success, &entry.ErrorMsg, &metadataJSON, &entry.CreatedAt,
 		)
 

@@ -9,6 +9,7 @@ import (
 
 type EmailVerification struct {
 	ID         string
+	TenantID   string
 	UserID     string
 	TokenHash  string
 	ExpiresAt  time.Time
@@ -18,10 +19,11 @@ type EmailVerification struct {
 	UserAgent  string
 }
 
-func NewEmailVerification(userID, tokenHash string, expiryDuration time.Duration, ipAddress, userAgent string) *EmailVerification {
+func NewEmailVerification(tenantID, userID, tokenHash string, expiryDuration time.Duration, ipAddress, userAgent string) *EmailVerification {
 	now := time.Now().UTC()
 	return &EmailVerification{
 		ID:        uuid.New().String(),
+		TenantID:  tenantID,
 		UserID:    userID,
 		TokenHash: tokenHash,
 		ExpiresAt: now.Add(expiryDuration),

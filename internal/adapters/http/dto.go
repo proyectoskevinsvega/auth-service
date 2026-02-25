@@ -4,6 +4,7 @@ package http
 
 // RegisterRequest representa la solicitud de registro de un nuevo usuario
 type RegisterRequest struct {
+	TenantID string `json:"tenant_id" example:"customer1" validate:"required"`           // ID del tenant
 	Username string `json:"username" example:"johndoe" validate:"required,min=3,max=30"` // Nombre de usuario único (3-30 caracteres)
 	Email    string `json:"email" example:"user@example.com" validate:"required,email"`  // Correo electrónico válido
 	Password string `json:"password" example:"SecurePass123!" validate:"required,min=8"` // Contraseña (mínimo 8 caracteres)
@@ -23,17 +24,20 @@ type RefreshTokenRequest struct {
 
 // ForgotPasswordRequest representa la solicitud de recuperación de contraseña
 type ForgotPasswordRequest struct {
-	Email string `json:"email" example:"user@example.com" validate:"required,email"` // Correo electrónico de la cuenta
+	TenantID string `json:"tenant_id" example:"customer1" validate:"required"`          // ID del tenant
+	Email    string `json:"email" example:"user@example.com" validate:"required,email"` // Correo electrónico de la cuenta
 }
 
 // ResetPasswordRequest representa la solicitud de restablecimiento de contraseña con token
 type ResetPasswordRequest struct {
+	TenantID    string `json:"tenant_id" example:"customer1" validate:"required"`                  // ID del tenant
 	Token       string `json:"token" example:"abc123..." validate:"required"`                      // Token recibido por email
 	NewPassword string `json:"new_password" example:"NewSecurePass123!" validate:"required,min=8"` // Nueva contraseña
 }
 
 // ResetPasswordWithCodeRequest representa la solicitud de restablecimiento de contraseña con código
 type ResetPasswordWithCodeRequest struct {
+	TenantID    string `json:"tenant_id" example:"customer1" validate:"required"`                  // ID del tenant
 	Email       string `json:"email" example:"user@example.com" validate:"required,email"`         // Correo electrónico de la cuenta
 	Code        string `json:"code" example:"123456" validate:"required,len=6"`                    // Código de 6 dígitos recibido por email
 	NewPassword string `json:"new_password" example:"NewSecurePass123!" validate:"required,min=8"` // Nueva contraseña
@@ -62,7 +66,8 @@ type Disable2FARequest struct {
 
 // VerifyEmailRequest representa la solicitud de verificación de email
 type VerifyEmailRequest struct {
-	Token string `json:"token" example:"abc123..." validate:"required"` // Token de verificación recibido por email
+	TenantID string `json:"tenant_id" example:"customer1" validate:"required"` // ID del tenant
+	Token    string `json:"token" example:"abc123..." validate:"required"`     // Token de verificación recibido por email
 }
 
 // Response DTOs

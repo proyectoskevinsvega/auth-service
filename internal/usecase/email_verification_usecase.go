@@ -48,6 +48,7 @@ func NewEmailVerificationUseCase(
 }
 
 type SendVerificationInput struct {
+	TenantID  string
 	UserID    string
 	IPAddress string
 	UserAgent string
@@ -56,7 +57,7 @@ type SendVerificationInput struct {
 // SendVerificationEmail generates a verification token and sends email
 func (uc *EmailVerificationUseCase) SendVerificationEmail(ctx context.Context, input SendVerificationInput) error {
 	// Get user
-	user, err := uc.userRepo.GetByID(ctx, input.UserID)
+	user, err := uc.userRepo.GetByID(ctx, input.TenantID, input.UserID)
 	if err != nil {
 		return fmt.Errorf("failed to get user: %w", err)
 	}
@@ -74,6 +75,7 @@ func (uc *EmailVerificationUseCase) SendVerificationEmail(ctx context.Context, i
 
 	// Create verification record
 	verification := domain.NewEmailVerification(
+		user.TenantID,
 		user.ID,
 		tokenHash,
 		EmailVerificationExpiry,
@@ -112,12 +114,12 @@ func (uc *EmailVerificationUseCase) SendVerificationEmail(ctx context.Context, i
 }
 
 // VerifyEmail verifies an email using the provided token
-func (uc *EmailVerificationUseCase) VerifyEmail(ctx context.Context, token string) error {
+func (uc *EmailVerificationUseCase) VerifyEmail(ctx context.Context, tenantID, token string) error {
 	// Hash the token to match database
 	tokenHash := uc.hashToken(token)
 
 	// Get verification record
-	verification, err := uc.verificationRepo.GetByTokenHash(ctx, tokenHash)
+	verification, err := uc.verificationRepo.GetByTokenHash(ctx, tenantID, tokenHash)
 	if err != nil {
 		return err // Returns ErrVerificationTokenNotFound if not found
 	}
@@ -133,7 +135,7 @@ func (uc *EmailVerificationUseCase) VerifyEmail(ctx context.Context, token strin
 	}
 
 	// Get user
-	user, err := uc.userRepo.GetByID(ctx, verification.UserID)
+	user, err := uc.userRepo.GetByID(ctx, verification.TenantID, verification.UserID)
 	if err != nil {
 		return fmt.Errorf("failed to get user: %w", err)
 	}
@@ -144,7 +146,7 @@ func (uc *EmailVerificationUseCase) VerifyEmail(ctx context.Context, token strin
 	}
 
 	// Mark verification as used
-	if err := uc.verificationRepo.MarkAsVerified(ctx, tokenHash); err != nil {
+	if err := uc.verificationRepo.MarkAsVerified(ctx, tenantID, tokenHash); err != nil {
 		return fmt.Errorf("failed to mark verification as used: %w", err)
 	}
 
@@ -162,9 +164,9 @@ func (uc *EmailVerificationUseCase) VerifyEmail(ctx context.Context, token strin
 }
 
 // ResendVerificationEmail deletes old tokens and sends a new verification email
-func (uc *EmailVerificationUseCase) ResendVerificationEmail(ctx context.Context, userID, ipAddress, userAgent string) error {
+func (uc *EmailVerificationUseCase) ResendVerificationEmail(ctx context.Context, tenantID, userID, ipAddress, userAgent string) error {
 	// Get user
-	user, err := uc.userRepo.GetByID(ctx, userID)
+	user, err := uc.userRepo.GetByID(ctx, tenantID, userID)
 	if err != nil {
 		return fmt.Errorf("failed to get user: %w", err)
 	}
@@ -175,13 +177,14 @@ func (uc *EmailVerificationUseCase) ResendVerificationEmail(ctx context.Context,
 	}
 
 	// Delete old verification tokens for this user
-	if err := uc.verificationRepo.DeleteByUserID(ctx, userID); err != nil {
+	if err := uc.verificationRepo.DeleteByUserID(ctx, tenantID, userID); err != nil {
 		uc.logger.Warn().Err(err).Str("user_id", userID).Msg("failed to delete old verification tokens")
 		// Continue anyway
 	}
 
 	// Send new verification email
 	return uc.SendVerificationEmail(ctx, SendVerificationInput{
+		TenantID:  tenantID,
 		UserID:    userID,
 		IPAddress: ipAddress,
 		UserAgent: userAgent,

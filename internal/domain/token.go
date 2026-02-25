@@ -8,6 +8,7 @@ import (
 
 type Token struct {
 	JTI         string
+	TenantID    string
 	UserID      string
 	Email       string
 	IssuedAt    int64
@@ -17,10 +18,11 @@ type Token struct {
 	Permissions []string // Added for granular RBAC
 }
 
-func NewToken(userID string, email string, expiry time.Duration) *Token {
+func NewToken(tenantID, userID, email string, expiry time.Duration) *Token {
 	now := time.Now()
 	return &Token{
 		JTI:         uuid.New().String(),
+		TenantID:    tenantID,
 		UserID:      userID,
 		Email:       email,
 		IssuedAt:    now.Unix(),
@@ -79,6 +81,7 @@ func (t *Token) HasPermission(permission string) bool {
 
 type RefreshToken struct {
 	ID            string
+	TenantID      string
 	UserID        string
 	SessionID     string
 	TokenHash     string
@@ -89,10 +92,11 @@ type RefreshToken struct {
 	RevokedAt     *time.Time
 }
 
-func NewRefreshToken(userID, sessionID, tokenHash string, expiry time.Duration) *RefreshToken {
+func NewRefreshToken(tenantID, userID, sessionID, tokenHash string, expiry time.Duration) *RefreshToken {
 	now := time.Now().UTC()
 	return &RefreshToken{
 		ID:        uuid.New().String(),
+		TenantID:  tenantID,
 		UserID:    userID,
 		SessionID: sessionID,
 		TokenHash: tokenHash,
@@ -119,6 +123,7 @@ func (rt *RefreshToken) Revoke() {
 func (rt *RefreshToken) Rotate(newTokenHash string) *RefreshToken {
 	newToken := &RefreshToken{
 		ID:            uuid.New().String(),
+		TenantID:      rt.TenantID,
 		UserID:        rt.UserID,
 		SessionID:     rt.SessionID,
 		TokenHash:     newTokenHash,
@@ -133,6 +138,7 @@ func (rt *RefreshToken) Rotate(newTokenHash string) *RefreshToken {
 
 type PasswordResetToken struct {
 	ID        string
+	TenantID  string
 	UserID    string
 	Token     string
 	Code      string // Código de 6 dígitos
@@ -142,10 +148,11 @@ type PasswordResetToken struct {
 	UsedAt    *time.Time
 }
 
-func NewPasswordResetToken(userID, token, code string) *PasswordResetToken {
+func NewPasswordResetToken(tenantID, userID, token, code string) *PasswordResetToken {
 	now := time.Now().UTC() // Use UTC to avoid timezone issues
 	return &PasswordResetToken{
 		ID:        uuid.New().String(),
+		TenantID:  tenantID,
 		UserID:    userID,
 		Token:     token,
 		Code:      code,

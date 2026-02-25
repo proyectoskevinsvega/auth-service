@@ -29,26 +29,26 @@ Prioridades basadas en impacto de seguridad, demanda de funcionalidad y compleji
 
 ## 🟡 P2 — Media prioridad (Mejoras)
 
-| Feature                         | Estado       | Descripción                                                                                                         |
-| ------------------------------- | ------------ | ------------------------------------------------------------------------------------------------------------------- |
-| **User Self-Service Portal**    | ❌ Pendiente | Portal para usuarios: gestión de MFA, sesiones activas, descarga de datos (GDPR) e historial de seguridad personal. |
-| **Enterprise Federation (SSO)** | ❌ Pendiente | Integración vía SAML 2.0 y OIDC con Azure AD, Okta, Ping Identity y Google Workspace.                               |
-| **Multi-tenant isolation**      | ❌ Pendiente | Aislamiento lógico (User Pools) con configuración independiente por cliente.                                        |
-| **Client Credentials Flow**     | ❌ Pendiente | Autenticación Machine-to-Machine para microservicios mediante Client ID / Client Secret.                            |
-| **Webhook Lifecycle Events**    | ❌ Pendiente | Notificaciones en tiempo real hacia servicios externos sobre eventos críticos (ej: UserDeletion, RiskDetected).     |
-| **Developer SDKs & CLI**        | ❌ Pendiente | SDKs oficiales (Go, TS, Python) y herramienta de comandos para automatización de la plataforma.                     |
+| Feature                         | Estado        | Descripción                                                                                                         |
+| ------------------------------- | ------------- | ------------------------------------------------------------------------------------------------------------------- |
+| **User Self-Service Portal**    | ❌ Pendiente  | Portal para usuarios: gestión de MFA, sesiones activas, descarga de datos (GDPR) e historial de seguridad personal. |
+| **Enterprise Federation (SSO)** | ❌ Pendiente  | Integración vía SAML 2.0 y OIDC con Azure AD, Okta, Ping Identity y Google Workspace.                               |
+| **Multi-tenant isolation**      | ✅ Completado | Aislamiento lógico (User Pools) con configuración independiente por cliente.                                        |
+| **Client Credentials Flow**     | ❌ Pendiente  | Autenticación Machine-to-Machine para microservicios mediante Client ID / Client Secret.                            |
+| **Webhook Lifecycle Events**    | ❌ Pendiente  | Notificaciones en tiempo real hacia servicios externos sobre eventos críticos (ej: UserDeletion, RiskDetected).     |
+| **Developer SDKs & CLI**        | ❌ Pendiente  | SDKs oficiales (Go, TS, Python) y herramienta de comandos para automatización de la plataforma.                     |
 
 ---
 
 ## 🟢 P3 — Baja prioridad (Nice-to-have)
 
-| Feature                          | Estado       | Descripción                                                                                          |
-| -------------------------------- | ------------ | ---------------------------------------------------------------------------------------------------- |
-| **Session geofencing**           | ❌ Pendiente | Restricción de acceso basada en perímetros geográficos y prevención de saltos de IP sospechosos.     |
-| **Compliance & Audit Reporting** | ❌ Pendiente | Generación automática de reportes de cumplimiento para normativas GDPR, SOC2 e HIPAA.                |
-| **Advanced Threat Intelligence** | ❌ Pendiente | Integración con bases de datos de amenazas externas para bloquear IPs maliciosas de forma proactiva. |
-| **Backup codes regeneration**    | ❌ Pendiente | Workflow de recuperación de emergencia ante pérdida de dispositivo MFA.                              |
-| **Login analytics dashboard**    | ❌ Pendiente | Analíticas avanzadas de uso, retención y patrones de autenticación por aplicación.                   |
+| Feature                          | Estado        | Descripción                                                                                          |
+| -------------------------------- | ------------- | ---------------------------------------------------------------------------------------------------- |
+| **Session geofencing**           | ✅ Completado | Restricción de acceso basada en perímetros geográficos y prevención de saltos de IP sospechosos.     |
+| **Compliance & Audit Reporting** | ❌ Pendiente  | Generación automática de reportes de cumplimiento para normativas GDPR, SOC2 e HIPAA.                |
+| **Advanced Threat Intelligence** | ❌ Pendiente  | Integración con bases de datos de amenazas externas para bloquear IPs maliciosas de forma proactiva. |
+| **Backup codes regeneration**    | ❌ Pendiente  | Workflow de recuperación de emergencia ante pérdida de dispositivo MFA.                              |
+| **Login analytics dashboard**    | ❌ Pendiente  | Analíticas avanzadas de uso, retención y patrones de autenticación por aplicación.                   |
 
 ---
 
@@ -68,6 +68,8 @@ Prioridades basadas en impacto de seguridad, demanda de funcionalidad y compleji
 
 | Feature                                          | Versión |
 | ------------------------------------------------ | ------- |
+| Session geofencing                               | v1.4    |
+| Multi-tenant isolation (User Pools)              | v1.3    |
 | Passwordless (FIDO2/WebAuthn)                    | v1.2    |
 | Account lockout configurable                     | v1.1    |
 | Adaptive Authentication (Impossible Travel)      | v1.1    |

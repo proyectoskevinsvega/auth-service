@@ -8,6 +8,7 @@ import (
 
 type Session struct {
 	ID           string
+	TenantID     string
 	UserID       string
 	JTI          string // JWT ID for tracking current session
 	IPAddress    string
@@ -25,11 +26,11 @@ type Session struct {
 }
 
 type NewSessionInput struct {
-	UserID       string
-	IPAddress    string
-	Country      string
-	Device       string
-	UserAgent    string
+	UserID        string
+	IPAddress     string
+	Country       string
+	Device        string
+	UserAgent     string
 	InactivityTTL time.Duration
 }
 
@@ -37,6 +38,7 @@ func NewSession(input NewSessionInput) *Session {
 	now := time.Now().UTC()
 	return &Session{
 		ID:         uuid.New().String(),
+		TenantID:   "", // Should be set by caller or during initialization
 		UserID:     input.UserID,
 		IPAddress:  input.IPAddress,
 		Country:    input.Country,

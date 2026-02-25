@@ -11,11 +11,13 @@ import (
 
 type RiskService struct {
 	geoService ports.GeolocationService
+	tenantRepo ports.TenantRepository
 }
 
-func NewRiskService(geoService ports.GeolocationService) *RiskService {
+func NewRiskService(geoService ports.GeolocationService, tenantRepo ports.TenantRepository) *RiskService {
 	return &RiskService{
 		geoService: geoService,
+		tenantRepo: tenantRepo,
 	}
 }
 
@@ -51,6 +53,42 @@ func (s *RiskService) AssessLoginRisk(ctx context.Context, user *domain.User, cu
 	}
 
 	return risk, currentLoc, nil
+}
+
+func (s *RiskService) VerifyGeofencing(ctx context.Context, tenantID string, countryCode string) error {
+	if countryCode == "" {
+		return nil // Cannot verify if country is unknown
+	}
+
+	tenant, err := s.tenantRepo.GetByID(ctx, tenantID)
+	if err != nil {
+		return nil // Assume no restrictions if tenant not found or error
+	}
+
+	settings := tenant.Settings
+
+	// 1. Check blocked countries
+	for _, blocked := range settings.BlockedCountries {
+		if countryCode == blocked {
+			return domain.ErrGeofencingRestriction
+		}
+	}
+
+	// 2. Check allowed countries (if whitelist is not empty)
+	if len(settings.AllowedCountries) > 0 {
+		allowed := false
+		for _, a := range settings.AllowedCountries {
+			if countryCode == a {
+				allowed = true
+				break
+			}
+		}
+		if !allowed {
+			return domain.ErrGeofencingRestriction
+		}
+	}
+
+	return nil
 }
 
 // calculateDistance returns distance in km between two coordinates using Haversine formula

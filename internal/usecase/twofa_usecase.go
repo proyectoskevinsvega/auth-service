@@ -11,9 +11,9 @@ import (
 )
 
 type TwoFAUseCase struct {
-	userRepo  ports.UserRepository
+	userRepo    ports.UserRepository
 	totpService ports.TOTPService
-	logger    zerolog.Logger
+	logger      zerolog.Logger
 }
 
 func NewTwoFAUseCase(
@@ -22,9 +22,9 @@ func NewTwoFAUseCase(
 	logger zerolog.Logger,
 ) *TwoFAUseCase {
 	return &TwoFAUseCase{
-		userRepo:  userRepo,
+		userRepo:    userRepo,
 		totpService: totpService,
-		logger:    logger,
+		logger:      logger,
 	}
 }
 
@@ -34,9 +34,9 @@ type Enable2FAResponse struct {
 }
 
 // Enable2FA generates a TOTP secret and QR code for the user
-func (uc *TwoFAUseCase) Enable2FA(ctx context.Context, userID string) (*Enable2FAResponse, error) {
+func (uc *TwoFAUseCase) Enable2FA(ctx context.Context, tenantID, userID string) (*Enable2FAResponse, error) {
 	// Get user
-	user, err := uc.userRepo.GetByID(ctx, userID)
+	user, err := uc.userRepo.GetByID(ctx, tenantID, userID)
 	if err != nil {
 		uc.logger.Error().Err(err).Str("user_id", userID).Msg("failed to get user")
 		return nil, err
@@ -71,9 +71,9 @@ func (uc *TwoFAUseCase) Enable2FA(ctx context.Context, userID string) (*Enable2F
 }
 
 // Verify2FA verifies the TOTP code and enables 2FA for the user
-func (uc *TwoFAUseCase) Verify2FA(ctx context.Context, userID, code string) error {
+func (uc *TwoFAUseCase) Verify2FA(ctx context.Context, tenantID, userID, code string) error {
 	// Get user
-	user, err := uc.userRepo.GetByID(ctx, userID)
+	user, err := uc.userRepo.GetByID(ctx, tenantID, userID)
 	if err != nil {
 		uc.logger.Error().Err(err).Str("user_id", userID).Msg("failed to get user")
 		return err
@@ -114,9 +114,9 @@ func (uc *TwoFAUseCase) Verify2FA(ctx context.Context, userID, code string) erro
 }
 
 // Disable2FA disables 2FA for the user after verifying the code
-func (uc *TwoFAUseCase) Disable2FA(ctx context.Context, userID, code string) error {
+func (uc *TwoFAUseCase) Disable2FA(ctx context.Context, tenantID, userID, code string) error {
 	// Get user
-	user, err := uc.userRepo.GetByID(ctx, userID)
+	user, err := uc.userRepo.GetByID(ctx, tenantID, userID)
 	if err != nil {
 		uc.logger.Error().Err(err).Str("user_id", userID).Msg("failed to get user")
 		return err

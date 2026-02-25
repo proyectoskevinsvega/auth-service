@@ -19,18 +19,18 @@ func NewRoleRepository(db *pgxpool.Pool) *RoleRepository {
 }
 
 func (r *RoleRepository) CreateRole(ctx context.Context, role *domain.Role) error {
-	query := `INSERT INTO auth_roles (id, name, description, created_at, updated_at) VALUES ($1, $2, $3, $4, $5)`
-	_, err := r.db.Exec(ctx, query, role.ID, role.Name, role.Description, role.CreatedAt, role.UpdatedAt)
+	query := `INSERT INTO auth_roles (id, tenant_id, name, description, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6)`
+	_, err := r.db.Exec(ctx, query, role.ID, role.TenantID, role.Name, role.Description, role.CreatedAt, role.UpdatedAt)
 	if err != nil {
 		return fmt.Errorf("failed to create role: %w", err)
 	}
 	return nil
 }
 
-func (r *RoleRepository) GetRoleByName(ctx context.Context, name string) (*domain.Role, error) {
-	query := `SELECT id, name, description, created_at, updated_at FROM auth_roles WHERE name = $1`
+func (r *RoleRepository) GetRoleByName(ctx context.Context, tenantID, name string) (*domain.Role, error) {
+	query := `SELECT id, tenant_id, name, description, created_at, updated_at FROM auth_roles WHERE tenant_id = $1 AND name = $2`
 	role := &domain.Role{}
-	err := r.db.QueryRow(ctx, query, name).Scan(&role.ID, &role.Name, &role.Description, &role.CreatedAt, &role.UpdatedAt)
+	err := r.db.QueryRow(ctx, query, tenantID, name).Scan(&role.ID, &role.TenantID, &role.Name, &role.Description, &role.CreatedAt, &role.UpdatedAt)
 	if err != nil {
 		if err == sql.ErrNoRows || err == pgx.ErrNoRows {
 			return nil, fmt.Errorf("role not found")
@@ -39,7 +39,7 @@ func (r *RoleRepository) GetRoleByName(ctx context.Context, name string) (*domai
 	}
 
 	// Load permissions
-	perms, err := r.getRolePermissions(ctx, role.ID)
+	perms, err := r.getRolePermissions(ctx, tenantID, role.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -48,9 +48,9 @@ func (r *RoleRepository) GetRoleByName(ctx context.Context, name string) (*domai
 	return role, nil
 }
 
-func (r *RoleRepository) ListRoles(ctx context.Context) ([]*domain.Role, error) {
-	query := `SELECT id, name, description, created_at, updated_at FROM auth_roles`
-	rows, err := r.db.Query(ctx, query)
+func (r *RoleRepository) ListRoles(ctx context.Context, tenantID string) ([]*domain.Role, error) {
+	query := `SELECT id, tenant_id, name, description, created_at, updated_at FROM auth_roles WHERE tenant_id = $1`
+	rows, err := r.db.Query(ctx, query, tenantID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list roles: %w", err)
 	}
@@ -59,14 +59,14 @@ func (r *RoleRepository) ListRoles(ctx context.Context) ([]*domain.Role, error) 
 	var roles []*domain.Role
 	for rows.Next() {
 		role := &domain.Role{}
-		if err := rows.Scan(&role.ID, &role.Name, &role.Description, &role.CreatedAt, &role.UpdatedAt); err != nil {
+		if err := rows.Scan(&role.ID, &role.TenantID, &role.Name, &role.Description, &role.CreatedAt, &role.UpdatedAt); err != nil {
 			return nil, err
 		}
 		roles = append(roles, role)
 	}
 
 	for _, role := range roles {
-		perms, err := r.getRolePermissions(ctx, role.ID)
+		perms, err := r.getRolePermissions(ctx, tenantID, role.ID)
 		if err != nil {
 			return nil, err
 		}
@@ -76,14 +76,14 @@ func (r *RoleRepository) ListRoles(ctx context.Context) ([]*domain.Role, error) 
 	return roles, nil
 }
 
-func (r *RoleRepository) getRolePermissions(ctx context.Context, roleID string) ([]domain.Permission, error) {
+func (r *RoleRepository) getRolePermissions(ctx context.Context, tenantID, roleID string) ([]domain.Permission, error) {
 	query := `
-		SELECT p.id, p.name, p.description, p.created_at, p.updated_at 
+		SELECT p.id, p.tenant_id, p.name, p.description, p.created_at, p.updated_at 
 		FROM auth_permissions p
 		JOIN auth_role_permissions rp ON p.id = rp.permission_id
-		WHERE rp.role_id = $1
+		WHERE rp.tenant_id = $1 AND rp.role_id = $2
 	`
-	rows, err := r.db.Query(ctx, query, roleID)
+	rows, err := r.db.Query(ctx, query, tenantID, roleID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get role permissions: %w", err)
 	}
@@ -92,7 +92,7 @@ func (r *RoleRepository) getRolePermissions(ctx context.Context, roleID string) 
 	var perms []domain.Permission
 	for rows.Next() {
 		p := domain.Permission{}
-		if err := rows.Scan(&p.ID, &p.Name, &p.Description, &p.CreatedAt, &p.UpdatedAt); err != nil {
+		if err := rows.Scan(&p.ID, &p.TenantID, &p.Name, &p.Description, &p.CreatedAt, &p.UpdatedAt); err != nil {
 			return nil, err
 		}
 		perms = append(perms, p)
@@ -100,32 +100,32 @@ func (r *RoleRepository) getRolePermissions(ctx context.Context, roleID string) 
 	return perms, nil
 }
 
-func (r *RoleRepository) AddPermissionToRole(ctx context.Context, roleID, permissionID string) error {
-	query := `INSERT INTO auth_role_permissions (role_id, permission_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`
-	_, err := r.db.Exec(ctx, query, roleID, permissionID)
+func (r *RoleRepository) AddPermissionToRole(ctx context.Context, tenantID, roleID, permissionID string) error {
+	query := `INSERT INTO auth_role_permissions (tenant_id, role_id, permission_id) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING`
+	_, err := r.db.Exec(ctx, query, tenantID, roleID, permissionID)
 	return err
 }
 
-func (r *RoleRepository) AssignRoleToUser(ctx context.Context, userID, roleID string) error {
-	query := `INSERT INTO auth_user_roles (user_id, role_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`
-	_, err := r.db.Exec(ctx, query, userID, roleID)
+func (r *RoleRepository) AssignRoleToUser(ctx context.Context, tenantID, userID, roleID string) error {
+	query := `INSERT INTO auth_user_roles (tenant_id, user_id, role_id) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING`
+	_, err := r.db.Exec(ctx, query, tenantID, userID, roleID)
 	return err
 }
 
-func (r *RoleRepository) RemoveRoleFromUser(ctx context.Context, userID, roleID string) error {
-	query := `DELETE FROM auth_user_roles WHERE user_id = $1 AND role_id = $2`
-	_, err := r.db.Exec(ctx, query, userID, roleID)
+func (r *RoleRepository) RemoveRoleFromUser(ctx context.Context, tenantID, userID, roleID string) error {
+	query := `DELETE FROM auth_user_roles WHERE tenant_id = $1 AND user_id = $2 AND role_id = $3`
+	_, err := r.db.Exec(ctx, query, tenantID, userID, roleID)
 	return err
 }
 
-func (r *RoleRepository) GetUserRoles(ctx context.Context, userID string) ([]domain.Role, error) {
+func (r *RoleRepository) GetUserRoles(ctx context.Context, tenantID, userID string) ([]domain.Role, error) {
 	query := `
-		SELECT r.id, r.name, r.description, r.created_at, r.updated_at 
+		SELECT r.id, r.tenant_id, r.name, r.description, r.created_at, r.updated_at 
 		FROM auth_roles r
 		JOIN auth_user_roles ur ON r.id = ur.role_id
-		WHERE ur.user_id = $1
+		WHERE ur.tenant_id = $1 AND ur.user_id = $2
 	`
-	rows, err := r.db.Query(ctx, query, userID)
+	rows, err := r.db.Query(ctx, query, tenantID, userID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user roles: %w", err)
 	}
@@ -134,14 +134,14 @@ func (r *RoleRepository) GetUserRoles(ctx context.Context, userID string) ([]dom
 	var roles []domain.Role
 	for rows.Next() {
 		role := domain.Role{}
-		if err := rows.Scan(&role.ID, &role.Name, &role.Description, &role.CreatedAt, &role.UpdatedAt); err != nil {
+		if err := rows.Scan(&role.ID, &role.TenantID, &role.Name, &role.Description, &role.CreatedAt, &role.UpdatedAt); err != nil {
 			return nil, err
 		}
 		roles = append(roles, role)
 	}
 
 	for i := range roles {
-		perms, err := r.getRolePermissions(ctx, roles[i].ID)
+		perms, err := r.getRolePermissions(ctx, tenantID, roles[i].ID)
 		if err != nil {
 			return nil, err
 		}
@@ -152,15 +152,15 @@ func (r *RoleRepository) GetUserRoles(ctx context.Context, userID string) ([]dom
 }
 
 func (r *RoleRepository) CreatePermission(ctx context.Context, perm *domain.Permission) error {
-	query := `INSERT INTO auth_permissions (id, name, description, created_at, updated_at) VALUES ($1, $2, $3, $4, $5)`
-	_, err := r.db.Exec(ctx, query, perm.ID, perm.Name, perm.Description, perm.CreatedAt, perm.UpdatedAt)
+	query := `INSERT INTO auth_permissions (id, tenant_id, name, description, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6)`
+	_, err := r.db.Exec(ctx, query, perm.ID, perm.TenantID, perm.Name, perm.Description, perm.CreatedAt, perm.UpdatedAt)
 	return err
 }
 
-func (r *RoleRepository) GetPermissionByName(ctx context.Context, name string) (*domain.Permission, error) {
-	query := `SELECT id, name, description, created_at, updated_at FROM auth_permissions WHERE name = $1`
+func (r *RoleRepository) GetPermissionByName(ctx context.Context, tenantID, name string) (*domain.Permission, error) {
+	query := `SELECT id, tenant_id, name, description, created_at, updated_at FROM auth_permissions WHERE tenant_id = $1 AND name = $2`
 	perm := &domain.Permission{}
-	err := r.db.QueryRow(ctx, query, name).Scan(&perm.ID, &perm.Name, &perm.Description, &perm.CreatedAt, &perm.UpdatedAt)
+	err := r.db.QueryRow(ctx, query, tenantID, name).Scan(&perm.ID, &perm.TenantID, &perm.Name, &perm.Description, &perm.CreatedAt, &perm.UpdatedAt)
 	if err != nil {
 		if err == sql.ErrNoRows || err == pgx.ErrNoRows {
 			return nil, fmt.Errorf("permission not found")
@@ -170,9 +170,9 @@ func (r *RoleRepository) GetPermissionByName(ctx context.Context, name string) (
 	return perm, nil
 }
 
-func (r *RoleRepository) ListPermissions(ctx context.Context) ([]*domain.Permission, error) {
-	query := `SELECT id, name, description, created_at, updated_at FROM auth_permissions`
-	rows, err := r.db.Query(ctx, query)
+func (r *RoleRepository) ListPermissions(ctx context.Context, tenantID string) ([]*domain.Permission, error) {
+	query := `SELECT id, tenant_id, name, description, created_at, updated_at FROM auth_permissions WHERE tenant_id = $1`
+	rows, err := r.db.Query(ctx, query, tenantID)
 	if err != nil {
 		return nil, err
 	}
@@ -181,7 +181,7 @@ func (r *RoleRepository) ListPermissions(ctx context.Context) ([]*domain.Permiss
 	var perms []*domain.Permission
 	for rows.Next() {
 		p := &domain.Permission{}
-		if err := rows.Scan(&p.ID, &p.Name, &p.Description, &p.CreatedAt, &p.UpdatedAt); err != nil {
+		if err := rows.Scan(&p.ID, &p.TenantID, &p.Name, &p.Description, &p.CreatedAt, &p.UpdatedAt); err != nil {
 			return nil, err
 		}
 		perms = append(perms, p)

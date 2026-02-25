@@ -27,8 +27,8 @@ func NewSessionUseCase(
 }
 
 // ListUserSessions returns all active sessions for a user
-func (uc *SessionUseCase) ListUserSessions(ctx context.Context, userID, currentJTI string) ([]*domain.Session, error) {
-	sessions, err := uc.sessionRepo.GetByUserID(ctx, userID)
+func (uc *SessionUseCase) ListUserSessions(ctx context.Context, tenantID, userID, currentJTI string) ([]*domain.Session, error) {
+	sessions, err := uc.sessionRepo.GetByUserID(ctx, tenantID, userID)
 	if err != nil {
 		uc.logger.Error().Err(err).Str("user_id", userID).Msg("failed to list user sessions")
 		return nil, err
@@ -45,9 +45,9 @@ func (uc *SessionUseCase) ListUserSessions(ctx context.Context, userID, currentJ
 }
 
 // RevokeSession revokes a specific session
-func (uc *SessionUseCase) RevokeSession(ctx context.Context, userID, sessionID string) error {
+func (uc *SessionUseCase) RevokeSession(ctx context.Context, tenantID, userID, sessionID string) error {
 	// Verify session belongs to user
-	session, err := uc.sessionRepo.GetByID(ctx, sessionID)
+	session, err := uc.sessionRepo.GetByID(ctx, tenantID, sessionID)
 	if err != nil {
 		if err == domain.ErrSessionNotFound {
 			return domain.ErrSessionNotFound
@@ -66,7 +66,7 @@ func (uc *SessionUseCase) RevokeSession(ctx context.Context, userID, sessionID s
 	}
 
 	// Revoke session
-	if err := uc.sessionRepo.Revoke(ctx, sessionID, "user", "revoked by user"); err != nil {
+	if err := uc.sessionRepo.Revoke(ctx, tenantID, sessionID, "user", "revoked by user"); err != nil {
 		uc.logger.Error().Err(err).Str("session_id", sessionID).Msg("failed to revoke session")
 		return err
 	}
@@ -80,8 +80,8 @@ func (uc *SessionUseCase) RevokeSession(ctx context.Context, userID, sessionID s
 }
 
 // RevokeAllSessions revokes all sessions except the current one
-func (uc *SessionUseCase) RevokeAllSessions(ctx context.Context, userID, currentJTI string) (int, error) {
-	sessions, err := uc.sessionRepo.GetByUserID(ctx, userID)
+func (uc *SessionUseCase) RevokeAllSessions(ctx context.Context, tenantID, userID, currentJTI string) (int, error) {
+	sessions, err := uc.sessionRepo.GetByUserID(ctx, tenantID, userID)
 	if err != nil {
 		uc.logger.Error().Err(err).Str("user_id", userID).Msg("failed to get user sessions")
 		return 0, err
@@ -94,7 +94,7 @@ func (uc *SessionUseCase) RevokeAllSessions(ctx context.Context, userID, current
 			continue
 		}
 
-		if err := uc.sessionRepo.Revoke(ctx, session.ID, "user", "revoked all sessions"); err != nil {
+		if err := uc.sessionRepo.Revoke(ctx, tenantID, session.ID, "user", "revoked all sessions"); err != nil {
 			uc.logger.Error().
 				Err(err).
 				Str("session_id", session.ID).

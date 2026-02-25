@@ -25,6 +25,7 @@ const (
 
 type Event struct {
 	ID        string                 `json:"id"`
+	TenantID  string                 `json:"tenant_id"`
 	Type      EventType              `json:"type"`
 	UserID    string                 `json:"user_id"`
 	Email     string                 `json:"email,omitempty"`
@@ -32,9 +33,10 @@ type Event struct {
 	Data      map[string]interface{} `json:"data,omitempty"`
 }
 
-func NewEvent(eventType EventType, userID, email string, data map[string]interface{}) *Event {
+func NewEvent(tenantID string, eventType EventType, userID, email string, data map[string]interface{}) *Event {
 	return &Event{
 		ID:        uuid.New().String(),
+		TenantID:  tenantID,
 		Type:      eventType,
 		UserID:    userID,
 		Email:     email,
@@ -53,6 +55,7 @@ func (e *Event) ToJSON() (string, error) {
 
 type AuditLogEntry struct {
 	ID        string
+	TenantID  string
 	UserID    string
 	Action    string
 	IPAddress string
@@ -64,9 +67,10 @@ type AuditLogEntry struct {
 	CreatedAt time.Time
 }
 
-func NewAuditLogEntry(userID, action, ipAddress, userAgent, country string, success bool, errorMsg string, metadata map[string]interface{}) *AuditLogEntry {
+func NewAuditLogEntry(tenantID, userID, action, ipAddress, userAgent, country string, success bool, errorMsg string, metadata map[string]interface{}) *AuditLogEntry {
 	return &AuditLogEntry{
 		ID:        uuid.New().String(),
+		TenantID:  tenantID,
 		UserID:    userID,
 		Action:    action,
 		IPAddress: ipAddress,

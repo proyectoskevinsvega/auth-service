@@ -14,6 +14,7 @@ var usernameRegex = regexp.MustCompile(`^[a-zA-Z0-9_-]{3,30}$`)
 
 type User struct {
 	ID                    string
+	TenantID              string
 	Username              string
 	Email                 string
 	PasswordHash          string
@@ -40,6 +41,7 @@ type User struct {
 }
 
 type NewUserInput struct {
+	TenantID        string
 	Username        string
 	Email           string
 	Password        string
@@ -63,6 +65,7 @@ func NewUser(input NewUserInput) (*User, error) {
 	now := time.Now()
 	return &User{
 		ID:              uuid.New().String(),
+		TenantID:        input.TenantID,
 		Username:        input.Username,
 		Email:           input.Email,
 		Active:          true,

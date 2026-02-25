@@ -21,6 +21,8 @@ type TokenUseCaseMocks struct {
 	userRepo    *mocks.MockUserRepository
 	refreshRepo *mocks.MockRefreshTokenRepository
 	sessionRepo *mocks.MockSessionRepository
+	riskService *mocks.MockRiskService
+	tenantRepo  *mocks.MockTenantRepository
 	notifier    *mocks.MockNotificationPublisher
 }
 
@@ -31,6 +33,8 @@ func setupTokenUseCase(_ *testing.T) *TokenUseCaseMocks {
 	userRepo := new(mocks.MockUserRepository)
 	refreshRepo := new(mocks.MockRefreshTokenRepository)
 	sessionRepo := new(mocks.MockSessionRepository)
+	riskService := new(mocks.MockRiskService)
+	tenantRepo := new(mocks.MockTenantRepository)
 	notifier := new(mocks.MockNotificationPublisher)
 
 	cfg := &config.Config{
@@ -47,6 +51,8 @@ func setupTokenUseCase(_ *testing.T) *TokenUseCaseMocks {
 		userRepo,
 		refreshRepo,
 		sessionRepo,
+		riskService,
+		tenantRepo,
 		notifier,
 		cfg,
 	)
@@ -59,6 +65,8 @@ func setupTokenUseCase(_ *testing.T) *TokenUseCaseMocks {
 		userRepo:    userRepo,
 		refreshRepo: refreshRepo,
 		sessionRepo: sessionRepo,
+		riskService: riskService,
+		tenantRepo:  tenantRepo,
 		notifier:    notifier,
 	}
 }
@@ -289,11 +297,13 @@ func TestRefreshToken_Success(t *testing.T) {
 	ctx := context.Background()
 
 	userID := uuid.New().String()
+	tenantID := "test-tenant"
 	sessionID := uuid.New().String()
 	refreshTokenStr := "refresh_token_12345"
 
 	refreshToken := &domain.RefreshToken{
 		ID:        uuid.New().String(),
+		TenantID:  tenantID,
 		UserID:    userID,
 		SessionID: sessionID,
 		TokenHash: "hashed_refresh_token",
@@ -303,13 +313,15 @@ func TestRefreshToken_Success(t *testing.T) {
 	}
 
 	user := &domain.User{
-		ID:     userID,
-		Email:  "test@example.com",
-		Active: true,
+		ID:       userID,
+		TenantID: tenantID,
+		Email:    "test@example.com",
+		Active:   true,
 	}
 
 	session := &domain.Session{
 		ID:        sessionID,
+		TenantID:  tenantID,
 		UserID:    userID,
 		JTI:       uuid.New().String(),
 		CreatedAt: time.Now(),
@@ -318,16 +330,15 @@ func TestRefreshToken_Success(t *testing.T) {
 	}
 
 	// Mock expectations
-	m.refreshRepo.On("GetByTokenHash", ctx, mock.AnythingOfType("string")).Return(refreshToken, nil)
-	m.userRepo.On("GetByID", ctx, userID).Return(user, nil)
-	m.sessionRepo.On("GetByID", ctx, sessionID).Return(session, nil)
+	m.refreshRepo.On("GetByTokenHash", ctx, tenantID, mock.AnythingOfType("string")).Return(refreshToken, nil)
+	m.userRepo.On("GetByID", ctx, tenantID, userID).Return(user, nil)
+	m.sessionRepo.On("GetByID", ctx, tenantID, sessionID).Return(session, nil)
 	m.jwtService.On("Generate", ctx, mock.AnythingOfType("*domain.Token")).Return("new_access_token", nil)
 	m.refreshRepo.On("Update", ctx, refreshToken).Return(nil)
 	m.refreshRepo.On("Create", ctx, mock.AnythingOfType("*domain.RefreshToken")).Return(nil)
 
 	// Execute
-	response, err := m.uc.RefreshToken(ctx, refreshTokenStr)
-
+	response, err := m.uc.RefreshToken(ctx, tenantID, refreshTokenStr)
 	// Assert
 	assert.NoError(t, err)
 	assert.NotNil(t, response)
@@ -345,14 +356,14 @@ func TestRefreshToken_InvalidToken(t *testing.T) {
 	m := setupTokenUseCase(t)
 	ctx := context.Background()
 
+	tenantID := "test-tenant"
 	refreshTokenStr := "invalid_refresh_token"
 
 	// Mock expectations
-	m.refreshRepo.On("GetByTokenHash", ctx, mock.AnythingOfType("string")).Return(nil, domain.ErrRefreshTokenInvalid)
+	m.refreshRepo.On("GetByTokenHash", ctx, tenantID, mock.AnythingOfType("string")).Return(nil, domain.ErrRefreshTokenInvalid)
 
 	// Execute
-	response, err := m.uc.RefreshToken(ctx, refreshTokenStr)
-
+	response, err := m.uc.RefreshToken(ctx, tenantID, refreshTokenStr)
 	// Assert
 	assert.Error(t, err)
 	assert.Nil(t, response)
@@ -367,11 +378,13 @@ func TestRefreshToken_TokenStolen(t *testing.T) {
 	ctx := context.Background()
 
 	userID := uuid.New().String()
+	tenantID := "test-tenant"
 	sessionID := uuid.New().String()
 	refreshTokenStr := "stolen_refresh_token"
 
 	refreshToken := &domain.RefreshToken{
 		ID:        uuid.New().String(),
+		TenantID:  tenantID,
 		UserID:    userID,
 		SessionID: sessionID,
 		TokenHash: "hashed_token",
@@ -381,22 +394,21 @@ func TestRefreshToken_TokenStolen(t *testing.T) {
 	}
 
 	user := &domain.User{
-		ID:    userID,
-		Email: "test@example.com",
-
-		Active: true,
+		ID:       userID,
+		TenantID: tenantID,
+		Email:    "test@example.com",
+		Active:   true,
 	}
 
 	// Mock expectations - detecta robo y revoca todo
-	m.refreshRepo.On("GetByTokenHash", ctx, mock.AnythingOfType("string")).Return(refreshToken, nil)
-	m.sessionRepo.On("RevokeAllByUserID", ctx, userID, "security", "token_theft_detected").Return(nil)
-	m.refreshRepo.On("RevokeByUserID", ctx, userID).Return(nil)
-	m.userRepo.On("GetByID", ctx, userID).Return(user, nil)
+	m.refreshRepo.On("GetByTokenHash", ctx, tenantID, mock.AnythingOfType("string")).Return(refreshToken, nil)
+	m.sessionRepo.On("RevokeAllByUserID", ctx, tenantID, userID, "security", "token_theft_detected").Return(nil)
+	m.refreshRepo.On("RevokeByUserID", ctx, tenantID, userID).Return(nil)
+	m.userRepo.On("GetByID", ctx, tenantID, userID).Return(user, nil)
 	m.notifier.On("Publish", ctx, mock.AnythingOfType("*domain.Event")).Return(nil)
 
 	// Execute
-	response, err := m.uc.RefreshToken(ctx, refreshTokenStr)
-
+	response, err := m.uc.RefreshToken(ctx, tenantID, refreshTokenStr)
 	// Assert
 	assert.Error(t, err)
 	assert.Nil(t, response)
@@ -414,11 +426,13 @@ func TestRefreshToken_TokenExpired(t *testing.T) {
 	ctx := context.Background()
 
 	userID := uuid.New().String()
+	tenantID := "test-tenant"
 	sessionID := uuid.New().String()
 	refreshTokenStr := "expired_refresh_token"
 
 	refreshToken := &domain.RefreshToken{
 		ID:        uuid.New().String(),
+		TenantID:  tenantID,
 		UserID:    userID,
 		SessionID: sessionID,
 		TokenHash: "hashed_token",
@@ -428,11 +442,10 @@ func TestRefreshToken_TokenExpired(t *testing.T) {
 	}
 
 	// Mock expectations
-	m.refreshRepo.On("GetByTokenHash", ctx, mock.AnythingOfType("string")).Return(refreshToken, nil)
+	m.refreshRepo.On("GetByTokenHash", ctx, tenantID, mock.AnythingOfType("string")).Return(refreshToken, nil)
 
 	// Execute
-	response, err := m.uc.RefreshToken(ctx, refreshTokenStr)
-
+	response, err := m.uc.RefreshToken(ctx, tenantID, refreshTokenStr)
 	// Assert
 	assert.Error(t, err)
 	assert.Nil(t, response)
@@ -447,11 +460,13 @@ func TestRefreshToken_UserNotFound(t *testing.T) {
 	ctx := context.Background()
 
 	userID := uuid.New().String()
+	tenantID := "test-tenant"
 	sessionID := uuid.New().String()
 	refreshTokenStr := "valid_refresh_token"
 
 	refreshToken := &domain.RefreshToken{
 		ID:        uuid.New().String(),
+		TenantID:  tenantID,
 		UserID:    userID,
 		SessionID: sessionID,
 		TokenHash: "hashed_token",
@@ -461,12 +476,11 @@ func TestRefreshToken_UserNotFound(t *testing.T) {
 	}
 
 	// Mock expectations
-	m.refreshRepo.On("GetByTokenHash", ctx, mock.AnythingOfType("string")).Return(refreshToken, nil)
-	m.userRepo.On("GetByID", ctx, userID).Return(nil, domain.ErrUserNotFound)
+	m.refreshRepo.On("GetByTokenHash", ctx, tenantID, mock.AnythingOfType("string")).Return(refreshToken, nil)
+	m.userRepo.On("GetByID", ctx, tenantID, userID).Return(nil, domain.ErrUserNotFound)
 
 	// Execute
-	response, err := m.uc.RefreshToken(ctx, refreshTokenStr)
-
+	response, err := m.uc.RefreshToken(ctx, tenantID, refreshTokenStr)
 	// Assert
 	assert.Error(t, err)
 	assert.Nil(t, response)
@@ -482,11 +496,13 @@ func TestRefreshToken_UserInactive(t *testing.T) {
 	ctx := context.Background()
 
 	userID := uuid.New().String()
+	tenantID := "test-tenant"
 	sessionID := uuid.New().String()
 	refreshTokenStr := "valid_refresh_token"
 
 	refreshToken := &domain.RefreshToken{
 		ID:        uuid.New().String(),
+		TenantID:  tenantID,
 		UserID:    userID,
 		SessionID: sessionID,
 		TokenHash: "hashed_token",
@@ -496,19 +512,18 @@ func TestRefreshToken_UserInactive(t *testing.T) {
 	}
 
 	user := &domain.User{
-		ID:    userID,
-		Email: "test@example.com",
-
-		Active: false, // User is inactive
+		ID:       userID,
+		TenantID: tenantID,
+		Email:    "test@example.com",
+		Active:   false, // User is inactive
 	}
 
 	// Mock expectations
-	m.refreshRepo.On("GetByTokenHash", ctx, mock.AnythingOfType("string")).Return(refreshToken, nil)
-	m.userRepo.On("GetByID", ctx, userID).Return(user, nil)
+	m.refreshRepo.On("GetByTokenHash", ctx, tenantID, mock.AnythingOfType("string")).Return(refreshToken, nil)
+	m.userRepo.On("GetByID", ctx, tenantID, userID).Return(user, nil)
 
 	// Execute
-	response, err := m.uc.RefreshToken(ctx, refreshTokenStr)
-
+	response, err := m.uc.RefreshToken(ctx, tenantID, refreshTokenStr)
 	// Assert
 	assert.Error(t, err)
 	assert.Nil(t, response)
@@ -523,11 +538,13 @@ func TestRefreshToken_SessionExpired(t *testing.T) {
 	ctx := context.Background()
 
 	userID := uuid.New().String()
+	tenantID := "test-tenant"
 	sessionID := uuid.New().String()
 	refreshTokenStr := "valid_refresh_token"
 
 	refreshToken := &domain.RefreshToken{
 		ID:        uuid.New().String(),
+		TenantID:  tenantID,
 		UserID:    userID,
 		SessionID: sessionID,
 		TokenHash: "hashed_token",
@@ -537,14 +554,16 @@ func TestRefreshToken_SessionExpired(t *testing.T) {
 	}
 
 	user := &domain.User{
-		ID:    userID,
-		Email: "test@example.com",
+		ID:       userID,
+		TenantID: tenantID,
+		Email:    "test@example.com",
 
 		Active: true,
 	}
 
 	session := &domain.Session{
 		ID:        sessionID,
+		TenantID:  tenantID,
 		UserID:    userID,
 		JTI:       uuid.New().String(),
 		CreatedAt: time.Now().Add(-30 * 24 * time.Hour),
@@ -553,13 +572,12 @@ func TestRefreshToken_SessionExpired(t *testing.T) {
 	}
 
 	// Mock expectations
-	m.refreshRepo.On("GetByTokenHash", ctx, mock.AnythingOfType("string")).Return(refreshToken, nil)
-	m.userRepo.On("GetByID", ctx, userID).Return(user, nil)
-	m.sessionRepo.On("GetByID", ctx, sessionID).Return(session, nil)
+	m.refreshRepo.On("GetByTokenHash", ctx, tenantID, mock.AnythingOfType("string")).Return(refreshToken, nil)
+	m.userRepo.On("GetByID", ctx, tenantID, userID).Return(user, nil)
+	m.sessionRepo.On("GetByID", ctx, tenantID, sessionID).Return(session, nil)
 
 	// Execute
-	response, err := m.uc.RefreshToken(ctx, refreshTokenStr)
-
+	response, err := m.uc.RefreshToken(ctx, tenantID, refreshTokenStr)
 	// Assert
 	assert.Error(t, err)
 	assert.Nil(t, response)
@@ -576,11 +594,13 @@ func TestRefreshToken_JWTGenerationFailure(t *testing.T) {
 	ctx := context.Background()
 
 	userID := uuid.New().String()
+	tenantID := "test-tenant"
 	sessionID := uuid.New().String()
 	refreshTokenStr := "valid_refresh_token"
 
 	refreshToken := &domain.RefreshToken{
 		ID:        uuid.New().String(),
+		TenantID:  tenantID,
 		UserID:    userID,
 		SessionID: sessionID,
 		TokenHash: "hashed_token",
@@ -590,14 +610,15 @@ func TestRefreshToken_JWTGenerationFailure(t *testing.T) {
 	}
 
 	user := &domain.User{
-		ID:    userID,
-		Email: "test@example.com",
-
-		Active: true,
+		ID:       userID,
+		TenantID: tenantID,
+		Email:    "test@example.com",
+		Active:   true,
 	}
 
 	session := &domain.Session{
 		ID:        sessionID,
+		TenantID:  tenantID,
 		UserID:    userID,
 		JTI:       uuid.New().String(),
 		CreatedAt: time.Now(),
@@ -606,14 +627,13 @@ func TestRefreshToken_JWTGenerationFailure(t *testing.T) {
 	}
 
 	// Mock expectations
-	m.refreshRepo.On("GetByTokenHash", ctx, mock.AnythingOfType("string")).Return(refreshToken, nil)
-	m.userRepo.On("GetByID", ctx, userID).Return(user, nil)
-	m.sessionRepo.On("GetByID", ctx, sessionID).Return(session, nil)
+	m.refreshRepo.On("GetByTokenHash", ctx, tenantID, mock.AnythingOfType("string")).Return(refreshToken, nil)
+	m.userRepo.On("GetByID", ctx, tenantID, userID).Return(user, nil)
+	m.sessionRepo.On("GetByID", ctx, tenantID, sessionID).Return(session, nil)
 	m.jwtService.On("Generate", ctx, mock.AnythingOfType("*domain.Token")).Return("", assert.AnError)
 
 	// Execute
-	response, err := m.uc.RefreshToken(ctx, refreshTokenStr)
-
+	response, err := m.uc.RefreshToken(ctx, tenantID, refreshTokenStr)
 	// Assert
 	assert.Error(t, err)
 	assert.Nil(t, response)
@@ -631,11 +651,13 @@ func TestRefreshToken_RotationFailure(t *testing.T) {
 	ctx := context.Background()
 
 	userID := uuid.New().String()
+	tenantID := "test-tenant"
 	sessionID := uuid.New().String()
 	refreshTokenStr := "valid_refresh_token"
 
 	refreshToken := &domain.RefreshToken{
 		ID:        uuid.New().String(),
+		TenantID:  tenantID,
 		UserID:    userID,
 		SessionID: sessionID,
 		TokenHash: "hashed_token",
@@ -645,14 +667,15 @@ func TestRefreshToken_RotationFailure(t *testing.T) {
 	}
 
 	user := &domain.User{
-		ID:    userID,
-		Email: "test@example.com",
-
-		Active: true,
+		ID:       userID,
+		TenantID: tenantID,
+		Email:    "test@example.com",
+		Active:   true,
 	}
 
 	session := &domain.Session{
 		ID:        sessionID,
+		TenantID:  tenantID,
 		UserID:    userID,
 		JTI:       uuid.New().String(),
 		CreatedAt: time.Now(),
@@ -661,16 +684,15 @@ func TestRefreshToken_RotationFailure(t *testing.T) {
 	}
 
 	// Mock expectations
-	m.refreshRepo.On("GetByTokenHash", ctx, mock.AnythingOfType("string")).Return(refreshToken, nil)
-	m.userRepo.On("GetByID", ctx, userID).Return(user, nil)
-	m.sessionRepo.On("GetByID", ctx, sessionID).Return(session, nil)
+	m.refreshRepo.On("GetByTokenHash", ctx, tenantID, mock.AnythingOfType("string")).Return(refreshToken, nil)
+	m.userRepo.On("GetByID", ctx, tenantID, userID).Return(user, nil)
+	m.sessionRepo.On("GetByID", ctx, tenantID, sessionID).Return(session, nil)
 	m.jwtService.On("Generate", ctx, mock.AnythingOfType("*domain.Token")).Return("new_access_token", nil)
 	m.refreshRepo.On("Update", ctx, refreshToken).Return(nil)
 	m.refreshRepo.On("Create", ctx, mock.AnythingOfType("*domain.RefreshToken")).Return(assert.AnError)
 
 	// Execute
-	response, err := m.uc.RefreshToken(ctx, refreshTokenStr)
-
+	response, err := m.uc.RefreshToken(ctx, tenantID, refreshTokenStr)
 	// Assert
 	assert.Error(t, err)
 	assert.Nil(t, response)
@@ -688,11 +710,13 @@ func TestRefreshToken_SessionNotFound(t *testing.T) {
 	ctx := context.Background()
 
 	userID := uuid.New().String()
+	tenantID := "test-tenant"
 	sessionID := uuid.New().String()
 	refreshTokenStr := "valid_refresh_token"
 
 	refreshToken := &domain.RefreshToken{
 		ID:        uuid.New().String(),
+		TenantID:  tenantID,
 		UserID:    userID,
 		SessionID: sessionID,
 		TokenHash: "hashed_token",
@@ -702,20 +726,19 @@ func TestRefreshToken_SessionNotFound(t *testing.T) {
 	}
 
 	user := &domain.User{
-		ID:    userID,
-		Email: "test@example.com",
-
-		Active: true,
+		ID:       userID,
+		TenantID: tenantID,
+		Email:    "test@example.com",
+		Active:   true,
 	}
 
 	// Mock expectations
-	m.refreshRepo.On("GetByTokenHash", ctx, mock.AnythingOfType("string")).Return(refreshToken, nil)
-	m.userRepo.On("GetByID", ctx, userID).Return(user, nil)
-	m.sessionRepo.On("GetByID", ctx, sessionID).Return(nil, domain.ErrSessionNotFound)
+	m.refreshRepo.On("GetByTokenHash", ctx, tenantID, mock.AnythingOfType("string")).Return(refreshToken, nil)
+	m.userRepo.On("GetByID", ctx, tenantID, userID).Return(user, nil)
+	m.sessionRepo.On("GetByID", ctx, tenantID, sessionID).Return(nil, domain.ErrSessionNotFound)
 
 	// Execute
-	response, err := m.uc.RefreshToken(ctx, refreshTokenStr)
-
+	response, err := m.uc.RefreshToken(ctx, tenantID, refreshTokenStr)
 	// Assert
 	assert.Error(t, err)
 	assert.Nil(t, response)

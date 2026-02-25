@@ -76,6 +76,7 @@ func NewAuthUseCase(
 }
 
 type LoginInput struct {
+	TenantID   string
 	Identifier string // Email o username
 	Password   string
 	TwoFACode  string
@@ -108,9 +109,9 @@ func (uc *AuthUseCase) Login(ctx context.Context, input LoginInput) (*LoginRespo
 	}
 
 	// Get user by email or username
-	user, err := uc.userRepo.GetByEmailOrUsername(ctx, input.Identifier)
+	user, err := uc.userRepo.GetByEmailOrUsername(ctx, input.TenantID, input.Identifier)
 	if err != nil {
-		_ = uc.auditRepo.Create(ctx, domain.NewAuditLogEntry("", "login", input.IPAddress, input.UserAgent, "", false, "invalid credentials", nil))
+		_ = uc.auditRepo.Create(ctx, domain.NewAuditLogEntry(input.TenantID, "", "login", input.IPAddress, input.UserAgent, "", false, "invalid credentials", nil))
 		return nil, domain.ErrInvalidCredentials
 	}
 
@@ -121,7 +122,7 @@ func (uc *AuthUseCase) Login(ctx context.Context, input LoginInput) (*LoginRespo
 
 	// Check if account is locked (P0)
 	if user.IsLocked() {
-		_ = uc.auditRepo.Create(ctx, domain.NewAuditLogEntry(user.ID, "login_attempt_locked", input.IPAddress, input.UserAgent, "", false, "login attempt on locked account", nil))
+		_ = uc.auditRepo.Create(ctx, domain.NewAuditLogEntry(user.TenantID, user.ID, "login_attempt_locked", input.IPAddress, input.UserAgent, "", false, "login attempt on locked account", nil))
 		return nil, domain.ErrAccountLocked
 	}
 
@@ -138,7 +139,7 @@ func (uc *AuthUseCase) Login(ctx context.Context, input LoginInput) (*LoginRespo
 		)
 		_ = uc.userRepo.Update(ctx, user)
 
-		_ = uc.auditRepo.Create(ctx, domain.NewAuditLogEntry(user.ID, "login_failed", input.IPAddress, input.UserAgent, "", false, "invalid credentials", map[string]interface{}{
+		_ = uc.auditRepo.Create(ctx, domain.NewAuditLogEntry(user.TenantID, user.ID, "login_failed", input.IPAddress, input.UserAgent, "", false, "invalid credentials", map[string]interface{}{
 			"failed_attempts": user.FailedLoginAttempts,
 			"locked_until":    user.LockedUntil,
 		}))
@@ -158,13 +159,13 @@ func (uc *AuthUseCase) Login(ctx context.Context, input LoginInput) (*LoginRespo
 
 	// Check password expiration (P0)
 	if user.IsPasswordExpired(uc.config.Security.PasswordExpiry.ExpiryDays) {
-		_ = uc.auditRepo.Create(ctx, domain.NewAuditLogEntry(user.ID, "password_expired", input.IPAddress, input.UserAgent, "", false, "password has expired", nil))
+		_ = uc.auditRepo.Create(ctx, domain.NewAuditLogEntry(user.TenantID, user.ID, "password_expired", input.IPAddress, input.UserAgent, "", false, "password has expired", nil))
 		return nil, domain.ErrPasswordExpired
 	}
 
 	// Check if password reset is required by admin (P0)
 	if user.PasswordResetRequired {
-		_ = uc.auditRepo.Create(ctx, domain.NewAuditLogEntry(user.ID, "password_reset_required_by_admin", input.IPAddress, input.UserAgent, "", false, "admin forced password reset", nil))
+		_ = uc.auditRepo.Create(ctx, domain.NewAuditLogEntry(user.TenantID, user.ID, "password_reset_required_by_admin", input.IPAddress, input.UserAgent, "", false, "admin forced password reset", nil))
 		return nil, domain.ErrPasswordResetRequired
 	}
 
@@ -180,8 +181,16 @@ func (uc *AuthUseCase) Login(ctx context.Context, input LoginInput) (*LoginRespo
 	}
 
 	if risk != nil && risk.IsBlocked {
-		_ = uc.auditRepo.Create(ctx, domain.NewAuditLogEntry(user.ID, "login_blocked", input.IPAddress, input.UserAgent, "", false, "high risk login blocked", map[string]interface{}{"reasons": risk.Reasons}))
+		_ = uc.auditRepo.Create(ctx, domain.NewAuditLogEntry(user.TenantID, user.ID, "login_blocked", input.IPAddress, input.UserAgent, "", false, "high risk login blocked", map[string]interface{}{"reasons": risk.Reasons}))
 		return nil, domain.ErrForbidden
+	}
+
+	// Geofencing Check (P2)
+	if currentLoc != nil {
+		if err := uc.riskService.VerifyGeofencing(ctx, user.TenantID, currentLoc.Country); err != nil {
+			_ = uc.auditRepo.Create(ctx, domain.NewAuditLogEntry(user.TenantID, user.ID, "login_geofenced", input.IPAddress, input.UserAgent, "", false, "geofencing restriction", map[string]interface{}{"country": currentLoc.Country}))
+			return nil, err
+		}
 	}
 
 	// 2FA requirement (if risk is medium)
@@ -213,7 +222,7 @@ func (uc *AuthUseCase) Login(ctx context.Context, input LoginInput) (*LoginRespo
 	}
 
 	// Generate JWT
-	token := domain.NewToken(user.ID, user.Email, uc.config.JWT.AccessExpiry)
+	token := domain.NewToken(user.TenantID, user.ID, user.Email, uc.config.JWT.AccessExpiry)
 
 	// Map roles and permissions to token
 	for _, role := range user.Roles {
@@ -232,7 +241,7 @@ func (uc *AuthUseCase) Login(ctx context.Context, input LoginInput) (*LoginRespo
 	refreshTokenStr, _ := uc.tokenGen.GenerateSecureToken(32)
 	refreshTokenHash := hashToken(refreshTokenStr)
 
-	refreshToken := domain.NewRefreshToken(user.ID, session.ID, refreshTokenHash, uc.config.JWT.RefreshExpiry)
+	refreshToken := domain.NewRefreshToken(user.TenantID, user.ID, session.ID, refreshTokenHash, uc.config.JWT.RefreshExpiry)
 	if err := uc.refreshRepo.Create(ctx, refreshToken); err != nil {
 		return nil, fmt.Errorf("failed to create refresh token: %w", err)
 	}
@@ -263,11 +272,11 @@ func (uc *AuthUseCase) Login(ctx context.Context, input LoginInput) (*LoginRespo
 		_ = uc.userRepo.Update(bgCtx, user)
 
 		// Audit log
-		_ = uc.auditRepo.Create(bgCtx, domain.NewAuditLogEntry(user.ID, "login", input.IPAddress, input.UserAgent, country, true, "", nil))
+		_ = uc.auditRepo.Create(bgCtx, domain.NewAuditLogEntry(user.TenantID, user.ID, "login", input.IPAddress, input.UserAgent, country, true, "", nil))
 
 		// Check for new country and send notification
 		if previousCountry != "" && country != previousCountry {
-			event := domain.NewEvent(domain.EventLoginNewCountry, user.ID, user.Email, map[string]interface{}{
+			event := domain.NewEvent(user.TenantID, domain.EventLoginNewCountry, user.ID, user.Email, map[string]interface{}{
 				"ip":      input.IPAddress,
 				"country": country,
 			})
@@ -279,6 +288,7 @@ func (uc *AuthUseCase) Login(ctx context.Context, input LoginInput) (*LoginRespo
 }
 
 type RegisterInput struct {
+	TenantID  string
 	Username  string
 	Email     string
 	Password  string
@@ -313,13 +323,13 @@ func (uc *AuthUseCase) Register(ctx context.Context, input RegisterInput) (*doma
 	}
 
 	// Check if username exists
-	existingUsername, _ := uc.userRepo.GetByUsername(ctx, input.Username)
+	existingUsername, _ := uc.userRepo.GetByUsername(ctx, input.TenantID, input.Username)
 	if existingUsername != nil {
 		return nil, domain.ErrUsernameAlreadyExists
 	}
 
 	// Check if email exists
-	existingEmail, _ := uc.userRepo.GetByEmail(ctx, input.Email)
+	existingEmail, _ := uc.userRepo.GetByEmail(ctx, input.TenantID, input.Email)
 	if existingEmail != nil {
 		return nil, domain.ErrEmailAlreadyExists
 	}
@@ -332,6 +342,7 @@ func (uc *AuthUseCase) Register(ctx context.Context, input RegisterInput) (*doma
 
 	// Create user
 	user, err := domain.NewUser(domain.NewUserInput{
+		TenantID: input.TenantID,
 		Username: input.Username,
 		Email:    input.Email,
 		Password: input.Password,
@@ -363,21 +374,21 @@ func (uc *AuthUseCase) Register(ctx context.Context, input RegisterInput) (*doma
 		}
 
 		// Audit log
-		_ = uc.auditRepo.Create(bgCtx, domain.NewAuditLogEntry(user.ID, "register", input.IPAddress, input.UserAgent, country, true, "", nil))
+		_ = uc.auditRepo.Create(bgCtx, domain.NewAuditLogEntry(user.TenantID, user.ID, "register", input.IPAddress, input.UserAgent, country, true, "", nil))
 
 		// Send welcome email (can be slow)
 		_ = uc.emailService.SendWelcome(bgCtx, user.Email, user.Username)
 
 		// Publish event
-		event := domain.NewEvent(domain.EventUserRegistered, user.ID, user.Email, nil)
+		event := domain.NewEvent(user.TenantID, domain.EventUserRegistered, user.ID, user.Email, nil)
 		_ = uc.notifier.Publish(bgCtx, event)
 	}()
 
 	return user, nil
 }
 
-func (uc *AuthUseCase) ForgotPassword(ctx context.Context, email, ipAddress string) error {
-	user, err := uc.userRepo.GetByEmail(ctx, email)
+func (uc *AuthUseCase) ForgotPassword(ctx context.Context, tenantID, email, ipAddress string) error {
+	user, err := uc.userRepo.GetByEmail(ctx, tenantID, email)
 	if err != nil {
 		// Don't reveal if email exists
 		return nil
@@ -390,7 +401,7 @@ func (uc *AuthUseCase) ForgotPassword(ctx context.Context, email, ipAddress stri
 	codeGen := &CodeGenerator{}
 	code, _ := codeGen.GenerateNumericCode(6)
 
-	resetToken := domain.NewPasswordResetToken(user.ID, resetTokenStr, code)
+	resetToken := domain.NewPasswordResetToken(user.TenantID, user.ID, resetTokenStr, code)
 
 	if err := uc.resetRepo.Create(ctx, resetToken); err != nil {
 		return fmt.Errorf("failed to create reset token: %w", err)
@@ -407,7 +418,7 @@ func (uc *AuthUseCase) ForgotPassword(ctx context.Context, email, ipAddress stri
 		_ = uc.emailService.SendPasswordReset(bgCtx, user.Email, code, resetURL)
 
 		// Audit log
-		_ = uc.auditRepo.Create(bgCtx, domain.NewAuditLogEntry(user.ID, "forgot_password", ipAddress, "", "", true, "", nil))
+		_ = uc.auditRepo.Create(bgCtx, domain.NewAuditLogEntry(user.TenantID, user.ID, "forgot_password", ipAddress, "", "", true, "", nil))
 	}()
 
 	return nil
@@ -436,14 +447,14 @@ func (g *CodeGenerator) GenerateNumericCode(digits int) (string, error) {
 }
 
 // ResetPasswordWithToken resetea la contraseña usando el token URL
-func (uc *AuthUseCase) ResetPasswordWithToken(ctx context.Context, token, newPassword, ipAddress string) error {
+func (uc *AuthUseCase) ResetPasswordWithToken(ctx context.Context, tenantID, token, newPassword, ipAddress string) error {
 	// Validate password
 	if err := domain.ValidatePassword(newPassword); err != nil {
 		return err
 	}
 
 	// Get reset token
-	resetToken, err := uc.resetRepo.GetByToken(ctx, token)
+	resetToken, err := uc.resetRepo.GetByToken(ctx, tenantID, token)
 	if err != nil {
 		return domain.ErrInvalidResetToken
 	}
@@ -456,20 +467,20 @@ func (uc *AuthUseCase) ResetPasswordWithToken(ctx context.Context, token, newPas
 }
 
 // ResetPasswordWithCode resetea la contraseña usando el código de 6 dígitos
-func (uc *AuthUseCase) ResetPasswordWithCode(ctx context.Context, email, code, newPassword, ipAddress string) error {
+func (uc *AuthUseCase) ResetPasswordWithCode(ctx context.Context, tenantID, email, code, newPassword, ipAddress string) error {
 	// Validate password
 	if err := domain.ValidatePassword(newPassword); err != nil {
 		return err
 	}
 
 	// Get user by email
-	user, err := uc.userRepo.GetByEmail(ctx, email)
+	user, err := uc.userRepo.GetByEmail(ctx, tenantID, email)
 	if err != nil {
 		return domain.ErrInvalidResetToken
 	}
 
 	// Get reset token by code
-	resetToken, err := uc.resetRepo.GetByCode(ctx, user.ID, code)
+	resetToken, err := uc.resetRepo.GetByCode(ctx, user.TenantID, user.ID, code)
 	if err != nil {
 		return domain.ErrInvalidResetToken
 	}
@@ -489,7 +500,7 @@ func (uc *AuthUseCase) completePasswordReset(ctx context.Context, resetToken *do
 	}
 
 	// 3. Update password in repository
-	err = uc.userRepo.UpdatePassword(ctx, resetToken.UserID, passwordHash)
+	err = uc.userRepo.UpdatePassword(ctx, resetToken.TenantID, resetToken.UserID, passwordHash)
 	if err != nil {
 		return fmt.Errorf("failed to update password: %w", err)
 	}
@@ -503,21 +514,21 @@ func (uc *AuthUseCase) completePasswordReset(ctx context.Context, resetToken *do
 		bgCtx := context.Background()
 
 		// Mark token as used
-		_ = uc.resetRepo.MarkAsUsed(bgCtx, resetToken.ID)
+		_ = uc.resetRepo.MarkAsUsed(bgCtx, resetToken.TenantID, resetToken.ID)
 
 		// Revoke all sessions (security measure, but password is already changed)
-		_ = uc.sessionRepo.RevokeAllByUserID(bgCtx, resetToken.UserID, "system", "password_reset")
-		_ = uc.refreshRepo.RevokeByUserID(bgCtx, resetToken.UserID)
+		_ = uc.sessionRepo.RevokeAllByUserID(bgCtx, resetToken.TenantID, resetToken.UserID, "system", "password_reset")
+		_ = uc.refreshRepo.RevokeByUserID(bgCtx, resetToken.TenantID, resetToken.UserID)
 
 		// Get user for event
-		user, _ := uc.userRepo.GetByID(bgCtx, resetToken.UserID)
+		user, _ := uc.userRepo.GetByID(bgCtx, resetToken.TenantID, resetToken.UserID)
 
 		// Audit log
-		_ = uc.auditRepo.Create(bgCtx, domain.NewAuditLogEntry(resetToken.UserID, "reset_password", ipAddress, "", "", true, "", nil))
+		_ = uc.auditRepo.Create(bgCtx, domain.NewAuditLogEntry(resetToken.TenantID, resetToken.UserID, "reset_password", ipAddress, "", "", true, "", nil))
 
 		// Publish event
 		if user != nil {
-			event := domain.NewEvent(domain.EventPasswordChanged, user.ID, user.Email, nil)
+			event := domain.NewEvent(user.TenantID, domain.EventPasswordChanged, user.ID, user.Email, nil)
 			_ = uc.notifier.Publish(bgCtx, event)
 		}
 	}()
@@ -563,7 +574,7 @@ func (uc *AuthUseCase) NotifyExpiringPasswords(ctx context.Context) (int, error)
 			}
 
 			// Audit log
-			_ = uc.auditRepo.Create(ctx, domain.NewAuditLogEntry(user.ID, "password_expiry_warning_sent", "", "", "", true, "", map[string]interface{}{
+			_ = uc.auditRepo.Create(ctx, domain.NewAuditLogEntry(user.TenantID, user.ID, "password_expiry_warning_sent", "", "", "", true, "", map[string]interface{}{
 				"days_remaining": daysRemaining,
 			}))
 
@@ -574,9 +585,9 @@ func (uc *AuthUseCase) NotifyExpiringPasswords(ctx context.Context) (int, error)
 	return notifiedCount, nil
 }
 
-func (uc *AuthUseCase) ForcePasswordReset(ctx context.Context, userID string) error {
+func (uc *AuthUseCase) ForcePasswordReset(ctx context.Context, tenantID, userID string) error {
 	// 1. Get user
-	user, err := uc.userRepo.GetByID(ctx, userID)
+	user, err := uc.userRepo.GetByID(ctx, tenantID, userID)
 	if err != nil {
 		return err
 	}
@@ -591,22 +602,22 @@ func (uc *AuthUseCase) ForcePasswordReset(ctx context.Context, userID string) er
 	}
 
 	// 4. Revoke all sessions
-	if err := uc.sessionRepo.RevokeAllByUserID(ctx, userID, "system", "forced password reset by admin"); err != nil {
+	if err := uc.sessionRepo.RevokeAllByUserID(ctx, user.TenantID, userID, "system", "forced password reset by admin"); err != nil {
 		fmt.Printf("warning: failed to revoke sessions after forced reset: %v\n", err)
 	}
 
 	// 5. Revoke all refresh tokens
-	if err := uc.refreshRepo.RevokeByUserID(ctx, userID); err != nil {
+	if err := uc.refreshRepo.RevokeByUserID(ctx, user.TenantID, userID); err != nil {
 		fmt.Printf("warning: failed to revoke refresh tokens after forced reset: %v\n", err)
 	}
 
 	// 6. Audit log
-	_ = uc.auditRepo.Create(ctx, domain.NewAuditLogEntry(userID, "forced_password_reset", "", "", "", true, "admin forced password reset", nil))
+	_ = uc.auditRepo.Create(ctx, domain.NewAuditLogEntry(user.TenantID, userID, "forced_password_reset", "", "", "", true, "admin forced password reset", nil))
 
 	return nil
 }
 
-func (uc *AuthUseCase) OAuthLogin(ctx context.Context, provider, code, state, ipAddress, userAgent, device string) (*LoginResponse, error) {
+func (uc *AuthUseCase) OAuthLogin(ctx context.Context, tenantID, provider, code, state, ipAddress, userAgent, device string) (*LoginResponse, error) {
 	oauthProvider, exists := uc.oauthProviders[provider]
 	if !exists {
 		return nil, domain.ErrOAuthProviderNotFound
@@ -619,10 +630,11 @@ func (uc *AuthUseCase) OAuthLogin(ctx context.Context, provider, code, state, ip
 	}
 
 	// Check if user exists
-	user, err := uc.userRepo.GetByOAuthProvider(ctx, provider, userInfo.ProviderID)
+	user, err := uc.userRepo.GetByOAuthProvider(ctx, tenantID, provider, userInfo.ProviderID)
 	if err != nil {
 		// Create new user
 		newUser, err := domain.NewUser(domain.NewUserInput{
+			TenantID:        tenantID,
 			Email:           userInfo.Email,
 			OAuthProvider:   provider,
 			OAuthProviderID: userInfo.ProviderID,
@@ -654,7 +666,7 @@ func (uc *AuthUseCase) OAuthLogin(ctx context.Context, provider, code, state, ip
 	}
 
 	if risk != nil && risk.IsBlocked {
-		_ = uc.auditRepo.Create(ctx, domain.NewAuditLogEntry(user.ID, "oauth_login_blocked", ipAddress, userAgent, "", false, "high risk oauth login blocked", map[string]interface{}{"reasons": risk.Reasons}))
+		_ = uc.auditRepo.Create(ctx, domain.NewAuditLogEntry(user.TenantID, user.ID, "oauth_login_blocked", ipAddress, userAgent, "", false, "high risk oauth login blocked", map[string]interface{}{"reasons": risk.Reasons}))
 		return nil, domain.ErrForbidden
 	}
 
@@ -677,7 +689,7 @@ func (uc *AuthUseCase) OAuthLogin(ctx context.Context, provider, code, state, ip
 		return nil, fmt.Errorf("failed to create session: %w", err)
 	}
 
-	token := domain.NewToken(user.ID, user.Email, uc.config.JWT.AccessExpiry)
+	token := domain.NewToken(user.TenantID, user.ID, user.Email, uc.config.JWT.AccessExpiry)
 
 	// Map roles and permissions to token
 	for _, role := range user.Roles {
@@ -695,7 +707,7 @@ func (uc *AuthUseCase) OAuthLogin(ctx context.Context, provider, code, state, ip
 	refreshTokenStr, _ := uc.tokenGen.GenerateSecureToken(32)
 	refreshTokenHash := hashToken(refreshTokenStr)
 
-	refreshToken := domain.NewRefreshToken(user.ID, session.ID, refreshTokenHash, uc.config.JWT.RefreshExpiry)
+	refreshToken := domain.NewRefreshToken(user.TenantID, user.ID, session.ID, refreshTokenHash, uc.config.JWT.RefreshExpiry)
 	if err := uc.refreshRepo.Create(ctx, refreshToken); err != nil {
 		return nil, fmt.Errorf("failed to create refresh token: %w", err)
 	}
@@ -726,7 +738,7 @@ func (uc *AuthUseCase) OAuthLogin(ctx context.Context, provider, code, state, ip
 
 		// Check for new country and send notification
 		if previousCountry != "" && country != previousCountry {
-			event := domain.NewEvent(domain.EventLoginNewCountry, user.ID, user.Email, map[string]interface{}{
+			event := domain.NewEvent(user.TenantID, domain.EventLoginNewCountry, user.ID, user.Email, map[string]interface{}{
 				"ip":      ipAddress,
 				"country": country,
 			})
@@ -743,8 +755,8 @@ func hashToken(token string) string {
 }
 
 // GetUserInfo returns user information for OIDC UserInfo endpoint
-func (uc *AuthUseCase) GetUserInfo(ctx context.Context, userID string) (*domain.User, error) {
-	user, err := uc.userRepo.GetByID(ctx, userID)
+func (uc *AuthUseCase) GetUserInfo(ctx context.Context, tenantID, userID string) (*domain.User, error) {
+	user, err := uc.userRepo.GetByID(ctx, tenantID, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -753,30 +765,32 @@ func (uc *AuthUseCase) GetUserInfo(ctx context.Context, userID string) (*domain.
 
 // Role Management
 
-func (uc *AuthUseCase) CreateRole(ctx context.Context, name, description string) error {
+func (uc *AuthUseCase) CreateRole(ctx context.Context, tenantID, name, description string) error {
 	role := domain.NewRole(name, description)
+	role.TenantID = tenantID
 	return uc.roleRepo.CreateRole(ctx, role)
 }
 
-func (uc *AuthUseCase) ListRoles(ctx context.Context) ([]*domain.Role, error) {
-	return uc.roleRepo.ListRoles(ctx)
+func (uc *AuthUseCase) ListRoles(ctx context.Context, tenantID string) ([]*domain.Role, error) {
+	return uc.roleRepo.ListRoles(ctx, tenantID)
 }
 
-func (uc *AuthUseCase) CreatePermission(ctx context.Context, name, description string) error {
+func (uc *AuthUseCase) CreatePermission(ctx context.Context, tenantID, name, description string) error {
 	perm := domain.NewPermission(name, description)
+	perm.TenantID = tenantID
 	return uc.roleRepo.CreatePermission(ctx, perm)
 }
 
-func (uc *AuthUseCase) ListPermissions(ctx context.Context) ([]*domain.Permission, error) {
-	return uc.roleRepo.ListPermissions(ctx)
+func (uc *AuthUseCase) ListPermissions(ctx context.Context, tenantID string) ([]*domain.Permission, error) {
+	return uc.roleRepo.ListPermissions(ctx, tenantID)
 }
 
-func (uc *AuthUseCase) AssignRoleToUser(ctx context.Context, userID, roleID string) error {
-	return uc.roleRepo.AssignRoleToUser(ctx, userID, roleID)
+func (uc *AuthUseCase) AssignRoleToUser(ctx context.Context, tenantID, userID, roleID string) error {
+	return uc.roleRepo.AssignRoleToUser(ctx, tenantID, userID, roleID)
 }
 
-func (uc *AuthUseCase) AddPermissionToRole(ctx context.Context, roleID, permID string) error {
-	return uc.roleRepo.AddPermissionToRole(ctx, roleID, permID)
+func (uc *AuthUseCase) AddPermissionToRole(ctx context.Context, tenantID, roleID, permID string) error {
+	return uc.roleRepo.AddPermissionToRole(ctx, tenantID, roleID, permID)
 }
 
 type PasswordlessLoginInput struct {
@@ -803,7 +817,7 @@ func (uc *AuthUseCase) PasswordlessLogin(ctx context.Context, user *domain.User,
 	}
 
 	if risk != nil && risk.IsBlocked {
-		_ = uc.auditRepo.Create(ctx, domain.NewAuditLogEntry(user.ID, "passwordless_login_blocked", input.IPAddress, input.UserAgent, "", false, "high risk login blocked", map[string]interface{}{"reasons": risk.Reasons}))
+		_ = uc.auditRepo.Create(ctx, domain.NewAuditLogEntry(user.TenantID, user.ID, "passwordless_login_blocked", input.IPAddress, input.UserAgent, "", false, "high risk login blocked", map[string]interface{}{"reasons": risk.Reasons}))
 		return nil, domain.ErrForbidden
 	}
 
@@ -828,7 +842,7 @@ func (uc *AuthUseCase) PasswordlessLogin(ctx context.Context, user *domain.User,
 	}
 
 	// Generate JWT
-	token := domain.NewToken(user.ID, user.Email, uc.config.JWT.AccessExpiry)
+	token := domain.NewToken(user.TenantID, user.ID, user.Email, uc.config.JWT.AccessExpiry)
 
 	// Map roles and permissions to token
 	for _, role := range user.Roles {
@@ -847,7 +861,7 @@ func (uc *AuthUseCase) PasswordlessLogin(ctx context.Context, user *domain.User,
 	refreshTokenStr, _ := uc.tokenGen.GenerateSecureToken(32)
 	refreshTokenHash := hashToken(refreshTokenStr)
 
-	refreshToken := domain.NewRefreshToken(user.ID, session.ID, refreshTokenHash, uc.config.JWT.RefreshExpiry)
+	refreshToken := domain.NewRefreshToken(user.TenantID, user.ID, session.ID, refreshTokenHash, uc.config.JWT.RefreshExpiry)
 	if err := uc.refreshRepo.Create(ctx, refreshToken); err != nil {
 		return nil, fmt.Errorf("failed to create refresh token: %w", err)
 	}
@@ -872,10 +886,10 @@ func (uc *AuthUseCase) PasswordlessLogin(ctx context.Context, user *domain.User,
 		}
 		user.UpdateLastLogin(input.IPAddress, country, lat, lon)
 		_ = uc.userRepo.Update(bgCtx, user)
-		_ = uc.auditRepo.Create(bgCtx, domain.NewAuditLogEntry(user.ID, "webauthn_login", input.IPAddress, input.UserAgent, country, true, "", nil))
+		_ = uc.auditRepo.Create(bgCtx, domain.NewAuditLogEntry(user.TenantID, user.ID, "webauthn_login", input.IPAddress, input.UserAgent, country, true, "", nil))
 
 		if previousCountry != "" && country != previousCountry {
-			event := domain.NewEvent(domain.EventLoginNewCountry, user.ID, user.Email, map[string]interface{}{
+			event := domain.NewEvent(user.TenantID, domain.EventLoginNewCountry, user.ID, user.Email, map[string]interface{}{
 				"ip":      input.IPAddress,
 				"country": country,
 			})

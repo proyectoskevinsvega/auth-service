@@ -84,8 +84,8 @@ func (u *webauthnUser) WebAuthnCredentials() []webauthn.Credential {
 	return res
 }
 
-func (uc *WebAuthnUseCase) BeginRegistration(ctx context.Context, userID string) (*protocol.CredentialCreation, error) {
-	user, err := uc.userRepo.GetByID(ctx, userID)
+func (uc *WebAuthnUseCase) BeginRegistration(ctx context.Context, tenantID, userID string) (*protocol.CredentialCreation, error) {
+	user, err := uc.userRepo.GetByID(ctx, tenantID, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -98,7 +98,7 @@ func (uc *WebAuthnUseCase) BeginRegistration(ctx context.Context, userID string)
 		}
 	}
 
-	creds, err := uc.webauthnRepo.GetCredentialsByUserID(ctx, userID)
+	creds, err := uc.webauthnRepo.GetCredentialsByUserID(ctx, tenantID, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -125,8 +125,8 @@ func (uc *WebAuthnUseCase) BeginRegistration(ctx context.Context, userID string)
 	return options, nil
 }
 
-func (uc *WebAuthnUseCase) FinishRegistration(ctx context.Context, userID string, challenge string, r *http.Request) error {
-	user, err := uc.userRepo.GetByID(ctx, userID)
+func (uc *WebAuthnUseCase) FinishRegistration(ctx context.Context, tenantID, userID string, challenge string, r *http.Request) error {
+	user, err := uc.userRepo.GetByID(ctx, tenantID, userID)
 	if err != nil {
 		return err
 	}
@@ -164,7 +164,7 @@ func (uc *WebAuthnUseCase) FinishRegistration(ctx context.Context, userID string
 		UpdatedAt:       time.Now(),
 	}
 
-	if err := uc.webauthnRepo.CreateCredential(ctx, dbCred); err != nil {
+	if err := uc.webauthnRepo.CreateCredential(ctx, tenantID, dbCred); err != nil {
 		return err
 	}
 
@@ -174,13 +174,13 @@ func (uc *WebAuthnUseCase) FinishRegistration(ctx context.Context, userID string
 	return nil
 }
 
-func (uc *WebAuthnUseCase) BeginLogin(ctx context.Context, identifier string) (*protocol.CredentialAssertion, error) {
-	user, err := uc.userRepo.GetByEmailOrUsername(ctx, identifier)
+func (uc *WebAuthnUseCase) BeginLogin(ctx context.Context, tenantID, identifier string) (*protocol.CredentialAssertion, error) {
+	user, err := uc.userRepo.GetByEmailOrUsername(ctx, tenantID, identifier)
 	if err != nil {
 		return nil, err
 	}
 
-	creds, err := uc.webauthnRepo.GetCredentialsByUserID(ctx, user.ID)
+	creds, err := uc.webauthnRepo.GetCredentialsByUserID(ctx, tenantID, user.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -211,8 +211,8 @@ func (uc *WebAuthnUseCase) BeginLogin(ctx context.Context, identifier string) (*
 	return options, nil
 }
 
-func (uc *WebAuthnUseCase) FinishLogin(ctx context.Context, identifier string, challenge string, r *http.Request, loginInput PasswordlessLoginInput) (*LoginResponse, error) {
-	user, err := uc.userRepo.GetByEmailOrUsername(ctx, identifier)
+func (uc *WebAuthnUseCase) FinishLogin(ctx context.Context, tenantID, identifier string, challenge string, r *http.Request, loginInput PasswordlessLoginInput) (*LoginResponse, error) {
+	user, err := uc.userRepo.GetByEmailOrUsername(ctx, tenantID, identifier)
 	if err != nil {
 		return nil, err
 	}
@@ -226,7 +226,7 @@ func (uc *WebAuthnUseCase) FinishLogin(ctx context.Context, identifier string, c
 		return nil, fmt.Errorf("invalid user for session")
 	}
 
-	creds, err := uc.webauthnRepo.GetCredentialsByUserID(ctx, user.ID)
+	creds, err := uc.webauthnRepo.GetCredentialsByUserID(ctx, tenantID, user.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -252,7 +252,7 @@ func (uc *WebAuthnUseCase) FinishLogin(ctx context.Context, identifier string, c
 			}
 			c.SignCount = credential.Authenticator.SignCount
 			c.UpdatedAt = time.Now()
-			if err := uc.webauthnRepo.UpdateCredential(ctx, c); err != nil {
+			if err := uc.webauthnRepo.UpdateCredential(ctx, tenantID, c); err != nil {
 				return nil, err
 			}
 			break

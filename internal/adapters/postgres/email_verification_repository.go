@@ -19,12 +19,12 @@ func NewEmailVerificationRepository(db *pgxpool.Pool) *EmailVerificationReposito
 
 func (r *EmailVerificationRepository) Create(ctx context.Context, verification *domain.EmailVerification) error {
 	query := `
-		INSERT INTO auth_email_verifications (id, user_id, token_hash, expires_at, created_at, ip_address, user_agent)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		INSERT INTO auth_email_verifications (id, tenant_id, user_id, token_hash, expires_at, created_at, ip_address, user_agent)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 	`
 
 	_, err := r.db.Exec(ctx, query,
-		verification.ID, verification.UserID, verification.TokenHash, verification.ExpiresAt,
+		verification.ID, verification.TenantID, verification.UserID, verification.TokenHash, verification.ExpiresAt,
 		verification.CreatedAt, verification.IPAddress, verification.UserAgent,
 	)
 
@@ -35,19 +35,19 @@ func (r *EmailVerificationRepository) Create(ctx context.Context, verification *
 	return nil
 }
 
-func (r *EmailVerificationRepository) GetByTokenHash(ctx context.Context, tokenHash string) (*domain.EmailVerification, error) {
+func (r *EmailVerificationRepository) GetByTokenHash(ctx context.Context, tenantID, tokenHash string) (*domain.EmailVerification, error) {
 	query := `
-		SELECT id, user_id, token_hash, expires_at, verified_at, created_at, ip_address, user_agent
+		SELECT id, tenant_id, user_id, token_hash, expires_at, verified_at, created_at, ip_address, user_agent
 		FROM auth_email_verifications
-		WHERE token_hash = $1
+		WHERE tenant_id = $1 AND token_hash = $2
 		LIMIT 1
 	`
 
 	var verification domain.EmailVerification
 	var verifiedAt sql.NullTime
 
-	err := r.db.QueryRow(ctx, query, tokenHash).Scan(
-		&verification.ID, &verification.UserID, &verification.TokenHash, &verification.ExpiresAt,
+	err := r.db.QueryRow(ctx, query, tenantID, tokenHash).Scan(
+		&verification.ID, &verification.TenantID, &verification.UserID, &verification.TokenHash, &verification.ExpiresAt,
 		&verifiedAt, &verification.CreatedAt, &verification.IPAddress, &verification.UserAgent,
 	)
 
@@ -65,16 +65,16 @@ func (r *EmailVerificationRepository) GetByTokenHash(ctx context.Context, tokenH
 	return &verification, nil
 }
 
-func (r *EmailVerificationRepository) GetByUserID(ctx context.Context, userID string) ([]*domain.EmailVerification, error) {
+func (r *EmailVerificationRepository) GetByUserID(ctx context.Context, tenantID, userID string) ([]*domain.EmailVerification, error) {
 	query := `
-		SELECT id, user_id, token_hash, expires_at, verified_at, created_at, ip_address, user_agent
+		SELECT id, tenant_id, user_id, token_hash, expires_at, verified_at, created_at, ip_address, user_agent
 		FROM auth_email_verifications
-		WHERE user_id = $1
+		WHERE tenant_id = $1 AND user_id = $2
 		ORDER BY created_at DESC
 		LIMIT 10
 	`
 
-	rows, err := r.db.Query(ctx, query, userID)
+	rows, err := r.db.Query(ctx, query, tenantID, userID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get verifications: %w", err)
 	}
@@ -86,7 +86,7 @@ func (r *EmailVerificationRepository) GetByUserID(ctx context.Context, userID st
 		var verifiedAt sql.NullTime
 
 		err := rows.Scan(
-			&verification.ID, &verification.UserID, &verification.TokenHash, &verification.ExpiresAt,
+			&verification.ID, &verification.TenantID, &verification.UserID, &verification.TokenHash, &verification.ExpiresAt,
 			&verifiedAt, &verification.CreatedAt, &verification.IPAddress, &verification.UserAgent,
 		)
 
@@ -104,14 +104,14 @@ func (r *EmailVerificationRepository) GetByUserID(ctx context.Context, userID st
 	return verifications, nil
 }
 
-func (r *EmailVerificationRepository) MarkAsVerified(ctx context.Context, tokenHash string) error {
+func (r *EmailVerificationRepository) MarkAsVerified(ctx context.Context, tenantID, tokenHash string) error {
 	query := `
 		UPDATE auth_email_verifications
 		SET verified_at = NOW()
-		WHERE token_hash = $1 AND verified_at IS NULL
+		WHERE tenant_id = $1 AND token_hash = $2 AND verified_at IS NULL
 	`
 
-	result, err := r.db.Exec(ctx, query, tokenHash)
+	result, err := r.db.Exec(ctx, query, tenantID, tokenHash)
 	if err != nil {
 		return fmt.Errorf("failed to mark verification as verified: %w", err)
 	}
@@ -123,10 +123,10 @@ func (r *EmailVerificationRepository) MarkAsVerified(ctx context.Context, tokenH
 	return nil
 }
 
-func (r *EmailVerificationRepository) DeleteByUserID(ctx context.Context, userID string) error {
-	query := `DELETE FROM auth_email_verifications WHERE user_id = $1`
+func (r *EmailVerificationRepository) DeleteByUserID(ctx context.Context, tenantID, userID string) error {
+	query := `DELETE FROM auth_email_verifications WHERE tenant_id = $1 AND user_id = $2`
 
-	_, err := r.db.Exec(ctx, query, userID)
+	_, err := r.db.Exec(ctx, query, tenantID, userID)
 	if err != nil {
 		return fmt.Errorf("failed to delete verifications: %w", err)
 	}

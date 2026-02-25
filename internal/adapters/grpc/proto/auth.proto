@@ -20,6 +20,7 @@ service AuthService {
 // ValidateToken messages
 message ValidateTokenRequest {
   string token = 1;
+  string tenant_id = 2;
 }
 
 message ValidateTokenResponse {
@@ -27,16 +28,18 @@ message ValidateTokenResponse {
   string user_id = 2;
   string email = 3;
   string username = 4;
-  bool active = 5;
-  bool email_verified = 6;
-  bool two_factor_enabled = 7;
-  string error_code = 8;
-  string error_message = 9;
+  string tenant_id = 5;
+  bool active = 6;
+  bool email_verified = 7;
+  bool two_factor_enabled = 8;
+  string error_code = 9;
+  string error_message = 10;
 }
 
 // RevokeToken messages
 message RevokeTokenRequest {
   string token = 1;
+  string tenant_id = 2;
 }
 
 message RevokeTokenResponse {
@@ -47,14 +50,16 @@ message RevokeTokenResponse {
 // GetUserByID messages
 message GetUserByIDRequest {
   string user_id = 1;
+  string tenant_id = 2;
 }
 
 message GetUserByIDResponse {
   string id = 1;
   string username = 2;
   string email = 3;
-  bool active = 4;
-  bool email_verified = 5;
-  bool two_factor_enabled = 6;
-  string created_at = 7;
+  string tenant_id = 4;
+  bool active = 5;
+  bool email_verified = 6;
+  bool two_factor_enabled = 7;
+  string created_at = 8;
 }

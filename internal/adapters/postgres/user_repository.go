@@ -21,10 +21,10 @@ func NewUserRepository(db *pgxpool.Pool) *UserRepository {
 func (r *UserRepository) Create(ctx context.Context, user *domain.User, passwordHash string) error {
 	query := `
 		INSERT INTO auth_users (
-			id, username, email, password_hash, active, email_verified,
+			id, tenant_id, username, email, password_hash, active, email_verified,
 			two_factor_enabled, two_factor_secret, oauth_provider, oauth_provider_id,
 			created_at, updated_at, password_changed_at, password_reset_required, attributes, webauthn_id
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
 	`
 
 	// Convert empty strings to NULL for optional fields
@@ -49,7 +49,7 @@ func (r *UserRepository) Create(ctx context.Context, user *domain.User, password
 	}
 
 	_, err := r.db.Exec(ctx, query,
-		user.ID, user.Username, user.Email, passwordHash, user.Active, user.EmailVerified,
+		user.ID, user.TenantID, user.Username, user.Email, passwordHash, user.Active, user.EmailVerified,
 		user.TwoFactorEnabled, twoFactorSecret, oauthProvider, oauthProviderID,
 		user.CreatedAt, user.UpdatedAt, user.CreatedAt, user.PasswordResetRequired, user.Attributes, user.WebAuthnID,
 	)
@@ -61,15 +61,15 @@ func (r *UserRepository) Create(ctx context.Context, user *domain.User, password
 	return nil
 }
 
-func (r *UserRepository) GetByID(ctx context.Context, id string) (*domain.User, error) {
+func (r *UserRepository) GetByID(ctx context.Context, tenantID, id string) (*domain.User, error) {
 	query := `
-		SELECT id, username, email, password_hash, active, email_verified,
+		SELECT id, tenant_id, username, email, password_hash, active, email_verified,
 			   two_factor_enabled, two_factor_secret, oauth_provider, oauth_provider_id,
 			   created_at, updated_at, last_login_at, last_login_ip, last_login_country,
 			   last_login_latitude, last_login_longitude, failed_login_attempts, locked_until,
 			   password_changed_at, password_reset_required, attributes, webauthn_id
 		FROM auth_users
-		WHERE id = $1
+		WHERE tenant_id = $1 AND id = $2
 	`
 
 	user := &domain.User{}
@@ -77,8 +77,8 @@ func (r *UserRepository) GetByID(ctx context.Context, id string) (*domain.User, 
 	var twoFactorSecret, oauthProvider, oauthProviderID, lastLoginIP, lastLoginCountry *string
 	var lastLoginLatitude, lastLoginLongitude *float64
 
-	err := r.db.QueryRow(ctx, query, id).Scan(
-		&user.ID, &user.Username, &user.Email, &user.PasswordHash, &user.Active, &user.EmailVerified,
+	err := r.db.QueryRow(ctx, query, tenantID, id).Scan(
+		&user.ID, &user.TenantID, &user.Username, &user.Email, &user.PasswordHash, &user.Active, &user.EmailVerified,
 		&user.TwoFactorEnabled, &twoFactorSecret, &oauthProvider, &oauthProviderID,
 		&user.CreatedAt, &user.UpdatedAt, &lastLoginAt, &lastLoginIP, &lastLoginCountry,
 		&lastLoginLatitude, &lastLoginLongitude, &user.FailedLoginAttempts, &lockedUntil,
@@ -114,7 +114,7 @@ func (r *UserRepository) GetByID(ctx context.Context, id string) (*domain.User, 
 	user.LastLoginLongitude = lastLoginLongitude
 
 	// Load roles
-	roles, err := r.getUserRoles(ctx, user.ID)
+	roles, err := r.getUserRoles(ctx, user.TenantID, user.ID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load user roles: %w", err)
 	}
@@ -123,22 +123,22 @@ func (r *UserRepository) GetByID(ctx context.Context, id string) (*domain.User, 
 	return user, nil
 }
 
-func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*domain.User, error) {
+func (r *UserRepository) GetByEmail(ctx context.Context, tenantID, email string) (*domain.User, error) {
 	query := `
-		SELECT id, username, email, password_hash, active, email_verified,
+		SELECT id, tenant_id, username, email, password_hash, active, email_verified,
 			   two_factor_enabled, two_factor_secret, oauth_provider, oauth_provider_id,
 			   created_at, updated_at, last_login_at, last_login_ip, last_login_country,
 			   failed_login_attempts, locked_until, password_changed_at, password_reset_required, attributes, webauthn_id
 		FROM auth_users
-		WHERE email = $1
+		WHERE tenant_id = $1 AND email = $2
 	`
 
 	user := &domain.User{}
 	var lastLoginAt, lockedUntil *time.Time
 	var twoFactorSecret, oauthProvider, oauthProviderID, lastLoginIP, lastLoginCountry *string
 
-	err := r.db.QueryRow(ctx, query, email).Scan(
-		&user.ID, &user.Username, &user.Email, &user.PasswordHash, &user.Active, &user.EmailVerified,
+	err := r.db.QueryRow(ctx, query, tenantID, email).Scan(
+		&user.ID, &user.TenantID, &user.Username, &user.Email, &user.PasswordHash, &user.Active, &user.EmailVerified,
 		&user.TwoFactorEnabled, &twoFactorSecret, &oauthProvider, &oauthProviderID,
 		&user.CreatedAt, &user.UpdatedAt, &lastLoginAt, &lastLoginIP, &lastLoginCountry,
 		&user.FailedLoginAttempts, &lockedUntil, &user.PasswordChangedAt, &user.PasswordResetRequired, &user.Attributes, &user.WebAuthnID,
@@ -171,7 +171,7 @@ func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*domain.
 	}
 
 	// Load roles
-	roles, err := r.getUserRoles(ctx, user.ID)
+	roles, err := r.getUserRoles(ctx, user.TenantID, user.ID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load user roles: %w", err)
 	}
@@ -180,22 +180,22 @@ func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*domain.
 	return user, nil
 }
 
-func (r *UserRepository) GetByUsername(ctx context.Context, username string) (*domain.User, error) {
+func (r *UserRepository) GetByUsername(ctx context.Context, tenantID, username string) (*domain.User, error) {
 	query := `
-		SELECT id, username, email, password_hash, active, email_verified,
+		SELECT id, tenant_id, username, email, password_hash, active, email_verified,
 			   two_factor_enabled, two_factor_secret, oauth_provider, oauth_provider_id,
 			   created_at, updated_at, last_login_at, last_login_ip, last_login_country,
 			   failed_login_attempts, locked_until, password_changed_at, password_reset_required, attributes, webauthn_id
 		FROM auth_users
-		WHERE username = $1
+		WHERE tenant_id = $1 AND username = $2
 	`
 
 	user := &domain.User{}
 	var lastLoginAt, lockedUntil *time.Time
 	var twoFactorSecret, oauthProvider, oauthProviderID, lastLoginIP, lastLoginCountry *string
 
-	err := r.db.QueryRow(ctx, query, username).Scan(
-		&user.ID, &user.Username, &user.Email, &user.PasswordHash, &user.Active, &user.EmailVerified,
+	err := r.db.QueryRow(ctx, query, tenantID, username).Scan(
+		&user.ID, &user.TenantID, &user.Username, &user.Email, &user.PasswordHash, &user.Active, &user.EmailVerified,
 		&user.TwoFactorEnabled, &twoFactorSecret, &oauthProvider, &oauthProviderID,
 		&user.CreatedAt, &user.UpdatedAt, &lastLoginAt, &lastLoginIP, &lastLoginCountry,
 		&user.FailedLoginAttempts, &lockedUntil, &user.PasswordChangedAt, &user.PasswordResetRequired, &user.Attributes, &user.WebAuthnID,
@@ -228,7 +228,7 @@ func (r *UserRepository) GetByUsername(ctx context.Context, username string) (*d
 	}
 
 	// Load roles
-	roles, err := r.getUserRoles(ctx, user.ID)
+	roles, err := r.getUserRoles(ctx, user.TenantID, user.ID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load user roles: %w", err)
 	}
@@ -237,15 +237,15 @@ func (r *UserRepository) GetByUsername(ctx context.Context, username string) (*d
 	return user, nil
 }
 
-func (r *UserRepository) GetByEmailOrUsername(ctx context.Context, identifier string) (*domain.User, error) {
+func (r *UserRepository) GetByEmailOrUsername(ctx context.Context, tenantID, identifier string) (*domain.User, error) {
 	query := `
-		SELECT id, username, email, password_hash, active, email_verified,
+		SELECT id, tenant_id, username, email, password_hash, active, email_verified,
 			two_factor_enabled, two_factor_secret, oauth_provider, oauth_provider_id,
 			created_at, updated_at, last_login_at, last_login_ip, last_login_country,
 			last_login_latitude, last_login_longitude, failed_login_attempts, locked_until,
 			password_changed_at, password_reset_required, attributes, webauthn_id
 		FROM auth_users
-		WHERE email = $1 OR username = $1
+		WHERE tenant_id = $1 AND (email = $2 OR username = $2)
 	`
 
 	user := &domain.User{}
@@ -253,8 +253,8 @@ func (r *UserRepository) GetByEmailOrUsername(ctx context.Context, identifier st
 	var twoFactorSecret, oauthProvider, oauthProviderID, lastLoginIP, lastLoginCountry *string
 	var lastLoginLatitude, lastLoginLongitude *float64
 
-	err := r.db.QueryRow(ctx, query, identifier).Scan(
-		&user.ID, &user.Username, &user.Email, &user.PasswordHash, &user.Active, &user.EmailVerified,
+	err := r.db.QueryRow(ctx, query, tenantID, identifier).Scan(
+		&user.ID, &user.TenantID, &user.Username, &user.Email, &user.PasswordHash, &user.Active, &user.EmailVerified,
 		&user.TwoFactorEnabled, &twoFactorSecret, &oauthProvider, &oauthProviderID,
 		&user.CreatedAt, &user.UpdatedAt, &lastLoginAt, &lastLoginIP, &lastLoginCountry,
 		&lastLoginLatitude, &lastLoginLongitude, &user.FailedLoginAttempts, &lockedUntil, &user.PasswordChangedAt,
@@ -290,7 +290,7 @@ func (r *UserRepository) GetByEmailOrUsername(ctx context.Context, identifier st
 	user.LastLoginLongitude = lastLoginLongitude
 
 	// Load roles
-	roles, err := r.getUserRoles(ctx, user.ID)
+	roles, err := r.getUserRoles(ctx, user.TenantID, user.ID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load user roles: %w", err)
 	}
@@ -299,22 +299,22 @@ func (r *UserRepository) GetByEmailOrUsername(ctx context.Context, identifier st
 	return user, nil
 }
 
-func (r *UserRepository) GetByOAuthProvider(ctx context.Context, provider, providerID string) (*domain.User, error) {
+func (r *UserRepository) GetByOAuthProvider(ctx context.Context, tenantID, provider, providerID string) (*domain.User, error) {
 	query := `
-		SELECT id, username, email, password_hash, active, email_verified,
+		SELECT id, tenant_id, username, email, password_hash, active, email_verified,
 			   two_factor_enabled, two_factor_secret, oauth_provider, oauth_provider_id,
 			   created_at, updated_at, last_login_at, last_login_ip, last_login_country,
 			   failed_login_attempts, locked_until, password_changed_at, password_reset_required, attributes, webauthn_id
 		FROM auth_users
-		WHERE oauth_provider = $1 AND oauth_provider_id = $2
+		WHERE tenant_id = $1 AND oauth_provider = $2 AND oauth_provider_id = $3
 	`
 
 	user := &domain.User{}
 	var lastLoginAt, lockedUntil *time.Time
 	var twoFactorSecret, oauthProvider, oauthProviderID, lastLoginIP, lastLoginCountry *string
 
-	err := r.db.QueryRow(ctx, query, provider, providerID).Scan(
-		&user.ID, &user.Username, &user.Email, &user.PasswordHash, &user.Active, &user.EmailVerified,
+	err := r.db.QueryRow(ctx, query, tenantID, provider, providerID).Scan(
+		&user.ID, &user.TenantID, &user.Username, &user.Email, &user.PasswordHash, &user.Active, &user.EmailVerified,
 		&user.TwoFactorEnabled, &twoFactorSecret, &oauthProvider, &oauthProviderID,
 		&user.CreatedAt, &user.UpdatedAt, &lastLoginAt, &lastLoginIP, &lastLoginCountry,
 		&user.FailedLoginAttempts, &lockedUntil, &user.PasswordChangedAt, &user.PasswordResetRequired, &user.Attributes, &user.WebAuthnID,
@@ -347,7 +347,7 @@ func (r *UserRepository) GetByOAuthProvider(ctx context.Context, provider, provi
 	}
 
 	// Load roles
-	roles, err := r.getUserRoles(ctx, user.ID)
+	roles, err := r.getUserRoles(ctx, user.TenantID, user.ID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load user roles: %w", err)
 	}
@@ -394,6 +394,7 @@ func (r *UserRepository) Update(ctx context.Context, user *domain.User) error {
 		user.UpdatedAt, user.LastLoginAt, lastLoginIP, lastLoginCountry,
 		user.LastLoginLatitude, user.LastLoginLongitude,
 		user.FailedLoginAttempts, user.LockedUntil, user.PasswordResetRequired, user.Attributes, user.WebAuthnID,
+		user.ID, user.TenantID,
 	)
 
 	if err != nil {
@@ -403,14 +404,14 @@ func (r *UserRepository) Update(ctx context.Context, user *domain.User) error {
 	return nil
 }
 
-func (r *UserRepository) UpdatePassword(ctx context.Context, userID, newPasswordHash string) error {
+func (r *UserRepository) UpdatePassword(ctx context.Context, tenantID, userID, newPasswordHash string) error {
 	query := `
 		UPDATE auth_users
-		SET password_hash = $2, password_changed_at = NOW(), updated_at = NOW(), password_reset_required = FALSE
-		WHERE id = $1
+		SET password_hash = $3, password_changed_at = NOW(), updated_at = NOW(), password_reset_required = FALSE
+		WHERE tenant_id = $1 AND id = $2
 	`
 
-	_, err := r.db.Exec(ctx, query, userID, newPasswordHash)
+	_, err := r.db.Exec(ctx, query, tenantID, userID, newPasswordHash)
 	if err != nil {
 		return fmt.Errorf("failed to update password: %w", err)
 	}
@@ -493,14 +494,14 @@ func (r *UserRepository) Delete(ctx context.Context, id string) error {
 	return nil
 }
 
-func (r *UserRepository) getUserRoles(ctx context.Context, userID string) ([]domain.Role, error) {
+func (r *UserRepository) getUserRoles(ctx context.Context, tenantID, userID string) ([]domain.Role, error) {
 	query := `
-		SELECT r.id, r.name, r.description, r.created_at, r.updated_at 
+		SELECT r.id, r.tenant_id, r.name, r.description, r.created_at, r.updated_at 
 		FROM auth_roles r
 		JOIN auth_user_roles ur ON r.id = ur.role_id
-		WHERE ur.user_id = $1
+		WHERE ur.tenant_id = $1 AND ur.user_id = $2
 	`
-	rows, err := r.db.Query(ctx, query, userID)
+	rows, err := r.db.Query(ctx, query, tenantID, userID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user roles: %w", err)
 	}
@@ -509,14 +510,14 @@ func (r *UserRepository) getUserRoles(ctx context.Context, userID string) ([]dom
 	var roles []domain.Role
 	for rows.Next() {
 		role := domain.Role{}
-		if err := rows.Scan(&role.ID, &role.Name, &role.Description, &role.CreatedAt, &role.UpdatedAt); err != nil {
+		if err := rows.Scan(&role.ID, &role.TenantID, &role.Name, &role.Description, &role.CreatedAt, &role.UpdatedAt); err != nil {
 			return nil, err
 		}
 		roles = append(roles, role)
 	}
 
 	for i := range roles {
-		perms, err := r.getRolePermissions(ctx, roles[i].ID)
+		perms, err := r.getRolePermissions(ctx, tenantID, roles[i].ID)
 		if err != nil {
 			return nil, err
 		}
@@ -526,14 +527,14 @@ func (r *UserRepository) getUserRoles(ctx context.Context, userID string) ([]dom
 	return roles, nil
 }
 
-func (r *UserRepository) getRolePermissions(ctx context.Context, roleID string) ([]domain.Permission, error) {
+func (r *UserRepository) getRolePermissions(ctx context.Context, tenantID, roleID string) ([]domain.Permission, error) {
 	query := `
-		SELECT p.id, p.name, p.description, p.created_at, p.updated_at 
+		SELECT p.id, p.tenant_id, p.name, p.description, p.created_at, p.updated_at 
 		FROM auth_permissions p
 		JOIN auth_role_permissions rp ON p.id = rp.permission_id
-		WHERE rp.role_id = $1
+		WHERE rp.tenant_id = $1 AND rp.role_id = $2
 	`
-	rows, err := r.db.Query(ctx, query, roleID)
+	rows, err := r.db.Query(ctx, query, tenantID, roleID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get role permissions: %w", err)
 	}
@@ -542,7 +543,7 @@ func (r *UserRepository) getRolePermissions(ctx context.Context, roleID string) 
 	var perms []domain.Permission
 	for rows.Next() {
 		p := domain.Permission{}
-		if err := rows.Scan(&p.ID, &p.Name, &p.Description, &p.CreatedAt, &p.UpdatedAt); err != nil {
+		if err := rows.Scan(&p.ID, &p.TenantID, &p.Name, &p.Description, &p.CreatedAt, &p.UpdatedAt); err != nil {
 			return nil, err
 		}
 		perms = append(perms, p)

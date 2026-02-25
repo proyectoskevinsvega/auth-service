@@ -20,8 +20,8 @@ func NewRefreshTokenRepository(db *pgxpool.Pool) *RefreshTokenRepository {
 func (r *RefreshTokenRepository) Create(ctx context.Context, token *domain.RefreshToken) error {
 	query := `
 		INSERT INTO auth_refresh_tokens (
-			id, user_id, session_id, token_hash, previous_token, expires_at, created_at, revoked, revoked_at
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+			id, tenant_id, user_id, session_id, token_hash, previous_token, expires_at, created_at, revoked, revoked_at
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 	`
 
 	// Convert empty string to NULL for previous_token (UUID field)
@@ -33,7 +33,7 @@ func (r *RefreshTokenRepository) Create(ctx context.Context, token *domain.Refre
 	}
 
 	_, err := r.db.Exec(ctx, query,
-		token.ID, token.UserID, token.SessionID, token.TokenHash, previousToken,
+		token.ID, token.TenantID, token.UserID, token.SessionID, token.TokenHash, previousToken,
 		token.ExpiresAt, token.CreatedAt, token.Revoked, token.RevokedAt,
 	)
 
@@ -44,19 +44,19 @@ func (r *RefreshTokenRepository) Create(ctx context.Context, token *domain.Refre
 	return nil
 }
 
-func (r *RefreshTokenRepository) GetByID(ctx context.Context, id string) (*domain.RefreshToken, error) {
+func (r *RefreshTokenRepository) GetByID(ctx context.Context, tenantID, id string) (*domain.RefreshToken, error) {
 	query := `
-		SELECT id, user_id, session_id, token_hash, previous_token, expires_at, created_at, revoked, revoked_at
+		SELECT id, tenant_id, user_id, session_id, token_hash, previous_token, expires_at, created_at, revoked, revoked_at
 		FROM auth_refresh_tokens
-		WHERE id = $1
+		WHERE tenant_id = $1 AND id = $2
 	`
 
 	token := &domain.RefreshToken{}
 	var revokedAt sql.NullTime
 	var previousToken sql.NullString
 
-	err := r.db.QueryRow(ctx, query, id).Scan(
-		&token.ID, &token.UserID, &token.SessionID, &token.TokenHash, &previousToken,
+	err := r.db.QueryRow(ctx, query, tenantID, id).Scan(
+		&token.ID, &token.TenantID, &token.UserID, &token.SessionID, &token.TokenHash, &previousToken,
 		&token.ExpiresAt, &token.CreatedAt, &token.Revoked, &revokedAt,
 	)
 
@@ -78,19 +78,19 @@ func (r *RefreshTokenRepository) GetByID(ctx context.Context, id string) (*domai
 	return token, nil
 }
 
-func (r *RefreshTokenRepository) GetByTokenHash(ctx context.Context, tokenHash string) (*domain.RefreshToken, error) {
+func (r *RefreshTokenRepository) GetByTokenHash(ctx context.Context, tenantID, tokenHash string) (*domain.RefreshToken, error) {
 	query := `
-		SELECT id, user_id, session_id, token_hash, previous_token, expires_at, created_at, revoked, revoked_at
+		SELECT id, tenant_id, user_id, session_id, token_hash, previous_token, expires_at, created_at, revoked, revoked_at
 		FROM auth_refresh_tokens
-		WHERE token_hash = $1
+		WHERE tenant_id = $1 AND token_hash = $2
 	`
 
 	token := &domain.RefreshToken{}
 	var revokedAt sql.NullTime
 	var previousToken sql.NullString
 
-	err := r.db.QueryRow(ctx, query, tokenHash).Scan(
-		&token.ID, &token.UserID, &token.SessionID, &token.TokenHash, &previousToken,
+	err := r.db.QueryRow(ctx, query, tenantID, tokenHash).Scan(
+		&token.ID, &token.TenantID, &token.UserID, &token.SessionID, &token.TokenHash, &previousToken,
 		&token.ExpiresAt, &token.CreatedAt, &token.Revoked, &revokedAt,
 	)
 
@@ -112,11 +112,11 @@ func (r *RefreshTokenRepository) GetByTokenHash(ctx context.Context, tokenHash s
 	return token, nil
 }
 
-func (r *RefreshTokenRepository) GetBySessionID(ctx context.Context, sessionID string) (*domain.RefreshToken, error) {
+func (r *RefreshTokenRepository) GetBySessionID(ctx context.Context, tenantID, sessionID string) (*domain.RefreshToken, error) {
 	query := `
-		SELECT id, user_id, session_id, token_hash, previous_token, expires_at, created_at, revoked, revoked_at
+		SELECT id, tenant_id, user_id, session_id, token_hash, previous_token, expires_at, created_at, revoked, revoked_at
 		FROM auth_refresh_tokens
-		WHERE session_id = $1 AND revoked = false
+		WHERE tenant_id = $1 AND session_id = $2 AND revoked = false
 		ORDER BY created_at DESC
 		LIMIT 1
 	`
@@ -125,8 +125,8 @@ func (r *RefreshTokenRepository) GetBySessionID(ctx context.Context, sessionID s
 	var revokedAt sql.NullTime
 	var previousToken sql.NullString
 
-	err := r.db.QueryRow(ctx, query, sessionID).Scan(
-		&token.ID, &token.UserID, &token.SessionID, &token.TokenHash, &previousToken,
+	err := r.db.QueryRow(ctx, query, tenantID, sessionID).Scan(
+		&token.ID, &token.TenantID, &token.UserID, &token.SessionID, &token.TokenHash, &previousToken,
 		&token.ExpiresAt, &token.CreatedAt, &token.Revoked, &revokedAt,
 	)
 
@@ -152,10 +152,10 @@ func (r *RefreshTokenRepository) Update(ctx context.Context, token *domain.Refre
 	query := `
 		UPDATE auth_refresh_tokens
 		SET revoked = $2, revoked_at = $3
-		WHERE id = $1
+		WHERE tenant_id = $4 AND id = $1
 	`
 
-	_, err := r.db.Exec(ctx, query, token.ID, token.Revoked, token.RevokedAt)
+	_, err := r.db.Exec(ctx, query, token.ID, token.Revoked, token.RevokedAt, token.TenantID)
 	if err != nil {
 		return fmt.Errorf("failed to update refresh token: %w", err)
 	}
@@ -163,14 +163,14 @@ func (r *RefreshTokenRepository) Update(ctx context.Context, token *domain.Refre
 	return nil
 }
 
-func (r *RefreshTokenRepository) Revoke(ctx context.Context, tokenID string) error {
+func (r *RefreshTokenRepository) Revoke(ctx context.Context, tenantID, tokenID string) error {
 	query := `
 		UPDATE auth_refresh_tokens
 		SET revoked = true, revoked_at = NOW()
-		WHERE id = $1
+		WHERE tenant_id = $1 AND id = $2
 	`
 
-	_, err := r.db.Exec(ctx, query, tokenID)
+	_, err := r.db.Exec(ctx, query, tenantID, tokenID)
 	if err != nil {
 		return fmt.Errorf("failed to revoke refresh token: %w", err)
 	}
@@ -178,14 +178,14 @@ func (r *RefreshTokenRepository) Revoke(ctx context.Context, tokenID string) err
 	return nil
 }
 
-func (r *RefreshTokenRepository) RevokeByUserID(ctx context.Context, userID string) error {
+func (r *RefreshTokenRepository) RevokeByUserID(ctx context.Context, tenantID, userID string) error {
 	query := `
 		UPDATE auth_refresh_tokens
 		SET revoked = true, revoked_at = NOW()
-		WHERE user_id = $1 AND revoked = false
+		WHERE tenant_id = $1 AND user_id = $2 AND revoked = false
 	`
 
-	_, err := r.db.Exec(ctx, query, userID)
+	_, err := r.db.Exec(ctx, query, tenantID, userID)
 	if err != nil {
 		return fmt.Errorf("failed to revoke user refresh tokens: %w", err)
 	}
@@ -193,14 +193,14 @@ func (r *RefreshTokenRepository) RevokeByUserID(ctx context.Context, userID stri
 	return nil
 }
 
-func (r *RefreshTokenRepository) RevokeBySessionID(ctx context.Context, sessionID string) error {
+func (r *RefreshTokenRepository) RevokeBySessionID(ctx context.Context, tenantID, sessionID string) error {
 	query := `
 		UPDATE auth_refresh_tokens
 		SET revoked = true, revoked_at = NOW()
-		WHERE session_id = $1 AND revoked = false
+		WHERE tenant_id = $1 AND session_id = $2 AND revoked = false
 	`
 
-	_, err := r.db.Exec(ctx, query, sessionID)
+	_, err := r.db.Exec(ctx, query, tenantID, sessionID)
 	if err != nil {
 		return fmt.Errorf("failed to revoke session refresh tokens: %w", err)
 	}

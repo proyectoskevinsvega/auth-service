@@ -19,12 +19,12 @@ func NewPasswordResetRepository(db *pgxpool.Pool) *PasswordResetRepository {
 
 func (r *PasswordResetRepository) Create(ctx context.Context, token *domain.PasswordResetToken) error {
 	query := `
-		INSERT INTO auth_password_resets (id, user_id, token, code, expires_at, created_at, used, used_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		INSERT INTO auth_password_resets (id, tenant_id, user_id, token, code, expires_at, created_at, used, used_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 	`
 
 	_, err := r.db.Exec(ctx, query,
-		token.ID, token.UserID, token.Token, token.Code, token.ExpiresAt, token.CreatedAt, token.Used, token.UsedAt,
+		token.ID, token.TenantID, token.UserID, token.Token, token.Code, token.ExpiresAt, token.CreatedAt, token.Used, token.UsedAt,
 	)
 
 	if err != nil {
@@ -34,18 +34,18 @@ func (r *PasswordResetRepository) Create(ctx context.Context, token *domain.Pass
 	return nil
 }
 
-func (r *PasswordResetRepository) GetByToken(ctx context.Context, token string) (*domain.PasswordResetToken, error) {
+func (r *PasswordResetRepository) GetByToken(ctx context.Context, tenantID, token string) (*domain.PasswordResetToken, error) {
 	query := `
-		SELECT id, user_id, token, code, expires_at, created_at, used, used_at
+		SELECT id, tenant_id, user_id, token, code, expires_at, created_at, used, used_at
 		FROM auth_password_resets
-		WHERE token = $1
+		WHERE tenant_id = $1 AND token = $2
 	`
 
 	resetToken := &domain.PasswordResetToken{}
 	var usedAt sql.NullTime
 
-	err := r.db.QueryRow(ctx, query, token).Scan(
-		&resetToken.ID, &resetToken.UserID, &resetToken.Token, &resetToken.Code,
+	err := r.db.QueryRow(ctx, query, tenantID, token).Scan(
+		&resetToken.ID, &resetToken.TenantID, &resetToken.UserID, &resetToken.Token, &resetToken.Code,
 		&resetToken.ExpiresAt, &resetToken.CreatedAt, &resetToken.Used, &usedAt,
 	)
 
@@ -63,11 +63,11 @@ func (r *PasswordResetRepository) GetByToken(ctx context.Context, token string) 
 	return resetToken, nil
 }
 
-func (r *PasswordResetRepository) GetByCode(ctx context.Context, userID, code string) (*domain.PasswordResetToken, error) {
+func (r *PasswordResetRepository) GetByCode(ctx context.Context, tenantID, userID, code string) (*domain.PasswordResetToken, error) {
 	query := `
-		SELECT id, user_id, token, code, expires_at, created_at, used, used_at
+		SELECT id, tenant_id, user_id, token, code, expires_at, created_at, used, used_at
 		FROM auth_password_resets
-		WHERE user_id = $1 AND code = $2 AND used = false
+		WHERE tenant_id = $1 AND user_id = $2 AND code = $3 AND used = false
 		ORDER BY created_at DESC
 		LIMIT 1
 	`
@@ -75,8 +75,8 @@ func (r *PasswordResetRepository) GetByCode(ctx context.Context, userID, code st
 	resetToken := &domain.PasswordResetToken{}
 	var usedAt sql.NullTime
 
-	err := r.db.QueryRow(ctx, query, userID, code).Scan(
-		&resetToken.ID, &resetToken.UserID, &resetToken.Token, &resetToken.Code,
+	err := r.db.QueryRow(ctx, query, tenantID, userID, code).Scan(
+		&resetToken.ID, &resetToken.TenantID, &resetToken.UserID, &resetToken.Token, &resetToken.Code,
 		&resetToken.ExpiresAt, &resetToken.CreatedAt, &resetToken.Used, &usedAt,
 	)
 
@@ -94,14 +94,14 @@ func (r *PasswordResetRepository) GetByCode(ctx context.Context, userID, code st
 	return resetToken, nil
 }
 
-func (r *PasswordResetRepository) MarkAsUsed(ctx context.Context, tokenID string) error {
+func (r *PasswordResetRepository) MarkAsUsed(ctx context.Context, tenantID, tokenID string) error {
 	query := `
 		UPDATE auth_password_resets
 		SET used = true, used_at = NOW()
-		WHERE id = $1
+		WHERE tenant_id = $1 AND id = $2
 	`
 
-	_, err := r.db.Exec(ctx, query, tokenID)
+	_, err := r.db.Exec(ctx, query, tenantID, tokenID)
 	if err != nil {
 		return fmt.Errorf("failed to mark password reset token as used: %w", err)
 	}

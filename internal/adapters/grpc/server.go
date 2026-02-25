@@ -68,7 +68,7 @@ func (s *AuthServer) ValidateToken(ctx context.Context, req *pb.ValidateTokenReq
 	}
 
 	// Get user details
-	user, err := s.userRepo.GetByID(ctx, token.UserID)
+	user, err := s.userRepo.GetByID(ctx, token.TenantID, token.UserID)
 	if err != nil {
 		s.logger.Error().Err(err).Str("user_id", token.UserID).Msg("failed to get user")
 		return &pb.ValidateTokenResponse{
@@ -83,6 +83,7 @@ func (s *AuthServer) ValidateToken(ctx context.Context, req *pb.ValidateTokenReq
 		UserId:           user.ID,
 		Email:            user.Email,
 		Username:         user.Username,
+		TenantId:         user.TenantID,
 		Active:           user.Active,
 		EmailVerified:    user.EmailVerified,
 		TwoFactorEnabled: user.TwoFactorEnabled,
@@ -117,7 +118,7 @@ func (s *AuthServer) GetUserByID(ctx context.Context, req *pb.GetUserByIDRequest
 		return nil, status.Error(codes.InvalidArgument, "user_id is required")
 	}
 
-	user, err := s.userRepo.GetByID(ctx, req.UserId)
+	user, err := s.userRepo.GetByID(ctx, req.TenantId, req.UserId)
 	if err != nil {
 		if err == domain.ErrUserNotFound {
 			return nil, status.Error(codes.NotFound, "user not found")
@@ -130,6 +131,7 @@ func (s *AuthServer) GetUserByID(ctx context.Context, req *pb.GetUserByIDRequest
 		Id:               user.ID,
 		Username:         user.Username,
 		Email:            user.Email,
+		TenantId:         user.TenantID,
 		Active:           user.Active,
 		EmailVerified:    user.EmailVerified,
 		TwoFactorEnabled: user.TwoFactorEnabled,

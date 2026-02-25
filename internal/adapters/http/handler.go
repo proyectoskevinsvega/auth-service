@@ -354,7 +354,8 @@ func (h *Handler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response, err := h.tokenUC.RefreshToken(r.Context(), req.RefreshToken)
+	tenantID, _ := GetTenantIDFromContext(r.Context())
+	response, err := h.tokenUC.RefreshToken(r.Context(), tenantID, req.RefreshToken)
 	if err != nil {
 		h.handleAuthError(w, err)
 		return
@@ -425,7 +426,8 @@ func (h *Handler) ForgotPassword(w http.ResponseWriter, r *http.Request) {
 
 	ipAddress := r.RemoteAddr
 
-	if err := h.authUC.ForgotPassword(r.Context(), req.Email, ipAddress); err != nil {
+	tenantID, _ := GetTenantIDFromContext(r.Context())
+	if err := h.authUC.ForgotPassword(r.Context(), tenantID, req.Email, ipAddress); err != nil {
 		h.logger.Error().Err(err).Msg("forgot password failed")
 		// Always return success to prevent email enumeration
 	}
@@ -460,7 +462,7 @@ func (h *Handler) ResetPassword(w http.ResponseWriter, r *http.Request) {
 
 	ipAddress := r.RemoteAddr
 
-	if err := h.authUC.ResetPasswordWithToken(r.Context(), req.Token, req.NewPassword, ipAddress); err != nil {
+	if err := h.authUC.ResetPasswordWithToken(r.Context(), req.TenantID, req.Token, req.NewPassword, ipAddress); err != nil {
 		h.handleAuthError(w, err)
 		return
 	}
@@ -495,7 +497,7 @@ func (h *Handler) ResetPasswordWithCode(w http.ResponseWriter, r *http.Request) 
 
 	ipAddress := r.RemoteAddr
 
-	if err := h.authUC.ResetPasswordWithCode(r.Context(), req.Email, req.Code, req.NewPassword, ipAddress); err != nil {
+	if err := h.authUC.ResetPasswordWithCode(r.Context(), req.TenantID, req.Email, req.Code, req.NewPassword, ipAddress); err != nil {
 		h.handleAuthError(w, err)
 		return
 	}
@@ -523,7 +525,8 @@ func (h *Handler) GetMe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, err := h.userRepo.GetByID(r.Context(), userID)
+	tenantID, _ := GetTenantIDFromContext(r.Context())
+	user, err := h.userRepo.GetByID(r.Context(), tenantID, userID)
 	if err != nil {
 		h.logger.Error().Err(err).Str("user_id", userID).Msg("failed to get user")
 		respondWithError(w, http.StatusInternalServerError, "failed to get user", "INTERNAL_ERROR")
@@ -569,7 +572,8 @@ func (h *Handler) UpdateMe(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get current user
-	user, err := h.userRepo.GetByID(r.Context(), userID)
+	tenantID, _ := GetTenantIDFromContext(r.Context())
+	user, err := h.userRepo.GetByID(r.Context(), tenantID, userID)
 	if err != nil {
 		h.logger.Error().Err(err).Str("user_id", userID).Msg("failed to get user")
 		respondWithError(w, http.StatusInternalServerError, "failed to get user", "INTERNAL_ERROR")
@@ -579,7 +583,7 @@ func (h *Handler) UpdateMe(w http.ResponseWriter, r *http.Request) {
 	// Update fields if provided
 	if req.Email != "" && req.Email != user.Email {
 		// Check if email already exists
-		existingUser, _ := h.userRepo.GetByEmail(r.Context(), req.Email)
+		existingUser, _ := h.userRepo.GetByEmail(r.Context(), tenantID, req.Email)
 		if existingUser != nil {
 			respondWithError(w, http.StatusConflict, "email already exists", "EMAIL_EXISTS")
 			return
@@ -595,7 +599,7 @@ func (h *Handler) UpdateMe(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		// Check if username already exists
-		existingUser, _ := h.userRepo.GetByUsername(r.Context(), req.Username)
+		existingUser, _ := h.userRepo.GetByUsername(r.Context(), tenantID, req.Username)
 		if existingUser != nil {
 			respondWithError(w, http.StatusConflict, "username already exists", "USERNAME_EXISTS")
 			return
@@ -658,8 +662,10 @@ func (h *Handler) GoogleOAuthCallback(w http.ResponseWriter, r *http.Request) {
 	ipAddress := r.RemoteAddr
 	userAgent := r.UserAgent()
 
+	tenantID, _ := GetTenantIDFromContext(r.Context())
 	response, err := h.authUC.OAuthLogin(
 		r.Context(),
+		tenantID,
 		"google",
 		code,
 		state,
@@ -725,8 +731,10 @@ func (h *Handler) GitHubOAuthCallback(w http.ResponseWriter, r *http.Request) {
 	ipAddress := r.RemoteAddr
 	userAgent := r.UserAgent()
 
+	tenantID, _ := GetTenantIDFromContext(r.Context())
 	response, err := h.authUC.OAuthLogin(
 		r.Context(),
+		tenantID,
 		"github",
 		code,
 		state,
@@ -780,7 +788,8 @@ func (h *Handler) ListSessions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sessions, err := h.sessionUC.ListUserSessions(r.Context(), userID, token.JTI)
+	tenantID, _ := GetTenantIDFromContext(r.Context())
+	sessions, err := h.sessionUC.ListUserSessions(r.Context(), tenantID, userID, token.JTI)
 	if err != nil {
 		h.logger.Error().Err(err).Str("user_id", userID).Msg("failed to list sessions")
 		respondWithError(w, http.StatusInternalServerError, "failed to list sessions", "INTERNAL_ERROR")
@@ -834,7 +843,8 @@ func (h *Handler) RevokeSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.sessionUC.RevokeSession(r.Context(), userID, sessionID); err != nil {
+	tenantID, _ := GetTenantIDFromContext(r.Context())
+	if err := h.sessionUC.RevokeSession(r.Context(), tenantID, userID, sessionID); err != nil {
 		if err == domain.ErrSessionNotFound {
 			respondWithError(w, http.StatusNotFound, "session not found", "SESSION_NOT_FOUND")
 			return
@@ -873,7 +883,8 @@ func (h *Handler) RevokeAllSessions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	revokedCount, err := h.sessionUC.RevokeAllSessions(r.Context(), userID, token.JTI)
+	tenantID, _ := GetTenantIDFromContext(r.Context())
+	revokedCount, err := h.sessionUC.RevokeAllSessions(r.Context(), tenantID, userID, token.JTI)
 	if err != nil {
 		h.logger.Error().Err(err).Str("user_id", userID).Msg("failed to revoke all sessions")
 		respondWithError(w, http.StatusInternalServerError, "failed to revoke sessions", "INTERNAL_ERROR")
@@ -905,7 +916,8 @@ func (h *Handler) Enable2FA(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response, err := h.twofaUC.Enable2FA(r.Context(), userID)
+	tenantID, _ := GetTenantIDFromContext(r.Context())
+	response, err := h.twofaUC.Enable2FA(r.Context(), tenantID, userID)
 	if err != nil {
 		h.logger.Error().Err(err).Str("user_id", userID).Msg("failed to enable 2FA")
 		if err.Error() == "2FA already enabled" {
@@ -953,7 +965,8 @@ func (h *Handler) Verify2FA(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.twofaUC.Verify2FA(r.Context(), userID, req.Code); err != nil {
+	tenantID, _ := GetTenantIDFromContext(r.Context())
+	if err := h.twofaUC.Verify2FA(r.Context(), tenantID, userID, req.Code); err != nil {
 		if err == domain.ErrInvalidCredentials {
 			respondWithError(w, http.StatusBadRequest, "invalid 2FA code", "INVALID_2FA_CODE")
 			return
@@ -999,7 +1012,8 @@ func (h *Handler) Disable2FA(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.twofaUC.Disable2FA(r.Context(), userID, req.Code); err != nil {
+	tenantID, _ := GetTenantIDFromContext(r.Context())
+	if err := h.twofaUC.Disable2FA(r.Context(), tenantID, userID, req.Code); err != nil {
 		if err == domain.ErrInvalidCredentials {
 			respondWithError(w, http.StatusBadRequest, "invalid 2FA code", "INVALID_2FA_CODE")
 			return
@@ -1032,9 +1046,7 @@ func (h *Handler) Disable2FA(w http.ResponseWriter, r *http.Request) {
 // @Failure      500 {object} ErrorResponse
 // @Router       /auth/verify-email [post]
 func (h *Handler) VerifyEmail(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Token string `json:"token"`
-	}
+	var req VerifyEmailRequest
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		respondWithError(w, http.StatusBadRequest, "invalid request body", "INVALID_REQUEST")
@@ -1046,7 +1058,8 @@ func (h *Handler) VerifyEmail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.emailVerificationUC.VerifyEmail(r.Context(), req.Token); err != nil {
+	tenantID := req.TenantID
+	if err := h.emailVerificationUC.VerifyEmail(r.Context(), tenantID, req.Token); err != nil {
 		h.handleAuthError(w, err)
 		return
 	}
@@ -1075,7 +1088,8 @@ func (h *Handler) VerifyEmailGET(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.emailVerificationUC.VerifyEmail(r.Context(), token); err != nil {
+	tenantID := r.URL.Query().Get("tenant_id")
+	if err := h.emailVerificationUC.VerifyEmail(r.Context(), tenantID, token); err != nil {
 		h.handleAuthError(w, err)
 		return
 	}
@@ -1124,7 +1138,8 @@ func (h *Handler) ResendVerificationEmail(w http.ResponseWriter, r *http.Request
 	ipAddress := r.RemoteAddr
 	userAgent := r.UserAgent()
 
-	if err := h.emailVerificationUC.ResendVerificationEmail(r.Context(), userID, ipAddress, userAgent); err != nil {
+	tenantID, _ := GetTenantIDFromContext(r.Context())
+	if err := h.emailVerificationUC.ResendVerificationEmail(r.Context(), tenantID, userID, ipAddress, userAgent); err != nil {
 		h.handleAuthError(w, err)
 		return
 	}
@@ -1195,8 +1210,9 @@ func (h *Handler) AdminForcePasswordReset(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	tenantID, _ := GetTenantIDFromContext(r.Context())
 	// 2. Call use case
-	if err := h.authUC.ForcePasswordReset(r.Context(), targetUserID); err != nil {
+	if err := h.authUC.ForcePasswordReset(r.Context(), tenantID, targetUserID); err != nil {
 		h.handleAuthError(w, err)
 		return
 	}
@@ -1255,7 +1271,8 @@ func (h *Handler) GetUserInfo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, err := h.authUC.GetUserInfo(r.Context(), userID)
+	tenantID, _ := GetTenantIDFromContext(r.Context())
+	user, err := h.authUC.GetUserInfo(r.Context(), tenantID, userID)
 	if err != nil {
 		h.handleAuthError(w, err)
 		return
@@ -1342,7 +1359,8 @@ func (h *Handler) handleAuthError(w http.ResponseWriter, err error) {
 // RBAC Handlers
 
 func (h *Handler) ListRoles(w http.ResponseWriter, r *http.Request) {
-	roles, err := h.authUC.ListRoles(r.Context())
+	tenantID, _ := GetTenantIDFromContext(r.Context())
+	roles, err := h.authUC.ListRoles(r.Context(), tenantID)
 	if err != nil {
 		h.handleAuthError(w, err)
 		return
@@ -1363,7 +1381,8 @@ func (h *Handler) CreateRole(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.authUC.CreateRole(r.Context(), req.Name, req.Description); err != nil {
+	tenantID, _ := GetTenantIDFromContext(r.Context())
+	if err := h.authUC.CreateRole(r.Context(), tenantID, req.Name, req.Description); err != nil {
 		h.handleAuthError(w, err)
 		return
 	}
@@ -1372,7 +1391,8 @@ func (h *Handler) CreateRole(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) ListPermissions(w http.ResponseWriter, r *http.Request) {
-	perms, err := h.authUC.ListPermissions(r.Context())
+	tenantID, _ := GetTenantIDFromContext(r.Context())
+	perms, err := h.authUC.ListPermissions(r.Context(), tenantID)
 	if err != nil {
 		h.handleAuthError(w, err)
 		return
@@ -1393,7 +1413,8 @@ func (h *Handler) CreatePermission(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.authUC.CreatePermission(r.Context(), req.Name, req.Description); err != nil {
+	tenantID, _ := GetTenantIDFromContext(r.Context())
+	if err := h.authUC.CreatePermission(r.Context(), tenantID, req.Name, req.Description); err != nil {
 		h.handleAuthError(w, err)
 		return
 	}
@@ -1411,7 +1432,8 @@ func (h *Handler) AddPermissionToRole(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.authUC.AddPermissionToRole(r.Context(), roleID, req.PermissionID); err != nil {
+	tenantID, _ := GetTenantIDFromContext(r.Context())
+	if err := h.authUC.AddPermissionToRole(r.Context(), tenantID, roleID, req.PermissionID); err != nil {
 		h.handleAuthError(w, err)
 		return
 	}
@@ -1429,7 +1451,8 @@ func (h *Handler) AssignRoleToUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.authUC.AssignRoleToUser(r.Context(), userID, req.RoleID); err != nil {
+	tenantID, _ := GetTenantIDFromContext(r.Context())
+	if err := h.authUC.AssignRoleToUser(r.Context(), tenantID, userID, req.RoleID); err != nil {
 		h.handleAuthError(w, err)
 		return
 	}
@@ -1488,7 +1511,8 @@ func (h *Handler) WebAuthnRegisterBegin(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	options, err := h.webauthnUC.BeginRegistration(r.Context(), userID)
+	tenantID, _ := GetTenantIDFromContext(r.Context())
+	options, err := h.webauthnUC.BeginRegistration(r.Context(), tenantID, userID)
 	if err != nil {
 		h.logger.Error().Err(err).Str("user_id", userID).Msg("failed to begin webauthn registration")
 		respondWithError(w, http.StatusInternalServerError, "failed to begin registration", "INTERNAL_ERROR")
@@ -1525,7 +1549,8 @@ func (h *Handler) WebAuthnRegisterFinish(w http.ResponseWriter, r *http.Request)
 	bodyBytes, _ := json.Marshal(req.Response)
 	r.Body = http.MaxBytesReader(w, &readCloserWrapper{strings.NewReader(string(bodyBytes))}, 1024*1024)
 
-	if err := h.webauthnUC.FinishRegistration(r.Context(), userID, req.Challenge, r); err != nil {
+	tenantID, _ := GetTenantIDFromContext(r.Context())
+	if err := h.webauthnUC.FinishRegistration(r.Context(), tenantID, userID, req.Challenge, r); err != nil {
 		h.logger.Error().Err(err).Str("user_id", userID).Msg("failed to finish webauthn registration")
 		respondWithError(w, http.StatusBadRequest, err.Error(), "BAD_REQUEST")
 		return
@@ -1550,7 +1575,8 @@ func (h *Handler) WebAuthnLoginBegin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	options, err := h.webauthnUC.BeginLogin(r.Context(), req.Identifier)
+	tenantID, _ := GetTenantIDFromContext(r.Context())
+	options, err := h.webauthnUC.BeginLogin(r.Context(), tenantID, req.Identifier)
 	if err != nil {
 		h.logger.Error().Err(err).Str("identifier", req.Identifier).Msg("failed to begin webauthn login")
 		h.handleAuthError(w, err)
@@ -1594,7 +1620,8 @@ func (h *Handler) WebAuthnLoginFinish(w http.ResponseWriter, r *http.Request) {
 	bodyBytes, _ := json.Marshal(req.Response)
 	r.Body = http.MaxBytesReader(w, &readCloserWrapper{strings.NewReader(string(bodyBytes))}, 1024*1024)
 
-	response, err := h.webauthnUC.FinishLogin(r.Context(), identifier, req.Challenge, r, loginInput)
+	tenantID, _ := GetTenantIDFromContext(r.Context())
+	response, err := h.webauthnUC.FinishLogin(r.Context(), tenantID, identifier, req.Challenge, r, loginInput)
 	if err != nil {
 		h.logger.Error().Err(err).Str("identifier", identifier).Msg("failed to finish webauthn login")
 		h.handleAuthError(w, err)

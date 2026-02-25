@@ -16,6 +16,8 @@ type TokenUseCase struct {
 	userRepo    ports.UserRepository
 	refreshRepo ports.RefreshTokenRepository
 	sessionRepo ports.SessionRepository
+	riskService ports.RiskService
+	tenantRepo  ports.TenantRepository
 	notifier    ports.NotificationPublisher
 	config      *config.Config
 }
@@ -27,6 +29,8 @@ func NewTokenUseCase(
 	userRepo ports.UserRepository,
 	refreshRepo ports.RefreshTokenRepository,
 	sessionRepo ports.SessionRepository,
+	riskService ports.RiskService,
+	tenantRepo ports.TenantRepository,
 	notifier ports.NotificationPublisher,
 	cfg *config.Config,
 ) *TokenUseCase {
@@ -37,6 +41,8 @@ func NewTokenUseCase(
 		userRepo:    userRepo,
 		refreshRepo: refreshRepo,
 		sessionRepo: sessionRepo,
+		riskService: riskService,
+		tenantRepo:  tenantRepo,
 		notifier:    notifier,
 		config:      cfg,
 	}
@@ -72,18 +78,47 @@ func (uc *TokenUseCase) ValidateToken(ctx context.Context, tokenString string) (
 		return nil, domain.ErrTokenExpired
 	}
 
+	// Session Geofencing Check (P2)
+	// We need the country associated with the current request.
+	// In a real production scenario, the country would be passed in the context
+	// or determined here via GeoIP if the IP is available in the context.
+	// For this implementation, we'll try to get it if possible.
+	ip, _ := ctx.Value("client_ip").(string)
+	if ip != "" {
+		tenant, err := uc.tenantRepo.GetByID(ctx, token.TenantID)
+		if err == nil && tenant != nil && tenant.Settings.EnforceSessionGeofencing {
+			// Get current location
+			_, loc, err := uc.riskService.AssessLoginRisk(ctx, &domain.User{
+				ID:       token.UserID,
+				TenantID: token.TenantID,
+			}, ip)
+
+			if err == nil && loc != nil {
+				// Get session to compare country
+				session, err := uc.sessionRepo.GetByID(ctx, token.TenantID, token.JTI)
+				if err == nil && session != nil {
+					if session.Country != "" && loc.Country != session.Country {
+						// Significant geographic shift in active session
+						_ = uc.sessionRepo.Revoke(ctx, token.TenantID, session.ID, "security", "session_hijacking_suspected_geofence")
+						return nil, domain.ErrSessionHijackingSuspected
+					}
+				}
+			}
+		}
+	}
+
 	// Cache for next validation
 	_ = uc.tokenCache.Set(ctx, token.JTI, token, token.TimeToLive())
 
 	return token, nil
 }
 
-func (uc *TokenUseCase) RefreshToken(ctx context.Context, refreshTokenStr string) (*LoginResponse, error) {
+func (uc *TokenUseCase) RefreshToken(ctx context.Context, tenantID, refreshTokenStr string) (*LoginResponse, error) {
 	// Hash the refresh token
 	refreshTokenHash := hashToken(refreshTokenStr)
 
 	// Get refresh token from database
-	refreshToken, err := uc.refreshRepo.GetByTokenHash(ctx, refreshTokenHash)
+	refreshToken, err := uc.refreshRepo.GetByTokenHash(ctx, tenantID, refreshTokenHash)
 	if err != nil {
 		return nil, domain.ErrRefreshTokenInvalid
 	}
@@ -93,13 +128,13 @@ func (uc *TokenUseCase) RefreshToken(ctx context.Context, refreshTokenStr string
 		// Check if token was rotated (possible theft)
 		if refreshToken.Revoked {
 			// Revoke all user sessions
-			_ = uc.sessionRepo.RevokeAllByUserID(ctx, refreshToken.UserID, "security", "token_theft_detected")
-			_ = uc.refreshRepo.RevokeByUserID(ctx, refreshToken.UserID)
+			_ = uc.sessionRepo.RevokeAllByUserID(ctx, refreshToken.TenantID, refreshToken.UserID, "security", "token_theft_detected")
+			_ = uc.refreshRepo.RevokeByUserID(ctx, refreshToken.TenantID, refreshToken.UserID)
 
 			// Get user for event
-			user, _ := uc.userRepo.GetByID(ctx, refreshToken.UserID)
+			user, _ := uc.userRepo.GetByID(ctx, refreshToken.TenantID, refreshToken.UserID)
 			if user != nil {
-				event := domain.NewEvent(domain.EventTokenStolen, user.ID, user.Email, map[string]interface{}{
+				event := domain.NewEvent(user.TenantID, domain.EventTokenStolen, user.ID, user.Email, map[string]interface{}{
 					"session_id": refreshToken.SessionID,
 				})
 				_ = uc.notifier.Publish(ctx, event)
@@ -112,7 +147,7 @@ func (uc *TokenUseCase) RefreshToken(ctx context.Context, refreshTokenStr string
 	}
 
 	// Get user
-	user, err := uc.userRepo.GetByID(ctx, refreshToken.UserID)
+	user, err := uc.userRepo.GetByID(ctx, refreshToken.TenantID, refreshToken.UserID)
 	if err != nil {
 		return nil, domain.ErrUserNotFound
 	}
@@ -122,13 +157,13 @@ func (uc *TokenUseCase) RefreshToken(ctx context.Context, refreshTokenStr string
 	}
 
 	// Get session
-	session, err := uc.sessionRepo.GetByID(ctx, refreshToken.SessionID)
+	session, err := uc.sessionRepo.GetByID(ctx, refreshToken.TenantID, refreshToken.SessionID)
 	if err != nil || !session.IsActive() {
 		return nil, domain.ErrSessionExpired
 	}
 
 	// Generate new JWT
-	token := domain.NewToken(user.ID, user.Email, uc.config.JWT.AccessExpiry)
+	token := domain.NewToken(user.TenantID, user.ID, user.Email, uc.config.JWT.AccessExpiry)
 
 	accessToken, err := uc.jwtService.Generate(ctx, token)
 	if err != nil {

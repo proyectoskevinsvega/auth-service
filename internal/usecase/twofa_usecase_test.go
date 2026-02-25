@@ -41,8 +41,10 @@ func TestEnable2FA_Success(t *testing.T) {
 	ctx := context.Background()
 
 	userID := uuid.New().String()
+	tenantID := "test-tenant"
 	user := &domain.User{
 		ID:       userID,
+		TenantID: tenantID,
 		Username: "testuser",
 		Email:    "test@example.com",
 
@@ -57,12 +59,12 @@ func TestEnable2FA_Success(t *testing.T) {
 	qrCode := "data:image/png;base64,iVBORw0KGgoAAAANS..."
 
 	// Mock expectations
-	m.userRepo.On("GetByID", ctx, userID).Return(user, nil)
+	m.userRepo.On("GetByID", ctx, tenantID, userID).Return(user, nil)
 	m.totpService.On("Generate", user.Email).Return(secret, qrCode, nil)
 	m.userRepo.On("Update", ctx, mock.AnythingOfType("*domain.User")).Return(nil)
 
 	// Execute
-	response, err := m.uc.Enable2FA(ctx, userID)
+	response, err := m.uc.Enable2FA(ctx, tenantID, userID)
 
 	// Assert
 	assert.NoError(t, err)
@@ -80,12 +82,13 @@ func TestEnable2FA_UserNotFound(t *testing.T) {
 	ctx := context.Background()
 
 	userID := uuid.New().String()
+	tenantID := "test-tenant"
 
 	// Mock expectations
-	m.userRepo.On("GetByID", ctx, userID).Return(nil, domain.ErrUserNotFound)
+	m.userRepo.On("GetByID", ctx, tenantID, userID).Return(nil, domain.ErrUserNotFound)
 
 	// Execute
-	response, err := m.uc.Enable2FA(ctx, userID)
+	response, err := m.uc.Enable2FA(ctx, tenantID, userID)
 
 	// Assert
 	assert.Error(t, err)
@@ -101,6 +104,7 @@ func TestEnable2FA_AlreadyEnabled(t *testing.T) {
 	ctx := context.Background()
 
 	userID := uuid.New().String()
+	tenantID := "test-tenant"
 	user := &domain.User{
 		ID:               userID,
 		Username:         "testuser",
@@ -111,10 +115,10 @@ func TestEnable2FA_AlreadyEnabled(t *testing.T) {
 	}
 
 	// Mock expectations
-	m.userRepo.On("GetByID", ctx, userID).Return(user, nil)
+	m.userRepo.On("GetByID", ctx, tenantID, userID).Return(user, nil)
 
 	// Execute
-	response, err := m.uc.Enable2FA(ctx, userID)
+	response, err := m.uc.Enable2FA(ctx, tenantID, userID)
 
 	// Assert
 	assert.Error(t, err)
@@ -134,6 +138,7 @@ func TestEnable2FA_GenerateError(t *testing.T) {
 	ctx := context.Background()
 
 	userID := uuid.New().String()
+	tenantID := "test-tenant"
 	user := &domain.User{
 		ID:               userID,
 		Username:         "testuser",
@@ -143,11 +148,11 @@ func TestEnable2FA_GenerateError(t *testing.T) {
 	}
 
 	// Mock expectations
-	m.userRepo.On("GetByID", ctx, userID).Return(user, nil)
+	m.userRepo.On("GetByID", ctx, tenantID, userID).Return(user, nil)
 	m.totpService.On("Generate", user.Email).Return("", "", fmt.Errorf("failed to generate secret"))
 
 	// Execute
-	response, err := m.uc.Enable2FA(ctx, userID)
+	response, err := m.uc.Enable2FA(ctx, tenantID, userID)
 
 	// Assert
 	assert.Error(t, err)
@@ -163,6 +168,7 @@ func TestVerify2FA_Success(t *testing.T) {
 	ctx := context.Background()
 
 	userID := uuid.New().String()
+	tenantID := "test-tenant"
 	secret := "JBSWY3DPEHPK3PXP"
 	code := "123456"
 
@@ -176,12 +182,12 @@ func TestVerify2FA_Success(t *testing.T) {
 	}
 
 	// Mock expectations
-	m.userRepo.On("GetByID", ctx, userID).Return(user, nil)
+	m.userRepo.On("GetByID", ctx, tenantID, userID).Return(user, nil)
 	m.totpService.On("Verify", code, secret).Return(true, nil)
 	m.userRepo.On("Update", ctx, mock.AnythingOfType("*domain.User")).Return(nil)
 
 	// Execute
-	err := m.uc.Verify2FA(ctx, userID, code)
+	err := m.uc.Verify2FA(ctx, tenantID, userID, code)
 
 	// Assert
 	assert.NoError(t, err)
@@ -196,6 +202,7 @@ func TestVerify2FA_InvalidCode(t *testing.T) {
 	ctx := context.Background()
 
 	userID := uuid.New().String()
+	tenantID := "test-tenant"
 	secret := "JBSWY3DPEHPK3PXP"
 	code := "999999"
 
@@ -209,11 +216,11 @@ func TestVerify2FA_InvalidCode(t *testing.T) {
 	}
 
 	// Mock expectations
-	m.userRepo.On("GetByID", ctx, userID).Return(user, nil)
+	m.userRepo.On("GetByID", ctx, tenantID, userID).Return(user, nil)
 	m.totpService.On("Verify", code, secret).Return(false, nil) // Código inválido
 
 	// Execute
-	err := m.uc.Verify2FA(ctx, userID, code)
+	err := m.uc.Verify2FA(ctx, tenantID, userID, code)
 
 	// Assert
 	assert.Error(t, err)
@@ -232,6 +239,7 @@ func TestVerify2FA_NotInitialized(t *testing.T) {
 	ctx := context.Background()
 
 	userID := uuid.New().String()
+	tenantID := "test-tenant"
 	code := "123456"
 
 	user := &domain.User{
@@ -244,10 +252,10 @@ func TestVerify2FA_NotInitialized(t *testing.T) {
 	}
 
 	// Mock expectations
-	m.userRepo.On("GetByID", ctx, userID).Return(user, nil)
+	m.userRepo.On("GetByID", ctx, tenantID, userID).Return(user, nil)
 
 	// Execute
-	err := m.uc.Verify2FA(ctx, userID, code)
+	err := m.uc.Verify2FA(ctx, tenantID, userID, code)
 
 	// Assert
 	assert.Error(t, err)
@@ -266,6 +274,7 @@ func TestVerify2FA_AlreadyEnabled(t *testing.T) {
 	ctx := context.Background()
 
 	userID := uuid.New().String()
+	tenantID := "test-tenant"
 	code := "123456"
 
 	user := &domain.User{
@@ -278,10 +287,10 @@ func TestVerify2FA_AlreadyEnabled(t *testing.T) {
 	}
 
 	// Mock expectations
-	m.userRepo.On("GetByID", ctx, userID).Return(user, nil)
+	m.userRepo.On("GetByID", ctx, tenantID, userID).Return(user, nil)
 
 	// Execute
-	err := m.uc.Verify2FA(ctx, userID, code)
+	err := m.uc.Verify2FA(ctx, tenantID, userID, code)
 
 	// Assert
 	assert.Error(t, err)
@@ -296,6 +305,7 @@ func TestDisable2FA_Success(t *testing.T) {
 	ctx := context.Background()
 
 	userID := uuid.New().String()
+	tenantID := "test-tenant"
 	secret := "JBSWY3DPEHPK3PXP"
 	code := "123456"
 
@@ -309,12 +319,12 @@ func TestDisable2FA_Success(t *testing.T) {
 	}
 
 	// Mock expectations
-	m.userRepo.On("GetByID", ctx, userID).Return(user, nil)
+	m.userRepo.On("GetByID", ctx, tenantID, userID).Return(user, nil)
 	m.totpService.On("Verify", code, secret).Return(true, nil)
 	m.userRepo.On("Update", ctx, mock.AnythingOfType("*domain.User")).Return(nil)
 
 	// Execute
-	err := m.uc.Disable2FA(ctx, userID, code)
+	err := m.uc.Disable2FA(ctx, tenantID, userID, code)
 
 	// Assert
 	assert.NoError(t, err)
@@ -329,6 +339,7 @@ func TestDisable2FA_InvalidCode(t *testing.T) {
 	ctx := context.Background()
 
 	userID := uuid.New().String()
+	tenantID := "test-tenant"
 	secret := "JBSWY3DPEHPK3PXP"
 	code := "999999"
 
@@ -342,11 +353,11 @@ func TestDisable2FA_InvalidCode(t *testing.T) {
 	}
 
 	// Mock expectations
-	m.userRepo.On("GetByID", ctx, userID).Return(user, nil)
+	m.userRepo.On("GetByID", ctx, tenantID, userID).Return(user, nil)
 	m.totpService.On("Verify", code, secret).Return(false, nil)
 
 	// Execute
-	err := m.uc.Disable2FA(ctx, userID, code)
+	err := m.uc.Disable2FA(ctx, tenantID, userID, code)
 
 	// Assert
 	assert.Error(t, err)
@@ -365,6 +376,7 @@ func TestDisable2FA_NotEnabled(t *testing.T) {
 	ctx := context.Background()
 
 	userID := uuid.New().String()
+	tenantID := "test-tenant"
 	code := "123456"
 
 	user := &domain.User{
@@ -377,10 +389,10 @@ func TestDisable2FA_NotEnabled(t *testing.T) {
 	}
 
 	// Mock expectations
-	m.userRepo.On("GetByID", ctx, userID).Return(user, nil)
+	m.userRepo.On("GetByID", ctx, tenantID, userID).Return(user, nil)
 
 	// Execute
-	err := m.uc.Disable2FA(ctx, userID, code)
+	err := m.uc.Disable2FA(ctx, tenantID, userID, code)
 
 	// Assert
 	assert.Error(t, err)
@@ -399,6 +411,7 @@ func TestVerify2FA_VerificationError(t *testing.T) {
 	ctx := context.Background()
 
 	userID := uuid.New().String()
+	tenantID := "test-tenant"
 	secret := "JBSWY3DPEHPK3PXP"
 	code := "123456"
 
@@ -412,11 +425,11 @@ func TestVerify2FA_VerificationError(t *testing.T) {
 	}
 
 	// Mock expectations
-	m.userRepo.On("GetByID", ctx, userID).Return(user, nil)
+	m.userRepo.On("GetByID", ctx, tenantID, userID).Return(user, nil)
 	m.totpService.On("Verify", code, secret).Return(false, fmt.Errorf("totp service error"))
 
 	// Execute
-	err := m.uc.Verify2FA(ctx, userID, code)
+	err := m.uc.Verify2FA(ctx, tenantID, userID, code)
 
 	// Assert
 	assert.Error(t, err)
@@ -432,6 +445,7 @@ func TestDisable2FA_VerificationError(t *testing.T) {
 	ctx := context.Background()
 
 	userID := uuid.New().String()
+	tenantID := "test-tenant"
 	secret := "JBSWY3DPEHPK3PXP"
 	code := "123456"
 
@@ -445,11 +459,11 @@ func TestDisable2FA_VerificationError(t *testing.T) {
 	}
 
 	// Mock expectations
-	m.userRepo.On("GetByID", ctx, userID).Return(user, nil)
+	m.userRepo.On("GetByID", ctx, tenantID, userID).Return(user, nil)
 	m.totpService.On("Verify", code, secret).Return(false, fmt.Errorf("totp verification failed"))
 
 	// Execute
-	err := m.uc.Disable2FA(ctx, userID, code)
+	err := m.uc.Disable2FA(ctx, tenantID, userID, code)
 
 	// Assert
 	assert.Error(t, err)
@@ -465,6 +479,7 @@ func TestEnable2FA_UpdateError(t *testing.T) {
 	ctx := context.Background()
 
 	userID := uuid.New().String()
+	tenantID := "test-tenant"
 	user := &domain.User{
 		ID:               userID,
 		Username:         "testuser",
@@ -480,12 +495,12 @@ func TestEnable2FA_UpdateError(t *testing.T) {
 	qrCode := "data:image/png;base64,iVBORw0KGgoAAAANS..."
 
 	// Mock expectations
-	m.userRepo.On("GetByID", ctx, userID).Return(user, nil)
+	m.userRepo.On("GetByID", ctx, tenantID, userID).Return(user, nil)
 	m.totpService.On("Generate", user.Email).Return(secret, qrCode, nil)
 	m.userRepo.On("Update", ctx, mock.AnythingOfType("*domain.User")).Return(fmt.Errorf("database error"))
 
 	// Execute
-	response, err := m.uc.Enable2FA(ctx, userID)
+	response, err := m.uc.Enable2FA(ctx, tenantID, userID)
 
 	// Assert
 	assert.Error(t, err)
@@ -502,6 +517,7 @@ func TestVerify2FA_UpdateError(t *testing.T) {
 	ctx := context.Background()
 
 	userID := uuid.New().String()
+	tenantID := "test-tenant"
 	secret := "JBSWY3DPEHPK3PXP"
 	code := "123456"
 
@@ -515,12 +531,12 @@ func TestVerify2FA_UpdateError(t *testing.T) {
 	}
 
 	// Mock expectations
-	m.userRepo.On("GetByID", ctx, userID).Return(user, nil)
+	m.userRepo.On("GetByID", ctx, tenantID, userID).Return(user, nil)
 	m.totpService.On("Verify", code, secret).Return(true, nil)
 	m.userRepo.On("Update", ctx, mock.AnythingOfType("*domain.User")).Return(fmt.Errorf("update failed"))
 
 	// Execute
-	err := m.uc.Verify2FA(ctx, userID, code)
+	err := m.uc.Verify2FA(ctx, tenantID, userID, code)
 
 	// Assert
 	assert.Error(t, err)
@@ -536,6 +552,7 @@ func TestDisable2FA_UpdateError(t *testing.T) {
 	ctx := context.Background()
 
 	userID := uuid.New().String()
+	tenantID := "test-tenant"
 	secret := "JBSWY3DPEHPK3PXP"
 	code := "123456"
 
@@ -549,12 +566,12 @@ func TestDisable2FA_UpdateError(t *testing.T) {
 	}
 
 	// Mock expectations
-	m.userRepo.On("GetByID", ctx, userID).Return(user, nil)
+	m.userRepo.On("GetByID", ctx, tenantID, userID).Return(user, nil)
 	m.totpService.On("Verify", code, secret).Return(true, nil)
 	m.userRepo.On("Update", ctx, mock.AnythingOfType("*domain.User")).Return(fmt.Errorf("update error"))
 
 	// Execute
-	err := m.uc.Disable2FA(ctx, userID, code)
+	err := m.uc.Disable2FA(ctx, tenantID, userID, code)
 
 	// Assert
 	assert.Error(t, err)

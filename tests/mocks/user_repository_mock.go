@@ -17,40 +17,40 @@ func (m *MockUserRepository) Create(ctx context.Context, user *domain.User, pass
 	return args.Error(0)
 }
 
-func (m *MockUserRepository) GetByID(ctx context.Context, id string) (*domain.User, error) {
-	args := m.Called(ctx, id)
+func (m *MockUserRepository) GetByID(ctx context.Context, tenantID, id string) (*domain.User, error) {
+	args := m.Called(ctx, tenantID, id)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
 	return args.Get(0).(*domain.User), args.Error(1)
 }
 
-func (m *MockUserRepository) GetByEmail(ctx context.Context, email string) (*domain.User, error) {
-	args := m.Called(ctx, email)
+func (m *MockUserRepository) GetByEmail(ctx context.Context, tenantID, email string) (*domain.User, error) {
+	args := m.Called(ctx, tenantID, email)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
 	return args.Get(0).(*domain.User), args.Error(1)
 }
 
-func (m *MockUserRepository) GetByUsername(ctx context.Context, username string) (*domain.User, error) {
-	args := m.Called(ctx, username)
+func (m *MockUserRepository) GetByUsername(ctx context.Context, tenantID, username string) (*domain.User, error) {
+	args := m.Called(ctx, tenantID, username)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
 	return args.Get(0).(*domain.User), args.Error(1)
 }
 
-func (m *MockUserRepository) GetByEmailOrUsername(ctx context.Context, identifier string) (*domain.User, error) {
-	args := m.Called(ctx, identifier)
+func (m *MockUserRepository) GetByEmailOrUsername(ctx context.Context, tenantID, identifier string) (*domain.User, error) {
+	args := m.Called(ctx, tenantID, identifier)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
 	return args.Get(0).(*domain.User), args.Error(1)
 }
 
-func (m *MockUserRepository) GetByOAuthProvider(ctx context.Context, provider, providerID string) (*domain.User, error) {
-	args := m.Called(ctx, provider, providerID)
+func (m *MockUserRepository) GetByOAuthProvider(ctx context.Context, tenantID, provider, providerID string) (*domain.User, error) {
+	args := m.Called(ctx, tenantID, provider, providerID)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
@@ -62,8 +62,8 @@ func (m *MockUserRepository) Update(ctx context.Context, user *domain.User) erro
 	return args.Error(0)
 }
 
-func (m *MockUserRepository) UpdatePassword(ctx context.Context, userID, newPasswordHash string) error {
-	args := m.Called(ctx, userID, newPasswordHash)
+func (m *MockUserRepository) UpdatePassword(ctx context.Context, tenantID, userID, newPasswordHash string) error {
+	args := m.Called(ctx, tenantID, userID, newPasswordHash)
 	return args.Error(0)
 }
 
@@ -75,7 +75,7 @@ func (m *MockUserRepository) GetExpiringPasswords(ctx context.Context, threshold
 	return args.Get(0).([]*domain.User), args.Error(1)
 }
 
-func (m *MockUserRepository) Delete(ctx context.Context, id string) error {
-	args := m.Called(ctx, id)
+func (m *MockUserRepository) Delete(ctx context.Context, tenantID, id string) error {
+	args := m.Called(ctx, tenantID, id)
 	return args.Error(0)
 }

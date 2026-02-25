@@ -17,16 +17,16 @@ func NewWebAuthnRepository(db *pgxpool.Pool) *WebAuthnRepository {
 	return &WebAuthnRepository{db: db}
 }
 
-func (r *WebAuthnRepository) GetCredentialByID(ctx context.Context, credentialID []byte) (*domain.WebAuthnCredential, error) {
+func (r *WebAuthnRepository) GetCredentialByID(ctx context.Context, tenantID string, credentialID []byte) (*domain.WebAuthnCredential, error) {
 	query := `
-		SELECT id, user_id, public_key, attestation_type, aaguid, sign_count, clone_warning, created_at, updated_at
+		SELECT id, tenant_id, user_id, public_key, attestation_type, aaguid, sign_count, clone_warning, created_at, updated_at
 		FROM auth_webauthn_credentials
-		WHERE id = $1
+		WHERE tenant_id = $1 AND id = $2
 	`
 
 	cred := &domain.WebAuthnCredential{}
-	err := r.db.QueryRow(ctx, query, credentialID).Scan(
-		&cred.ID, &cred.UserID, &cred.PublicKey, &cred.AttestationType, &cred.AAGUID,
+	err := r.db.QueryRow(ctx, query, tenantID, credentialID).Scan(
+		&cred.ID, &cred.TenantID, &cred.UserID, &cred.PublicKey, &cred.AttestationType, &cred.AAGUID,
 		&cred.SignCount, &cred.CloneWarning, &cred.CreatedAt, &cred.UpdatedAt,
 	)
 
@@ -40,14 +40,14 @@ func (r *WebAuthnRepository) GetCredentialByID(ctx context.Context, credentialID
 	return cred, nil
 }
 
-func (r *WebAuthnRepository) GetCredentialsByUserID(ctx context.Context, userID string) ([]*domain.WebAuthnCredential, error) {
+func (r *WebAuthnRepository) GetCredentialsByUserID(ctx context.Context, tenantID, userID string) ([]*domain.WebAuthnCredential, error) {
 	query := `
-		SELECT id, user_id, public_key, attestation_type, aaguid, sign_count, clone_warning, created_at, updated_at
+		SELECT id, tenant_id, user_id, public_key, attestation_type, aaguid, sign_count, clone_warning, created_at, updated_at
 		FROM auth_webauthn_credentials
-		WHERE user_id = $1
+		WHERE tenant_id = $1 AND user_id = $2
 	`
 
-	rows, err := r.db.Query(ctx, query, userID)
+	rows, err := r.db.Query(ctx, query, tenantID, userID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list webauthn credentials: %w", err)
 	}
@@ -57,7 +57,7 @@ func (r *WebAuthnRepository) GetCredentialsByUserID(ctx context.Context, userID 
 	for rows.Next() {
 		cred := &domain.WebAuthnCredential{}
 		err := rows.Scan(
-			&cred.ID, &cred.UserID, &cred.PublicKey, &cred.AttestationType, &cred.AAGUID,
+			&cred.ID, &cred.TenantID, &cred.UserID, &cred.PublicKey, &cred.AttestationType, &cred.AAGUID,
 			&cred.SignCount, &cred.CloneWarning, &cred.CreatedAt, &cred.UpdatedAt,
 		)
 		if err != nil {
@@ -69,15 +69,15 @@ func (r *WebAuthnRepository) GetCredentialsByUserID(ctx context.Context, userID 
 	return credentials, nil
 }
 
-func (r *WebAuthnRepository) CreateCredential(ctx context.Context, cred *domain.WebAuthnCredential) error {
+func (r *WebAuthnRepository) CreateCredential(ctx context.Context, tenantID string, cred *domain.WebAuthnCredential) error {
 	query := `
 		INSERT INTO auth_webauthn_credentials (
-			id, user_id, public_key, attestation_type, aaguid, sign_count, clone_warning
-		) VALUES ($1, $2, $3, $4, $5, $6, $7)
+			id, tenant_id, user_id, public_key, attestation_type, aaguid, sign_count, clone_warning
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 	`
 
 	_, err := r.db.Exec(ctx, query,
-		cred.ID, cred.UserID, cred.PublicKey, cred.AttestationType, cred.AAGUID,
+		cred.ID, cred.TenantID, cred.UserID, cred.PublicKey, cred.AttestationType, cred.AAGUID,
 		cred.SignCount, cred.CloneWarning,
 	)
 
@@ -88,14 +88,14 @@ func (r *WebAuthnRepository) CreateCredential(ctx context.Context, cred *domain.
 	return nil
 }
 
-func (r *WebAuthnRepository) UpdateCredential(ctx context.Context, cred *domain.WebAuthnCredential) error {
+func (r *WebAuthnRepository) UpdateCredential(ctx context.Context, tenantID string, cred *domain.WebAuthnCredential) error {
 	query := `
 		UPDATE auth_webauthn_credentials
-		SET sign_count = $2, clone_warning = $3, updated_at = NOW()
-		WHERE id = $1
+		SET sign_count = $3, clone_warning = $4, updated_at = NOW()
+		WHERE tenant_id = $1 AND id = $2
 	`
 
-	_, err := r.db.Exec(ctx, query, cred.ID, cred.SignCount, cred.CloneWarning)
+	_, err := r.db.Exec(ctx, query, tenantID, cred.ID, cred.SignCount, cred.CloneWarning)
 	if err != nil {
 		return fmt.Errorf("failed to update webauthn credential: %w", err)
 	}
@@ -103,10 +103,10 @@ func (r *WebAuthnRepository) UpdateCredential(ctx context.Context, cred *domain.
 	return nil
 }
 
-func (r *WebAuthnRepository) DeleteCredential(ctx context.Context, credentialID []byte) error {
-	query := `DELETE FROM auth_webauthn_credentials WHERE id = $1`
+func (r *WebAuthnRepository) DeleteCredential(ctx context.Context, tenantID string, credentialID []byte) error {
+	query := `DELETE FROM auth_webauthn_credentials WHERE tenant_id = $1 AND id = $2`
 
-	_, err := r.db.Exec(ctx, query, credentialID)
+	_, err := r.db.Exec(ctx, query, tenantID, credentialID)
 	if err != nil {
 		return fmt.Errorf("failed to delete webauthn credential: %w", err)
 	}

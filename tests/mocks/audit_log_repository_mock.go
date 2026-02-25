@@ -17,8 +17,8 @@ func (m *MockAuditLogRepository) Create(ctx context.Context, entry *domain.Audit
 	return args.Error(0)
 }
 
-func (m *MockAuditLogRepository) GetByUserID(ctx context.Context, userID string, limit, offset int) ([]*domain.AuditLogEntry, error) {
-	args := m.Called(ctx, userID, limit, offset)
+func (m *MockAuditLogRepository) GetByUserID(ctx context.Context, tenantID, userID string, limit, offset int) ([]*domain.AuditLogEntry, error) {
+	args := m.Called(ctx, tenantID, userID, limit, offset)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}

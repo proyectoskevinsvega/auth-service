@@ -868,16 +868,18 @@ func TestForgotPassword_Success(t *testing.T) {
 
 	email := "test@example.com"
 	ipAddress := "192.168.1.1"
+	tenantID := "test-tenant"
 
 	user := &domain.User{
 		ID:       uuid.New().String(),
+		TenantID: tenantID,
 		Username: "testuser",
 		Email:    email,
 		Active:   true,
 	}
 
 	// Mock expectations (only critical path, async operations are fire-and-forget)
-	m.userRepo.On("GetByEmail", ctx, email).Return(user, nil)
+	m.userRepo.On("GetByEmail", ctx, tenantID, email).Return(user, nil)
 	m.tokenGen.On("GenerateSecureToken", 32).Return("secure_reset_token", nil)
 	m.resetRepo.On("Create", ctx, mock.AnythingOfType("*domain.PasswordResetToken")).Return(nil)
 
@@ -891,7 +893,7 @@ func TestForgotPassword_Success(t *testing.T) {
 	m.auditRepo.On("Create", mock.Anything, mock.AnythingOfType("*domain.AuditLogEntry")).Return(nil).Maybe()
 
 	// Execute
-	err := m.uc.ForgotPassword(ctx, email, ipAddress)
+	err := m.uc.ForgotPassword(ctx, tenantID, email, ipAddress)
 
 	// Assert
 	assert.NoError(t, err)
@@ -908,11 +910,12 @@ func TestForgotPassword_UserNotFound(t *testing.T) {
 	email := "nonexistent@example.com"
 	ipAddress := "192.168.1.1"
 
+	tenantID := "test-tenant"
 	// Mock expectations
-	m.userRepo.On("GetByEmail", ctx, email).Return(nil, domain.ErrUserNotFound)
+	m.userRepo.On("GetByEmail", ctx, tenantID, email).Return(nil, domain.ErrUserNotFound)
 
 	// Execute
-	err := m.uc.ForgotPassword(ctx, email, ipAddress)
+	err := m.uc.ForgotPassword(ctx, tenantID, email, ipAddress)
 
 	// Assert - No revela si el email existe
 	assert.NoError(t, err)
@@ -929,12 +932,14 @@ func TestResetPasswordWithToken_Success(t *testing.T) {
 	ctx := context.Background()
 
 	userID := uuid.New().String()
+	tenantID := "test-tenant"
 	token := "valid_reset_token"
 	newPassword := "NewSecurePass123!"
 	ipAddress := "192.168.1.1"
 
 	resetToken := &domain.PasswordResetToken{
 		ID:        uuid.New().String(),
+		TenantID:  tenantID,
 		UserID:    userID,
 		Token:     token,
 		Code:      "123456",
@@ -945,13 +950,14 @@ func TestResetPasswordWithToken_Success(t *testing.T) {
 
 	user := &domain.User{
 		ID:       userID,
+		TenantID: tenantID,
 		Username: "testuser",
 		Email:    "test@example.com",
 		Active:   true,
 	}
 
 	// Mock expectations (only critical path, async operations are fire-and-forget)
-	m.resetRepo.On("GetByToken", ctx, token).Return(resetToken, nil)
+	m.resetRepo.On("GetByToken", ctx, tenantID, token).Return(resetToken, nil)
 	m.passwordHasher.On("Hash", newPassword).Return("$argon2id$new_hash", nil)
 	m.userRepo.On("UpdatePassword", ctx, userID, "$argon2id$new_hash").Return(nil)
 
@@ -964,7 +970,7 @@ func TestResetPasswordWithToken_Success(t *testing.T) {
 	m.notifier.On("Publish", mock.Anything, mock.AnythingOfType("*domain.Event")).Return(nil).Maybe()
 
 	// Execute
-	err := m.uc.ResetPasswordWithToken(ctx, token, newPassword, ipAddress)
+	err := m.uc.ResetPasswordWithToken(ctx, tenantID, token, newPassword, ipAddress)
 
 	// Assert
 	assert.NoError(t, err)
@@ -982,11 +988,12 @@ func TestResetPasswordWithToken_InvalidToken(t *testing.T) {
 	newPassword := "NewSecurePass123!"
 	ipAddress := "192.168.1.1"
 
+	tenantID := "test-tenant"
 	// Mock expectations
-	m.resetRepo.On("GetByToken", ctx, token).Return(nil, domain.ErrInvalidResetToken)
+	m.resetRepo.On("GetByToken", ctx, tenantID, token).Return(nil, domain.ErrInvalidResetToken)
 
 	// Execute
-	err := m.uc.ResetPasswordWithToken(ctx, token, newPassword, ipAddress)
+	err := m.uc.ResetPasswordWithToken(ctx, tenantID, token, newPassword, ipAddress)
 
 	// Assert
 	assert.Error(t, err)
@@ -1013,11 +1020,12 @@ func TestResetPasswordWithToken_ExpiredToken(t *testing.T) {
 		CreatedAt: time.Now().Add(-2 * time.Hour),
 	}
 
+	tenantID := "test-tenant"
 	// Mock expectations
-	m.resetRepo.On("GetByToken", ctx, token).Return(resetToken, nil)
+	m.resetRepo.On("GetByToken", ctx, tenantID, token).Return(resetToken, nil)
 
 	// Execute
-	err := m.uc.ResetPasswordWithToken(ctx, token, newPassword, ipAddress)
+	err := m.uc.ResetPasswordWithToken(ctx, tenantID, token, newPassword, ipAddress)
 
 	// Assert
 	assert.Error(t, err)
@@ -1031,6 +1039,7 @@ func TestResetPasswordWithCode_Success(t *testing.T) {
 	ctx := context.Background()
 
 	userID := uuid.New().String()
+	tenantID := "test-tenant"
 	email := "test@example.com"
 	code := "123456"
 	newPassword := "NewSecurePass123!"
@@ -1054,7 +1063,7 @@ func TestResetPasswordWithCode_Success(t *testing.T) {
 	}
 
 	// Mock expectations (only critical path, async operations are fire-and-forget)
-	m.userRepo.On("GetByEmail", ctx, email).Return(user, nil)
+	m.userRepo.On("GetByEmail", ctx, tenantID, email).Return(user, nil)
 	m.resetRepo.On("GetByCode", ctx, userID, code).Return(resetToken, nil)
 	m.passwordHasher.On("Hash", newPassword).Return("$argon2id$new_hash", nil)
 	m.userRepo.On("UpdatePassword", ctx, userID, "$argon2id$new_hash").Return(nil)
@@ -1068,7 +1077,7 @@ func TestResetPasswordWithCode_Success(t *testing.T) {
 	m.notifier.On("Publish", mock.Anything, mock.AnythingOfType("*domain.Event")).Return(nil).Maybe()
 
 	// Execute
-	err := m.uc.ResetPasswordWithCode(ctx, email, code, newPassword, ipAddress)
+	err := m.uc.ResetPasswordWithCode(ctx, tenantID, email, code, newPassword, ipAddress)
 
 	// Assert
 	assert.NoError(t, err)
@@ -1083,6 +1092,7 @@ func TestResetPasswordWithCode_InvalidCode(t *testing.T) {
 	ctx := context.Background()
 
 	userID := uuid.New().String()
+	tenantID := "test-tenant"
 	email := "test@example.com"
 	code := "999999"
 	newPassword := "NewSecurePass123!"
@@ -1096,11 +1106,11 @@ func TestResetPasswordWithCode_InvalidCode(t *testing.T) {
 	}
 
 	// Mock expectations
-	m.userRepo.On("GetByEmail", ctx, email).Return(user, nil)
+	m.userRepo.On("GetByEmail", ctx, tenantID, email).Return(user, nil)
 	m.resetRepo.On("GetByCode", ctx, userID, code).Return(nil, domain.ErrInvalidResetToken)
 
 	// Execute
-	err := m.uc.ResetPasswordWithCode(ctx, email, code, newPassword, ipAddress)
+	err := m.uc.ResetPasswordWithCode(ctx, tenantID, email, code, newPassword, ipAddress)
 
 	// Assert
 	assert.Error(t, err)
@@ -1114,12 +1124,13 @@ func TestResetPasswordWithCode_InvalidPassword(t *testing.T) {
 	ctx := context.Background()
 
 	email := "test@example.com"
+	tenantID := "test-tenant"
 	code := "123456"
 	newPassword := "weak" // Invalid password - too weak
 	ipAddress := "192.168.1.1"
 
 	// Execute - should fail validation before even checking the database
-	err := m.uc.ResetPasswordWithCode(ctx, email, code, newPassword, ipAddress)
+	err := m.uc.ResetPasswordWithCode(ctx, tenantID, email, code, newPassword, ipAddress)
 
 	// Assert
 	assert.Error(t, err)
@@ -1131,6 +1142,7 @@ func TestResetPasswordWithCode_PasswordHashingFailure(t *testing.T) {
 	ctx := context.Background()
 
 	userID := uuid.New().String()
+	tenantID := "test-tenant"
 	email := "test@example.com"
 	code := "123456"
 	newPassword := "NewSecurePass123!"
@@ -1154,12 +1166,12 @@ func TestResetPasswordWithCode_PasswordHashingFailure(t *testing.T) {
 	}
 
 	// Mock expectations
-	m.userRepo.On("GetByEmail", ctx, email).Return(user, nil)
+	m.userRepo.On("GetByEmail", ctx, tenantID, email).Return(user, nil)
 	m.resetRepo.On("GetByCode", ctx, userID, code).Return(resetToken, nil)
 	m.passwordHasher.On("Hash", newPassword).Return("", assert.AnError)
 
 	// Execute
-	err := m.uc.ResetPasswordWithCode(ctx, email, code, newPassword, ipAddress)
+	err := m.uc.ResetPasswordWithCode(ctx, tenantID, email, code, newPassword, ipAddress)
 
 	// Assert
 	assert.Error(t, err)
@@ -1175,12 +1187,14 @@ func TestResetPasswordWithToken_PasswordHashingFailure(t *testing.T) {
 	ctx := context.Background()
 
 	userID := uuid.New().String()
+	tenantID := "test-tenant"
 	token := "reset_token_12345"
 	newPassword := "NewSecurePass123!"
 	ipAddress := "192.168.1.1"
 
 	resetToken := &domain.PasswordResetToken{
 		ID:        uuid.New().String(),
+		TenantID:  tenantID,
 		UserID:    userID,
 		Token:     "hashed_token",
 		ExpiresAt: time.Now().Add(time.Hour),
@@ -1189,11 +1203,11 @@ func TestResetPasswordWithToken_PasswordHashingFailure(t *testing.T) {
 	}
 
 	// Mock expectations
-	m.resetRepo.On("GetByToken", ctx, mock.AnythingOfType("string")).Return(resetToken, nil)
+	m.resetRepo.On("GetByToken", ctx, tenantID, mock.AnythingOfType("string")).Return(resetToken, nil)
 	m.passwordHasher.On("Hash", newPassword).Return("", assert.AnError)
 
 	// Execute
-	err := m.uc.ResetPasswordWithToken(ctx, token, newPassword, ipAddress)
+	err := m.uc.ResetPasswordWithToken(ctx, tenantID, token, newPassword, ipAddress)
 
 	// Assert
 	assert.Error(t, err)
@@ -1208,12 +1222,14 @@ func TestResetPasswordWithToken_UpdatePasswordFailure(t *testing.T) {
 	ctx := context.Background()
 
 	userID := uuid.New().String()
+	tenantID := "test-tenant"
 	token := "reset_token_12345"
 	newPassword := "NewSecurePass123!"
 	ipAddress := "192.168.1.1"
 
 	resetToken := &domain.PasswordResetToken{
 		ID:        uuid.New().String(),
+		TenantID:  tenantID,
 		UserID:    userID,
 		Token:     "hashed_token",
 		ExpiresAt: time.Now().Add(time.Hour),
@@ -1222,12 +1238,12 @@ func TestResetPasswordWithToken_UpdatePasswordFailure(t *testing.T) {
 	}
 
 	// Mock expectations
-	m.resetRepo.On("GetByToken", ctx, mock.AnythingOfType("string")).Return(resetToken, nil)
+	m.resetRepo.On("GetByToken", ctx, tenantID, mock.AnythingOfType("string")).Return(resetToken, nil)
 	m.passwordHasher.On("Hash", newPassword).Return("hashed_new_password", nil)
 	m.userRepo.On("UpdatePassword", ctx, userID, "hashed_new_password").Return(assert.AnError)
 
 	// Execute
-	err := m.uc.ResetPasswordWithToken(ctx, token, newPassword, ipAddress)
+	err := m.uc.ResetPasswordWithToken(ctx, tenantID, token, newPassword, ipAddress)
 
 	// Assert
 	assert.Error(t, err)
@@ -1274,6 +1290,9 @@ func TestOAuthLogin_Success_ExistingUser(t *testing.T) {
 		CreatedAt:       time.Now(),
 	}
 
+	tenantID := "test-tenant"
+	existingUser.TenantID = tenantID
+
 	// Setup OAuth provider mock
 	oauthProvider := new(mocks.MockOAuthProvider)
 	m.uc.oauthProviders = map[string]ports.OAuthProvider{
@@ -1282,7 +1301,7 @@ func TestOAuthLogin_Success_ExistingUser(t *testing.T) {
 
 	// Mock expectations (only critical path, async operations are fire-and-forget)
 	oauthProvider.On("Exchange", ctx, code).Return(oauthUserInfo, nil)
-	m.userRepo.On("GetByOAuthProvider", ctx, provider, oauthUserInfo.ProviderID).Return(existingUser, nil)
+	m.userRepo.On("GetByOAuthProvider", ctx, tenantID, provider, oauthUserInfo.ProviderID).Return(existingUser, nil)
 	m.geoService.On("GetCountry", ctx, ipAddress).Return("US", nil)
 	m.sessionRepo.On("Create", ctx, mock.AnythingOfType("*domain.Session")).Return(nil)
 	m.jwtService.On("Generate", ctx, mock.AnythingOfType("*domain.Token")).Return("jwt.access.token", nil)
@@ -1293,7 +1312,7 @@ func TestOAuthLogin_Success_ExistingUser(t *testing.T) {
 	m.userRepo.On("Update", mock.Anything, mock.AnythingOfType("*domain.User")).Return(nil).Maybe()
 
 	// Execute
-	response, err := m.uc.OAuthLogin(ctx, provider, code, state, ipAddress, userAgent, device)
+	response, err := m.uc.OAuthLogin(ctx, tenantID, provider, code, state, ipAddress, userAgent, device)
 
 	// Assert
 	assert.NoError(t, err)
@@ -1336,6 +1355,9 @@ func TestOAuthLogin_NewCountryDetection(t *testing.T) {
 		CreatedAt:        time.Now(),
 	}
 
+	tenantID := "test-tenant"
+	existingUser.TenantID = tenantID
+
 	// Setup OAuth provider mock
 	oauthProvider := new(mocks.MockOAuthProvider)
 	m.uc.oauthProviders = map[string]ports.OAuthProvider{
@@ -1344,7 +1366,7 @@ func TestOAuthLogin_NewCountryDetection(t *testing.T) {
 
 	// Mock expectations
 	oauthProvider.On("Exchange", ctx, code).Return(oauthUserInfo, nil)
-	m.userRepo.On("GetByOAuthProvider", ctx, provider, oauthUserInfo.ProviderID).Return(existingUser, nil)
+	m.userRepo.On("GetByOAuthProvider", ctx, tenantID, provider, oauthUserInfo.ProviderID).Return(existingUser, nil)
 	m.geoService.On("GetCountry", ctx, ipAddress).Return("US", nil) // Now logging from US
 	m.sessionRepo.On("Create", ctx, mock.AnythingOfType("*domain.Session")).Return(nil)
 	m.jwtService.On("Generate", ctx, mock.AnythingOfType("*domain.Token")).Return("jwt.access.token", nil)
@@ -1355,7 +1377,7 @@ func TestOAuthLogin_NewCountryDetection(t *testing.T) {
 	m.notifier.On("Publish", mock.Anything, mock.AnythingOfType("*domain.Event")).Return(nil)
 
 	// Execute
-	response, err := m.uc.OAuthLogin(ctx, provider, code, state, ipAddress, userAgent, device)
+	response, err := m.uc.OAuthLogin(ctx, tenantID, provider, code, state, ipAddress, userAgent, device)
 
 	// Assert
 	assert.NoError(t, err)
@@ -1395,11 +1417,12 @@ func TestOAuthLogin_ProviderNotFound(t *testing.T) {
 	userAgent := "Mozilla/5.0"
 	device := "Desktop"
 
+	tenantID := "test-tenant"
 	// No OAuth providers configured
 	m.uc.oauthProviders = map[string]ports.OAuthProvider{}
 
 	// Execute
-	response, err := m.uc.OAuthLogin(ctx, provider, code, state, ipAddress, userAgent, device)
+	response, err := m.uc.OAuthLogin(ctx, tenantID, provider, code, state, ipAddress, userAgent, device)
 
 	// Assert
 	assert.Error(t, err)
@@ -1419,6 +1442,7 @@ func TestOAuthLogin_InvalidCode(t *testing.T) {
 	userAgent := "Mozilla/5.0"
 	device := "Desktop"
 
+	tenantID := "test-tenant"
 	// Setup OAuth provider mock
 	oauthProvider := new(mocks.MockOAuthProvider)
 	m.uc.oauthProviders = map[string]ports.OAuthProvider{
@@ -1429,7 +1453,7 @@ func TestOAuthLogin_InvalidCode(t *testing.T) {
 	oauthProvider.On("Exchange", ctx, code).Return(nil, domain.ErrOAuthCodeInvalid)
 
 	// Execute
-	response, err := m.uc.OAuthLogin(ctx, provider, code, state, ipAddress, userAgent, device)
+	response, err := m.uc.OAuthLogin(ctx, tenantID, provider, code, state, ipAddress, userAgent, device)
 
 	// Assert
 	assert.Error(t, err)
@@ -1466,6 +1490,9 @@ func TestOAuthLogin_SessionCreationFailure(t *testing.T) {
 		Name:       "Test User",
 	}
 
+	tenantID := "test-tenant"
+	existingUser.TenantID = tenantID
+
 	// Setup OAuth provider mock
 	oauthProvider := new(mocks.MockOAuthProvider)
 	m.uc.oauthProviders = map[string]ports.OAuthProvider{
@@ -1474,12 +1501,12 @@ func TestOAuthLogin_SessionCreationFailure(t *testing.T) {
 
 	// Mock expectations
 	oauthProvider.On("Exchange", ctx, code).Return(userInfo, nil)
-	m.userRepo.On("GetByOAuthProvider", ctx, provider, userInfo.ProviderID).Return(existingUser, nil)
+	m.userRepo.On("GetByOAuthProvider", ctx, tenantID, provider, userInfo.ProviderID).Return(existingUser, nil)
 	m.geoService.On("GetCountry", ctx, ipAddress).Return("US", nil)
 	m.sessionRepo.On("Create", ctx, mock.AnythingOfType("*domain.Session")).Return(assert.AnError)
 
 	// Execute
-	response, err := m.uc.OAuthLogin(ctx, provider, code, state, ipAddress, userAgent, device)
+	response, err := m.uc.OAuthLogin(ctx, tenantID, provider, code, state, ipAddress, userAgent, device)
 
 	// Assert
 	assert.Error(t, err)
@@ -1502,9 +1529,11 @@ func TestOAuthLogin_JWTGenerationFailure(t *testing.T) {
 	ipAddress := "192.168.1.1"
 	userAgent := "Mozilla/5.0"
 	device := "Desktop"
+	tenantID := "test-tenant"
 
 	existingUser := &domain.User{
 		ID:              uuid.New().String(),
+		TenantID:        tenantID,
 		Username:        "testuser",
 		Email:           "test@example.com",
 		OAuthProvider:   provider,
@@ -1527,13 +1556,13 @@ func TestOAuthLogin_JWTGenerationFailure(t *testing.T) {
 
 	// Mock expectations
 	oauthProvider.On("Exchange", ctx, code).Return(userInfo, nil)
-	m.userRepo.On("GetByOAuthProvider", ctx, provider, userInfo.ProviderID).Return(existingUser, nil)
+	m.userRepo.On("GetByOAuthProvider", ctx, tenantID, provider, userInfo.ProviderID).Return(existingUser, nil)
 	m.geoService.On("GetCountry", ctx, ipAddress).Return("US", nil)
 	m.sessionRepo.On("Create", ctx, mock.AnythingOfType("*domain.Session")).Return(nil)
 	m.jwtService.On("Generate", ctx, mock.AnythingOfType("*domain.Token")).Return("", assert.AnError)
 
 	// Execute
-	response, err := m.uc.OAuthLogin(ctx, provider, code, state, ipAddress, userAgent, device)
+	response, err := m.uc.OAuthLogin(ctx, tenantID, provider, code, state, ipAddress, userAgent, device)
 
 	// Assert
 	assert.Error(t, err)
@@ -1557,9 +1586,11 @@ func TestOAuthLogin_RefreshTokenCreationFailure(t *testing.T) {
 	ipAddress := "192.168.1.1"
 	userAgent := "Mozilla/5.0"
 	device := "Desktop"
+	tenantID := "test-tenant"
 
 	existingUser := &domain.User{
 		ID:              uuid.New().String(),
+		TenantID:        tenantID,
 		Username:        "testuser",
 		Email:           "test@example.com",
 		OAuthProvider:   provider,
@@ -1582,7 +1613,7 @@ func TestOAuthLogin_RefreshTokenCreationFailure(t *testing.T) {
 
 	// Mock expectations
 	oauthProvider.On("Exchange", ctx, code).Return(userInfo, nil)
-	m.userRepo.On("GetByOAuthProvider", ctx, provider, userInfo.ProviderID).Return(existingUser, nil)
+	m.userRepo.On("GetByOAuthProvider", ctx, tenantID, provider, userInfo.ProviderID).Return(existingUser, nil)
 	m.geoService.On("GetCountry", ctx, ipAddress).Return("US", nil)
 	m.sessionRepo.On("Create", ctx, mock.AnythingOfType("*domain.Session")).Return(nil)
 	m.jwtService.On("Generate", ctx, mock.AnythingOfType("*domain.Token")).Return("jwt_token", nil)
@@ -1590,7 +1621,7 @@ func TestOAuthLogin_RefreshTokenCreationFailure(t *testing.T) {
 	m.refreshRepo.On("Create", ctx, mock.AnythingOfType("*domain.RefreshToken")).Return(assert.AnError)
 
 	// Execute
-	response, err := m.uc.OAuthLogin(ctx, provider, code, state, ipAddress, userAgent, device)
+	response, err := m.uc.OAuthLogin(ctx, tenantID, provider, code, state, ipAddress, userAgent, device)
 
 	// Assert
 	assert.Error(t, err)
@@ -1625,6 +1656,7 @@ func TestOAuthLogin_UserCreationFailure(t *testing.T) {
 		Name:       "New User",
 	}
 
+	tenantID := "test-tenant"
 	// Setup OAuth provider mock
 	oauthProvider := new(mocks.MockOAuthProvider)
 	m.uc.oauthProviders = map[string]ports.OAuthProvider{
@@ -1633,11 +1665,11 @@ func TestOAuthLogin_UserCreationFailure(t *testing.T) {
 
 	// Mock expectations
 	oauthProvider.On("Exchange", ctx, code).Return(userInfo, nil).Once()
-	m.userRepo.On("GetByOAuthProvider", ctx, provider, userInfo.ProviderID).Return(nil, domain.ErrUserNotFound).Once()
+	m.userRepo.On("GetByOAuthProvider", ctx, tenantID, provider, userInfo.ProviderID).Return(nil, domain.ErrUserNotFound).Once()
 	m.userRepo.On("Create", ctx, mock.AnythingOfType("*domain.User"), "").Return(assert.AnError).Once()
 
 	// Execute
-	response, err := m.uc.OAuthLogin(ctx, provider, code, state, ipAddress, userAgent, device)
+	response, err := m.uc.OAuthLogin(ctx, tenantID, provider, code, state, ipAddress, userAgent, device)
 
 	// Assert
 	assert.Error(t, err)

@@ -20,13 +20,13 @@ func NewSessionRepository(db *pgxpool.Pool) *SessionRepository {
 func (r *SessionRepository) Create(ctx context.Context, session *domain.Session) error {
 	query := `
 		INSERT INTO auth_sessions (
-			id, user_id, ip_address, country, device, user_agent,
+			id, tenant_id, user_id, ip_address, country, device, user_agent,
 			created_at, last_used_at, expires_at, revoked, revoked_at, revoked_by, revoke_reason
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
 	`
 
 	_, err := r.db.Exec(ctx, query,
-		session.ID, session.UserID, session.IPAddress, session.Country, session.Device, session.UserAgent,
+		session.ID, session.TenantID, session.UserID, session.IPAddress, session.Country, session.Device, session.UserAgent,
 		session.CreatedAt, session.LastUsedAt, session.ExpiresAt, session.Revoked, session.RevokedAt,
 		session.RevokedBy, session.RevokeReason,
 	)
@@ -38,19 +38,19 @@ func (r *SessionRepository) Create(ctx context.Context, session *domain.Session)
 	return nil
 }
 
-func (r *SessionRepository) GetByID(ctx context.Context, id string) (*domain.Session, error) {
+func (r *SessionRepository) GetByID(ctx context.Context, tenantID, id string) (*domain.Session, error) {
 	query := `
-		SELECT id, user_id, ip_address, country, device, user_agent,
+		SELECT id, tenant_id, user_id, ip_address, country, device, user_agent,
 			   created_at, last_used_at, expires_at, revoked, revoked_at, revoked_by, revoke_reason
 		FROM auth_sessions
-		WHERE id = $1
+		WHERE tenant_id = $1 AND id = $2
 	`
 
 	session := &domain.Session{}
 	var revokedAt sql.NullTime
 
-	err := r.db.QueryRow(ctx, query, id).Scan(
-		&session.ID, &session.UserID, &session.IPAddress, &session.Country, &session.Device, &session.UserAgent,
+	err := r.db.QueryRow(ctx, query, tenantID, id).Scan(
+		&session.ID, &session.TenantID, &session.UserID, &session.IPAddress, &session.Country, &session.Device, &session.UserAgent,
 		&session.CreatedAt, &session.LastUsedAt, &session.ExpiresAt, &session.Revoked, &revokedAt,
 		&session.RevokedBy, &session.RevokeReason,
 	)
@@ -69,17 +69,17 @@ func (r *SessionRepository) GetByID(ctx context.Context, id string) (*domain.Ses
 	return session, nil
 }
 
-func (r *SessionRepository) GetByUserID(ctx context.Context, userID string) ([]*domain.Session, error) {
+func (r *SessionRepository) GetByUserID(ctx context.Context, tenantID, userID string) ([]*domain.Session, error) {
 	query := `
-		SELECT id, user_id, ip_address, country, device, user_agent,
+		SELECT id, tenant_id, user_id, ip_address, country, device, user_agent,
 			   created_at, last_used_at, expires_at, revoked, revoked_at, revoked_by, revoke_reason
 		FROM auth_sessions
-		WHERE user_id = $1 AND revoked = false AND expires_at > NOW()
+		WHERE tenant_id = $1 AND user_id = $2 AND revoked = false AND expires_at > NOW()
 		ORDER BY last_used_at DESC
 		LIMIT 100
 	`
 
-	rows, err := r.db.Query(ctx, query, userID)
+	rows, err := r.db.Query(ctx, query, tenantID, userID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get sessions: %w", err)
 	}
@@ -91,7 +91,7 @@ func (r *SessionRepository) GetByUserID(ctx context.Context, userID string) ([]*
 		var revokedAt sql.NullTime
 
 		err := rows.Scan(
-			&session.ID, &session.UserID, &session.IPAddress, &session.Country, &session.Device, &session.UserAgent,
+			&session.ID, &session.TenantID, &session.UserID, &session.IPAddress, &session.Country, &session.Device, &session.UserAgent,
 			&session.CreatedAt, &session.LastUsedAt, &session.ExpiresAt, &session.Revoked, &revokedAt,
 			&session.RevokedBy, &session.RevokeReason,
 		)
@@ -110,17 +110,17 @@ func (r *SessionRepository) GetByUserID(ctx context.Context, userID string) ([]*
 	return sessions, nil
 }
 
-func (r *SessionRepository) GetRecentByUserID(ctx context.Context, userID string, limit int) ([]*domain.Session, error) {
+func (r *SessionRepository) GetRecentByUserID(ctx context.Context, tenantID, userID string, limit int) ([]*domain.Session, error) {
 	query := `
-		SELECT id, user_id, ip_address, country, device, user_agent,
+		SELECT id, tenant_id, user_id, ip_address, country, device, user_agent,
 			   created_at, last_used_at, expires_at, revoked, revoked_at, revoked_by, revoke_reason
 		FROM auth_sessions
-		WHERE user_id = $1
+		WHERE tenant_id = $1 AND user_id = $2
 		ORDER BY created_at DESC
-		LIMIT $2
+		LIMIT $3
 	`
 
-	rows, err := r.db.Query(ctx, query, userID, limit)
+	rows, err := r.db.Query(ctx, query, tenantID, userID, limit)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get recent sessions: %w", err)
 	}
@@ -132,7 +132,7 @@ func (r *SessionRepository) GetRecentByUserID(ctx context.Context, userID string
 		var revokedAt sql.NullTime
 
 		err := rows.Scan(
-			&session.ID, &session.UserID, &session.IPAddress, &session.Country, &session.Device, &session.UserAgent,
+			&session.ID, &session.TenantID, &session.UserID, &session.IPAddress, &session.Country, &session.Device, &session.UserAgent,
 			&session.CreatedAt, &session.LastUsedAt, &session.ExpiresAt, &session.Revoked, &revokedAt,
 			&session.RevokedBy, &session.RevokeReason,
 		)
@@ -155,12 +155,12 @@ func (r *SessionRepository) Update(ctx context.Context, session *domain.Session)
 	query := `
 		UPDATE auth_sessions
 		SET last_used_at = $2, expires_at = $3, revoked = $4, revoked_at = $5, revoked_by = $6, revoke_reason = $7
-		WHERE id = $1
+		WHERE tenant_id = $8 AND id = $1
 	`
 
 	_, err := r.db.Exec(ctx, query,
 		session.ID, session.LastUsedAt, session.ExpiresAt, session.Revoked, session.RevokedAt,
-		session.RevokedBy, session.RevokeReason,
+		session.RevokedBy, session.RevokeReason, session.TenantID,
 	)
 
 	if err != nil {
@@ -170,14 +170,14 @@ func (r *SessionRepository) Update(ctx context.Context, session *domain.Session)
 	return nil
 }
 
-func (r *SessionRepository) Revoke(ctx context.Context, sessionID string, revokedBy, reason string) error {
+func (r *SessionRepository) Revoke(ctx context.Context, tenantID, sessionID string, revokedBy, reason string) error {
 	query := `
 		UPDATE auth_sessions
-		SET revoked = true, revoked_at = NOW(), revoked_by = $2, revoke_reason = $3
-		WHERE id = $1
+		SET revoked = true, revoked_at = NOW(), revoked_by = $3, revoke_reason = $4
+		WHERE tenant_id = $1 AND id = $2
 	`
 
-	_, err := r.db.Exec(ctx, query, sessionID, revokedBy, reason)
+	_, err := r.db.Exec(ctx, query, tenantID, sessionID, revokedBy, reason)
 	if err != nil {
 		return fmt.Errorf("failed to revoke session: %w", err)
 	}
@@ -185,14 +185,14 @@ func (r *SessionRepository) Revoke(ctx context.Context, sessionID string, revoke
 	return nil
 }
 
-func (r *SessionRepository) RevokeAllByUserID(ctx context.Context, userID, revokedBy, reason string) error {
+func (r *SessionRepository) RevokeAllByUserID(ctx context.Context, tenantID, userID, revokedBy, reason string) error {
 	query := `
 		UPDATE auth_sessions
-		SET revoked = true, revoked_at = NOW(), revoked_by = $2, revoke_reason = $3
-		WHERE user_id = $1 AND revoked = false
+		SET revoked = true, revoked_at = NOW(), revoked_by = $3, revoke_reason = $4
+		WHERE tenant_id = $1 AND user_id = $2 AND revoked = false
 	`
 
-	_, err := r.db.Exec(ctx, query, userID, revokedBy, reason)
+	_, err := r.db.Exec(ctx, query, tenantID, userID, revokedBy, reason)
 	if err != nil {
 		return fmt.Errorf("failed to revoke all sessions: %w", err)
 	}

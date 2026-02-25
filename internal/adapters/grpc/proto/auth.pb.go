@@ -25,6 +25,7 @@ const (
 type ValidateTokenRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Token         string                 `protobuf:"bytes,1,opt,name=token,proto3" json:"token,omitempty"`
+	TenantId      string                 `protobuf:"bytes,2,opt,name=tenant_id,json=tenantId,proto3" json:"tenant_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -66,17 +67,25 @@ func (x *ValidateTokenRequest) GetToken() string {
 	return ""
 }
 
+func (x *ValidateTokenRequest) GetTenantId() string {
+	if x != nil {
+		return x.TenantId
+	}
+	return ""
+}
+
 type ValidateTokenResponse struct {
 	state            protoimpl.MessageState `protogen:"open.v1"`
 	Valid            bool                   `protobuf:"varint,1,opt,name=valid,proto3" json:"valid,omitempty"`
 	UserId           string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	Email            string                 `protobuf:"bytes,3,opt,name=email,proto3" json:"email,omitempty"`
 	Username         string                 `protobuf:"bytes,4,opt,name=username,proto3" json:"username,omitempty"`
-	Active           bool                   `protobuf:"varint,5,opt,name=active,proto3" json:"active,omitempty"`
-	EmailVerified    bool                   `protobuf:"varint,6,opt,name=email_verified,json=emailVerified,proto3" json:"email_verified,omitempty"`
-	TwoFactorEnabled bool                   `protobuf:"varint,7,opt,name=two_factor_enabled,json=twoFactorEnabled,proto3" json:"two_factor_enabled,omitempty"`
-	ErrorCode        string                 `protobuf:"bytes,8,opt,name=error_code,json=errorCode,proto3" json:"error_code,omitempty"`
-	ErrorMessage     string                 `protobuf:"bytes,9,opt,name=error_message,json=errorMessage,proto3" json:"error_message,omitempty"`
+	TenantId         string                 `protobuf:"bytes,5,opt,name=tenant_id,json=tenantId,proto3" json:"tenant_id,omitempty"`
+	Active           bool                   `protobuf:"varint,6,opt,name=active,proto3" json:"active,omitempty"`
+	EmailVerified    bool                   `protobuf:"varint,7,opt,name=email_verified,json=emailVerified,proto3" json:"email_verified,omitempty"`
+	TwoFactorEnabled bool                   `protobuf:"varint,8,opt,name=two_factor_enabled,json=twoFactorEnabled,proto3" json:"two_factor_enabled,omitempty"`
+	ErrorCode        string                 `protobuf:"bytes,9,opt,name=error_code,json=errorCode,proto3" json:"error_code,omitempty"`
+	ErrorMessage     string                 `protobuf:"bytes,10,opt,name=error_message,json=errorMessage,proto3" json:"error_message,omitempty"`
 	unknownFields    protoimpl.UnknownFields
 	sizeCache        protoimpl.SizeCache
 }
@@ -139,6 +148,13 @@ func (x *ValidateTokenResponse) GetUsername() string {
 	return ""
 }
 
+func (x *ValidateTokenResponse) GetTenantId() string {
+	if x != nil {
+		return x.TenantId
+	}
+	return ""
+}
+
 func (x *ValidateTokenResponse) GetActive() bool {
 	if x != nil {
 		return x.Active
@@ -178,6 +194,7 @@ func (x *ValidateTokenResponse) GetErrorMessage() string {
 type RevokeTokenRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Token         string                 `protobuf:"bytes,1,opt,name=token,proto3" json:"token,omitempty"`
+	TenantId      string                 `protobuf:"bytes,2,opt,name=tenant_id,json=tenantId,proto3" json:"tenant_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -215,6 +232,13 @@ func (*RevokeTokenRequest) Descriptor() ([]byte, []int) {
 func (x *RevokeTokenRequest) GetToken() string {
 	if x != nil {
 		return x.Token
+	}
+	return ""
+}
+
+func (x *RevokeTokenRequest) GetTenantId() string {
+	if x != nil {
+		return x.TenantId
 	}
 	return ""
 }
@@ -275,6 +299,7 @@ func (x *RevokeTokenResponse) GetMessage() string {
 type GetUserByIDRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	TenantId      string                 `protobuf:"bytes,2,opt,name=tenant_id,json=tenantId,proto3" json:"tenant_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -316,15 +341,23 @@ func (x *GetUserByIDRequest) GetUserId() string {
 	return ""
 }
 
+func (x *GetUserByIDRequest) GetTenantId() string {
+	if x != nil {
+		return x.TenantId
+	}
+	return ""
+}
+
 type GetUserByIDResponse struct {
 	state            protoimpl.MessageState `protogen:"open.v1"`
 	Id               string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	Username         string                 `protobuf:"bytes,2,opt,name=username,proto3" json:"username,omitempty"`
 	Email            string                 `protobuf:"bytes,3,opt,name=email,proto3" json:"email,omitempty"`
-	Active           bool                   `protobuf:"varint,4,opt,name=active,proto3" json:"active,omitempty"`
-	EmailVerified    bool                   `protobuf:"varint,5,opt,name=email_verified,json=emailVerified,proto3" json:"email_verified,omitempty"`
-	TwoFactorEnabled bool                   `protobuf:"varint,6,opt,name=two_factor_enabled,json=twoFactorEnabled,proto3" json:"two_factor_enabled,omitempty"`
-	CreatedAt        string                 `protobuf:"bytes,7,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	TenantId         string                 `protobuf:"bytes,4,opt,name=tenant_id,json=tenantId,proto3" json:"tenant_id,omitempty"`
+	Active           bool                   `protobuf:"varint,5,opt,name=active,proto3" json:"active,omitempty"`
+	EmailVerified    bool                   `protobuf:"varint,6,opt,name=email_verified,json=emailVerified,proto3" json:"email_verified,omitempty"`
+	TwoFactorEnabled bool                   `protobuf:"varint,7,opt,name=two_factor_enabled,json=twoFactorEnabled,proto3" json:"two_factor_enabled,omitempty"`
+	CreatedAt        string                 `protobuf:"bytes,8,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
 	unknownFields    protoimpl.UnknownFields
 	sizeCache        protoimpl.SizeCache
 }
@@ -380,6 +413,13 @@ func (x *GetUserByIDResponse) GetEmail() string {
 	return ""
 }
 
+func (x *GetUserByIDResponse) GetTenantId() string {
+	if x != nil {
+		return x.TenantId
+	}
+	return ""
+}
+
 func (x *GetUserByIDResponse) GetActive() bool {
 	if x != nil {
 		return x.Active
@@ -412,36 +452,42 @@ var File_internal_adapters_grpc_proto_auth_proto protoreflect.FileDescriptor
 
 const file_internal_adapters_grpc_proto_auth_proto_rawDesc = "" +
 	"\n" +
-	"'internal/adapters/grpc/proto/auth.proto\x12\aauth.v1\",\n" +
+	"'internal/adapters/grpc/proto/auth.proto\x12\aauth.v1\"I\n" +
 	"\x14ValidateTokenRequest\x12\x14\n" +
-	"\x05token\x18\x01 \x01(\tR\x05token\"\xa9\x02\n" +
+	"\x05token\x18\x01 \x01(\tR\x05token\x12\x1b\n" +
+	"\ttenant_id\x18\x02 \x01(\tR\btenantId\"\xc6\x02\n" +
 	"\x15ValidateTokenResponse\x12\x14\n" +
 	"\x05valid\x18\x01 \x01(\bR\x05valid\x12\x17\n" +
 	"\auser_id\x18\x02 \x01(\tR\x06userId\x12\x14\n" +
 	"\x05email\x18\x03 \x01(\tR\x05email\x12\x1a\n" +
-	"\busername\x18\x04 \x01(\tR\busername\x12\x16\n" +
+	"\busername\x18\x04 \x01(\tR\busername\x12\x1b\n" +
+	"\ttenant_id\x18\x05 \x01(\tR\btenantId\x12\x16\n" +
+	"\x06active\x18\x06 \x01(\bR\x06active\x12%\n" +
+	"\x0eemail_verified\x18\a \x01(\bR\remailVerified\x12,\n" +
+	"\x12two_factor_enabled\x18\b \x01(\bR\x10twoFactorEnabled\x12\x1d\n" +
+	"\n" +
+	"error_code\x18\t \x01(\tR\terrorCode\x12#\n" +
+	"\rerror_message\x18\n" +
+	" \x01(\tR\ferrorMessage\"G\n" +
+	"\x12RevokeTokenRequest\x12\x14\n" +
+	"\x05token\x18\x01 \x01(\tR\x05token\x12\x1b\n" +
+	"\ttenant_id\x18\x02 \x01(\tR\btenantId\"I\n" +
+	"\x13RevokeTokenResponse\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage\"J\n" +
+	"\x12GetUserByIDRequest\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x1b\n" +
+	"\ttenant_id\x18\x02 \x01(\tR\btenantId\"\x80\x02\n" +
+	"\x13GetUserByIDResponse\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1a\n" +
+	"\busername\x18\x02 \x01(\tR\busername\x12\x14\n" +
+	"\x05email\x18\x03 \x01(\tR\x05email\x12\x1b\n" +
+	"\ttenant_id\x18\x04 \x01(\tR\btenantId\x12\x16\n" +
 	"\x06active\x18\x05 \x01(\bR\x06active\x12%\n" +
 	"\x0eemail_verified\x18\x06 \x01(\bR\remailVerified\x12,\n" +
 	"\x12two_factor_enabled\x18\a \x01(\bR\x10twoFactorEnabled\x12\x1d\n" +
 	"\n" +
-	"error_code\x18\b \x01(\tR\terrorCode\x12#\n" +
-	"\rerror_message\x18\t \x01(\tR\ferrorMessage\"*\n" +
-	"\x12RevokeTokenRequest\x12\x14\n" +
-	"\x05token\x18\x01 \x01(\tR\x05token\"I\n" +
-	"\x13RevokeTokenResponse\x12\x18\n" +
-	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
-	"\amessage\x18\x02 \x01(\tR\amessage\"-\n" +
-	"\x12GetUserByIDRequest\x12\x17\n" +
-	"\auser_id\x18\x01 \x01(\tR\x06userId\"\xe3\x01\n" +
-	"\x13GetUserByIDResponse\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1a\n" +
-	"\busername\x18\x02 \x01(\tR\busername\x12\x14\n" +
-	"\x05email\x18\x03 \x01(\tR\x05email\x12\x16\n" +
-	"\x06active\x18\x04 \x01(\bR\x06active\x12%\n" +
-	"\x0eemail_verified\x18\x05 \x01(\bR\remailVerified\x12,\n" +
-	"\x12two_factor_enabled\x18\x06 \x01(\bR\x10twoFactorEnabled\x12\x1d\n" +
-	"\n" +
-	"created_at\x18\a \x01(\tR\tcreatedAt2\xf1\x01\n" +
+	"created_at\x18\b \x01(\tR\tcreatedAt2\xf1\x01\n" +
 	"\vAuthService\x12N\n" +
 	"\rValidateToken\x12\x1d.auth.v1.ValidateTokenRequest\x1a\x1e.auth.v1.ValidateTokenResponse\x12H\n" +
 	"\vRevokeToken\x12\x1b.auth.v1.RevokeTokenRequest\x1a\x1c.auth.v1.RevokeTokenResponse\x12H\n" +

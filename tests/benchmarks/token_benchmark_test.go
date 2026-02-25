@@ -23,6 +23,8 @@ func BenchmarkTokenValidation_CacheHit(b *testing.B) {
 	userRepo := new(mocks.MockUserRepository)
 	refreshRepo := new(mocks.MockRefreshTokenRepository)
 	sessionRepo := new(mocks.MockSessionRepository)
+	riskService := new(mocks.MockRiskService)
+	tenantRepo := new(mocks.MockTenantRepository)
 	notifier := new(mocks.MockNotificationPublisher)
 
 	cfg := &config.Config{
@@ -39,6 +41,8 @@ func BenchmarkTokenValidation_CacheHit(b *testing.B) {
 		userRepo,
 		refreshRepo,
 		sessionRepo,
+		riskService,
+		tenantRepo,
 		notifier,
 		cfg,
 	)
@@ -80,6 +84,8 @@ func BenchmarkTokenValidation_CacheMiss(b *testing.B) {
 	userRepo := new(mocks.MockUserRepository)
 	refreshRepo := new(mocks.MockRefreshTokenRepository)
 	sessionRepo := new(mocks.MockSessionRepository)
+	riskService := new(mocks.MockRiskService)
+	tenantRepo := new(mocks.MockTenantRepository)
 	notifier := new(mocks.MockNotificationPublisher)
 
 	cfg := &config.Config{
@@ -96,6 +102,8 @@ func BenchmarkTokenValidation_CacheMiss(b *testing.B) {
 		userRepo,
 		refreshRepo,
 		sessionRepo,
+		riskService,
+		tenantRepo,
 		notifier,
 		cfg,
 	)
@@ -138,6 +146,8 @@ func BenchmarkTokenValidation_Blacklist(b *testing.B) {
 	userRepo := new(mocks.MockUserRepository)
 	refreshRepo := new(mocks.MockRefreshTokenRepository)
 	sessionRepo := new(mocks.MockSessionRepository)
+	riskService := new(mocks.MockRiskService)
+	tenantRepo := new(mocks.MockTenantRepository)
 	notifier := new(mocks.MockNotificationPublisher)
 
 	cfg := &config.Config{
@@ -154,6 +164,8 @@ func BenchmarkTokenValidation_Blacklist(b *testing.B) {
 		userRepo,
 		refreshRepo,
 		sessionRepo,
+		riskService,
+		tenantRepo,
 		notifier,
 		cfg,
 	)
@@ -195,6 +207,8 @@ func BenchmarkTokenRevocation(b *testing.B) {
 	userRepo := new(mocks.MockUserRepository)
 	refreshRepo := new(mocks.MockRefreshTokenRepository)
 	sessionRepo := new(mocks.MockSessionRepository)
+	riskService := new(mocks.MockRiskService)
+	tenantRepo := new(mocks.MockTenantRepository)
 	notifier := new(mocks.MockNotificationPublisher)
 
 	cfg := &config.Config{
@@ -211,6 +225,8 @@ func BenchmarkTokenRevocation(b *testing.B) {
 		userRepo,
 		refreshRepo,
 		sessionRepo,
+		riskService,
+		tenantRepo,
 		notifier,
 		cfg,
 	)

@@ -62,4 +62,8 @@ var (
 	ErrInvalidInput = errors.New("invalid input")
 	ErrUnauthorized = errors.New("unauthorized")
 	ErrForbidden    = errors.New("forbidden")
+
+	// Geofencing errors
+	ErrGeofencingRestriction     = errors.New("access restricted from your current geographic location")
+	ErrSessionHijackingSuspected = errors.New("suspicious geographic shift detected in active session")
 )

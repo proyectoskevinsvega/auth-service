@@ -5,6 +5,7 @@ import "time"
 // WebAuthnCredential representa una llave de seguridad registrada por un usuario
 type WebAuthnCredential struct {
 	ID              []byte    `json:"id"`
+	TenantID        string    `json:"tenant_id"`
 	UserID          string    `json:"user_id"`
 	PublicKey       []byte    `json:"public_key"`
 	AttestationType string    `json:"attestation_type"`

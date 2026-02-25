@@ -17,24 +17,24 @@ func (m *MockPasswordResetRepository) Create(ctx context.Context, token *domain.
 	return args.Error(0)
 }
 
-func (m *MockPasswordResetRepository) GetByToken(ctx context.Context, token string) (*domain.PasswordResetToken, error) {
-	args := m.Called(ctx, token)
+func (m *MockPasswordResetRepository) GetByToken(ctx context.Context, tenantID, token string) (*domain.PasswordResetToken, error) {
+	args := m.Called(ctx, tenantID, token)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
 	return args.Get(0).(*domain.PasswordResetToken), args.Error(1)
 }
 
-func (m *MockPasswordResetRepository) GetByCode(ctx context.Context, userID, code string) (*domain.PasswordResetToken, error) {
-	args := m.Called(ctx, userID, code)
+func (m *MockPasswordResetRepository) GetByCode(ctx context.Context, tenantID, userID, code string) (*domain.PasswordResetToken, error) {
+	args := m.Called(ctx, tenantID, userID, code)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
 	return args.Get(0).(*domain.PasswordResetToken), args.Error(1)
 }
 
-func (m *MockPasswordResetRepository) MarkAsUsed(ctx context.Context, tokenID string) error {
-	args := m.Called(ctx, tokenID)
+func (m *MockPasswordResetRepository) MarkAsUsed(ctx context.Context, tenantID, tokenID string) error {
+	args := m.Called(ctx, tenantID, tokenID)
 	return args.Error(0)
 }
 

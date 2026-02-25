@@ -22,3 +22,8 @@ func (m *MockRiskService) AssessLoginRisk(ctx context.Context, user *domain.User
 	}
 	return args.Get(0).(*domain.RiskAssessment), args.Get(1).(*domain.Geolocation), args.Error(2)
 }
+
+func (m *MockRiskService) VerifyGeofencing(ctx context.Context, tenantID string, countryCode string) error {
+	args := m.Called(ctx, tenantID, countryCode)
+	return args.Error(0)
+}

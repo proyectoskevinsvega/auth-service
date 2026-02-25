@@ -12,8 +12,9 @@ import (
 type contextKey string
 
 const (
-	UserContextKey  contextKey = "user"
-	TokenContextKey contextKey = "token"
+	UserContextKey   contextKey = "user"
+	TokenContextKey  contextKey = "token"
+	TenantContextKey contextKey = "tenant"
 )
 
 type AuthMiddleware struct {
@@ -62,6 +63,7 @@ func (m *AuthMiddleware) RequireAuth(next http.Handler) http.Handler {
 		// Add token to context
 		ctx := context.WithValue(r.Context(), TokenContextKey, token)
 		ctx = context.WithValue(ctx, UserContextKey, token.UserID)
+		ctx = context.WithValue(ctx, TenantContextKey, token.TenantID)
 
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
@@ -71,6 +73,12 @@ func (m *AuthMiddleware) RequireAuth(next http.Handler) http.Handler {
 func GetUserIDFromContext(ctx context.Context) (string, bool) {
 	userID, ok := ctx.Value(UserContextKey).(string)
 	return userID, ok
+}
+
+// GetTenantIDFromContext extracts tenant ID from context
+func GetTenantIDFromContext(ctx context.Context) (string, bool) {
+	tenantID, ok := ctx.Value(TenantContextKey).(string)
+	return tenantID, ok
 }
 
 // GetTokenFromContext extracts token from context

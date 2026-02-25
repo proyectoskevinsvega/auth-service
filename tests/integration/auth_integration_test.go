@@ -146,6 +146,7 @@ func setupTestSuite(t *testing.T) *TestSuite {
 	sessionRepo := postgresadapter.NewSessionRepository(dbPool)
 	auditRepo := postgresadapter.NewAuditLogRepository(dbPool)
 	roleRepo := postgresadapter.NewRoleRepository(dbPool)
+	tenantRepo := postgresadapter.NewTenantRepository(dbPool)
 
 	// Inicializar adaptadores crypto
 	jwtService := cryptoadapter.NewJWTService(
@@ -155,6 +156,7 @@ func setupTestSuite(t *testing.T) *TestSuite {
 	)
 	passwordHasher := cryptoadapter.NewArgon2Hasher()
 	tokenGenerator := cryptoadapter.NewSecureTokenGenerator()
+	riskService := usecase.NewRiskService(nil, tenantRepo)
 
 	// Inicializar adaptadores Redis
 	tokenCache := redisadapter.NewTokenCache(redisClient)
@@ -170,6 +172,8 @@ func setupTestSuite(t *testing.T) *TestSuite {
 		userRepo,
 		tokenRepo,
 		sessionRepo,
+		riskService,
+		tenantRepo,
 		&mockNotificationPublisher{},
 		cfg,
 	)
@@ -190,7 +194,7 @@ func setupTestSuite(t *testing.T) *TestSuite {
 		&mockNotificationPublisher{}, // notifier
 		nil,                          // oauthProviders
 		cfg,
-		nil, // riskService
+		riskService,
 		roleRepo,
 	)
 
@@ -278,7 +282,9 @@ func TestCompleteAuthFlow(t *testing.T) {
 
 	// Paso 1: Registrar un nuevo usuario
 	t.Log("Paso 1: Registrando nuevo usuario...")
+	tenantID := "test-tenant"
 	registerInput := usecase.RegisterInput{
+		TenantID:  tenantID,
 		Username:  "testuser",
 		Email:     "testuser@example.com",
 		Password:  "SecurePassword123!",
@@ -300,6 +306,7 @@ func TestCompleteAuthFlow(t *testing.T) {
 	// Paso 2: Login con credenciales válidas
 	t.Log("Paso 2: Iniciando sesión con credenciales válidas...")
 	loginInput := usecase.LoginInput{
+		TenantID:   tenantID,
 		Identifier: "testuser",
 		Password:   "SecurePassword123!",
 		IPAddress:  "192.168.1.1",
@@ -330,7 +337,7 @@ func TestCompleteAuthFlow(t *testing.T) {
 
 	// Paso 4: Refrescar el token usando refresh token
 	t.Log("Paso 4: Refrescando access token...")
-	refreshOutput, err := suite.tokenUC.RefreshToken(ctx, refreshToken)
+	refreshOutput, err := suite.tokenUC.RefreshToken(ctx, tenantID, refreshToken)
 	require.NoError(t, err, "RefreshToken debe ser exitoso")
 	require.NotNil(t, refreshOutput)
 	assert.NotEmpty(t, refreshOutput.AccessToken)
@@ -377,7 +384,9 @@ func TestLoginWithInvalidCredentials(t *testing.T) {
 	ctx := suite.ctx
 
 	// Registrar un usuario primero
+	tenantID := "test-tenant"
 	registerInput := usecase.RegisterInput{
+		TenantID:  tenantID,
 		Username:  "testuser2",
 		Email:     "testuser2@example.com",
 		Password:  "CorrectPassword123!",
@@ -390,6 +399,7 @@ func TestLoginWithInvalidCredentials(t *testing.T) {
 
 	// Intentar login con contraseña incorrecta
 	loginInput := usecase.LoginInput{
+		TenantID:   tenantID,
 		Identifier: "testuser2",
 		Password:   "WrongPassword123!",
 		IPAddress:  "192.168.1.1",
@@ -414,7 +424,9 @@ func TestTokenValidation_CachePerformance(t *testing.T) {
 	ctx := suite.ctx
 
 	// Registrar y hacer login para obtener un token
+	tenantID := "test-tenant"
 	registerInput := usecase.RegisterInput{
+		TenantID:  tenantID,
 		Username:  "cachetest",
 		Email:     "cachetest@example.com",
 		Password:  "Password123!",
@@ -425,6 +437,7 @@ func TestTokenValidation_CachePerformance(t *testing.T) {
 	require.NoError(t, err)
 
 	loginInput := usecase.LoginInput{
+		TenantID:   tenantID,
 		Identifier: "cachetest",
 		Password:   "Password123!",
 		IPAddress:  "192.168.1.1",

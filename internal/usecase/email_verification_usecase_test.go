@@ -44,8 +44,10 @@ func TestSendVerificationEmail_Success(t *testing.T) {
 	ctx := context.Background()
 
 	userID := uuid.New().String()
+	tenantID := "test-tenant"
 	user := &domain.User{
 		ID:            userID,
+		TenantID:      tenantID,
 		Username:      "testuser",
 		Email:         "test@example.com",
 		EmailVerified: false,
@@ -55,13 +57,14 @@ func TestSendVerificationEmail_Success(t *testing.T) {
 	}
 
 	input := SendVerificationInput{
+		TenantID:  tenantID,
 		UserID:    userID,
 		IPAddress: "192.168.1.1",
 		UserAgent: "Mozilla/5.0",
 	}
 
 	// Mock expectations
-	m.userRepo.On("GetByID", ctx, userID).Return(user, nil)
+	m.userRepo.On("GetByID", ctx, tenantID, userID).Return(user, nil)
 	m.verificationRepo.On("Create", ctx, mock.AnythingOfType("*domain.EmailVerification")).Return(nil)
 	m.emailService.On("SendVerificationEmail", ctx, user.Email, user.Username, mock.AnythingOfType("map[string]interface {}")).Return(nil)
 
@@ -81,14 +84,16 @@ func TestSendVerificationEmail_UserNotFound(t *testing.T) {
 	ctx := context.Background()
 
 	userID := uuid.New().String()
+	tenantID := "test-tenant"
 	input := SendVerificationInput{
+		TenantID:  tenantID,
 		UserID:    userID,
 		IPAddress: "192.168.1.1",
 		UserAgent: "Mozilla/5.0",
 	}
 
 	// Mock expectations
-	m.userRepo.On("GetByID", ctx, userID).Return(nil, domain.ErrUserNotFound)
+	m.userRepo.On("GetByID", ctx, tenantID, userID).Return(nil, domain.ErrUserNotFound)
 
 	// Execute
 	err := m.uc.SendVerificationEmail(ctx, input)
@@ -105,8 +110,10 @@ func TestSendVerificationEmail_EmailAlreadyVerified(t *testing.T) {
 	ctx := context.Background()
 
 	userID := uuid.New().String()
+	tenantID := "test-tenant"
 	user := &domain.User{
 		ID:            userID,
+		TenantID:      tenantID,
 		Username:      "testuser",
 		Email:         "test@example.com",
 		EmailVerified: true, // Ya verificado
@@ -114,13 +121,14 @@ func TestSendVerificationEmail_EmailAlreadyVerified(t *testing.T) {
 	}
 
 	input := SendVerificationInput{
+		TenantID:  tenantID,
 		UserID:    userID,
 		IPAddress: "192.168.1.1",
 		UserAgent: "Mozilla/5.0",
 	}
 
 	// Mock expectations
-	m.userRepo.On("GetByID", ctx, userID).Return(user, nil)
+	m.userRepo.On("GetByID", ctx, tenantID, userID).Return(user, nil)
 
 	// Execute
 	err := m.uc.SendVerificationEmail(ctx, input)
@@ -142,8 +150,10 @@ func TestSendVerificationEmail_EmailServiceFailure(t *testing.T) {
 	ctx := context.Background()
 
 	userID := uuid.New().String()
+	tenantID := "test-tenant"
 	user := &domain.User{
 		ID:            userID,
+		TenantID:      tenantID,
 		Username:      "testuser",
 		Email:         "test@example.com",
 		EmailVerified: false,
@@ -151,13 +161,14 @@ func TestSendVerificationEmail_EmailServiceFailure(t *testing.T) {
 	}
 
 	input := SendVerificationInput{
+		TenantID:  tenantID,
 		UserID:    userID,
 		IPAddress: "192.168.1.1",
 		UserAgent: "Mozilla/5.0",
 	}
 
 	// Mock expectations
-	m.userRepo.On("GetByID", ctx, userID).Return(user, nil)
+	m.userRepo.On("GetByID", ctx, tenantID, userID).Return(user, nil)
 	m.verificationRepo.On("Create", ctx, mock.AnythingOfType("*domain.EmailVerification")).Return(nil)
 	m.emailService.On("SendVerificationEmail", ctx, user.Email, user.Username, mock.AnythingOfType("map[string]interface {}")).Return(fmt.Errorf("email service unavailable"))
 
@@ -178,11 +189,13 @@ func TestVerifyEmail_Success(t *testing.T) {
 	ctx := context.Background()
 
 	userID := uuid.New().String()
+	tenantID := "test-tenant"
 	token := "valid_token_12345"
 	tokenHash := "hashed_token"
 
 	verification := &domain.EmailVerification{
 		ID:         uuid.New().String(),
+		TenantID:   tenantID,
 		UserID:     userID,
 		TokenHash:  tokenHash,
 		ExpiresAt:  time.Now().Add(24 * time.Hour),
@@ -194,6 +207,7 @@ func TestVerifyEmail_Success(t *testing.T) {
 
 	user := &domain.User{
 		ID:            userID,
+		TenantID:      tenantID,
 		Username:      "testuser",
 		Email:         "test@example.com",
 		EmailVerified: false,
@@ -201,13 +215,13 @@ func TestVerifyEmail_Success(t *testing.T) {
 	}
 
 	// Mock expectations
-	m.verificationRepo.On("GetByTokenHash", ctx, mock.AnythingOfType("string")).Return(verification, nil)
-	m.userRepo.On("GetByID", ctx, userID).Return(user, nil)
-	m.verificationRepo.On("MarkAsVerified", ctx, mock.AnythingOfType("string")).Return(nil)
+	m.verificationRepo.On("GetByTokenHash", ctx, tenantID, mock.AnythingOfType("string")).Return(verification, nil)
+	m.userRepo.On("GetByID", ctx, tenantID, userID).Return(user, nil)
+	m.verificationRepo.On("MarkAsVerified", ctx, tenantID, mock.AnythingOfType("string")).Return(nil)
 	m.userRepo.On("Update", ctx, mock.AnythingOfType("*domain.User")).Return(nil)
 
 	// Execute
-	err := m.uc.VerifyEmail(ctx, token)
+	err := m.uc.VerifyEmail(ctx, tenantID, token)
 
 	// Assert
 	assert.NoError(t, err)
@@ -220,13 +234,14 @@ func TestVerifyEmail_TokenNotFound(t *testing.T) {
 	m := setupEmailVerificationUseCase(t)
 	ctx := context.Background()
 
+	tenantID := "test-tenant"
 	token := "invalid_token"
 
 	// Mock expectations
-	m.verificationRepo.On("GetByTokenHash", ctx, mock.AnythingOfType("string")).Return(nil, domain.ErrVerificationTokenNotFound)
+	m.verificationRepo.On("GetByTokenHash", ctx, tenantID, mock.AnythingOfType("string")).Return(nil, domain.ErrVerificationTokenNotFound)
 
 	// Execute
-	err := m.uc.VerifyEmail(ctx, token)
+	err := m.uc.VerifyEmail(ctx, tenantID, token)
 
 	// Assert
 	assert.Error(t, err)
@@ -239,11 +254,13 @@ func TestVerifyEmail_TokenAlreadyUsed(t *testing.T) {
 	m := setupEmailVerificationUseCase(t)
 	ctx := context.Background()
 
+	tenantID := "test-tenant"
 	token := "used_token"
 	verifiedAt := time.Now().Add(-1 * time.Hour)
 
 	verification := &domain.EmailVerification{
 		ID:         uuid.New().String(),
+		TenantID:   tenantID,
 		UserID:     uuid.New().String(),
 		TokenHash:  "hashed_token",
 		ExpiresAt:  time.Now().Add(23 * time.Hour),
@@ -254,10 +271,10 @@ func TestVerifyEmail_TokenAlreadyUsed(t *testing.T) {
 	}
 
 	// Mock expectations
-	m.verificationRepo.On("GetByTokenHash", ctx, mock.AnythingOfType("string")).Return(verification, nil)
+	m.verificationRepo.On("GetByTokenHash", ctx, tenantID, mock.AnythingOfType("string")).Return(verification, nil)
 
 	// Execute
-	err := m.uc.VerifyEmail(ctx, token)
+	err := m.uc.VerifyEmail(ctx, tenantID, token)
 
 	// Assert
 	assert.Error(t, err)
@@ -275,10 +292,12 @@ func TestVerifyEmail_TokenExpired(t *testing.T) {
 	m := setupEmailVerificationUseCase(t)
 	ctx := context.Background()
 
+	tenantID := "test-tenant"
 	token := "expired_token"
 
 	verification := &domain.EmailVerification{
 		ID:         uuid.New().String(),
+		TenantID:   tenantID,
 		UserID:     uuid.New().String(),
 		TokenHash:  "hashed_token",
 		ExpiresAt:  time.Now().Add(-1 * time.Hour), // Expirado
@@ -289,10 +308,10 @@ func TestVerifyEmail_TokenExpired(t *testing.T) {
 	}
 
 	// Mock expectations
-	m.verificationRepo.On("GetByTokenHash", ctx, mock.AnythingOfType("string")).Return(verification, nil)
+	m.verificationRepo.On("GetByTokenHash", ctx, tenantID, mock.AnythingOfType("string")).Return(verification, nil)
 
 	// Execute
-	err := m.uc.VerifyEmail(ctx, token)
+	err := m.uc.VerifyEmail(ctx, tenantID, token)
 
 	// Assert
 	assert.Error(t, err)
@@ -311,10 +330,12 @@ func TestVerifyEmail_EmailAlreadyVerified(t *testing.T) {
 	ctx := context.Background()
 
 	userID := uuid.New().String()
+	tenantID := "test-tenant"
 	token := "valid_token"
 
 	verification := &domain.EmailVerification{
 		ID:         uuid.New().String(),
+		TenantID:   tenantID,
 		UserID:     userID,
 		TokenHash:  "hashed_token",
 		ExpiresAt:  time.Now().Add(24 * time.Hour),
@@ -326,6 +347,7 @@ func TestVerifyEmail_EmailAlreadyVerified(t *testing.T) {
 
 	user := &domain.User{
 		ID:            userID,
+		TenantID:      tenantID,
 		Username:      "testuser",
 		Email:         "test@example.com",
 		EmailVerified: true, // Ya verificado
@@ -333,11 +355,11 @@ func TestVerifyEmail_EmailAlreadyVerified(t *testing.T) {
 	}
 
 	// Mock expectations
-	m.verificationRepo.On("GetByTokenHash", ctx, mock.AnythingOfType("string")).Return(verification, nil)
-	m.userRepo.On("GetByID", ctx, userID).Return(user, nil)
+	m.verificationRepo.On("GetByTokenHash", ctx, tenantID, mock.AnythingOfType("string")).Return(verification, nil)
+	m.userRepo.On("GetByID", ctx, tenantID, userID).Return(user, nil)
 
 	// Execute
-	err := m.uc.VerifyEmail(ctx, token)
+	err := m.uc.VerifyEmail(ctx, tenantID, token)
 
 	// Assert
 	assert.Error(t, err)
@@ -357,8 +379,10 @@ func TestResendVerificationEmail_Success(t *testing.T) {
 	ctx := context.Background()
 
 	userID := uuid.New().String()
+	tenantID := "test-tenant"
 	user := &domain.User{
 		ID:            userID,
+		TenantID:      tenantID,
 		Username:      "testuser",
 		Email:         "test@example.com",
 		EmailVerified: false,
@@ -366,13 +390,13 @@ func TestResendVerificationEmail_Success(t *testing.T) {
 	}
 
 	// Mock expectations
-	m.userRepo.On("GetByID", ctx, userID).Return(user, nil).Times(2) // Called by ResendVerificationEmail and SendVerificationEmail
-	m.verificationRepo.On("DeleteByUserID", ctx, userID).Return(nil)
+	m.userRepo.On("GetByID", ctx, tenantID, userID).Return(user, nil).Times(2) // Called by ResendVerificationEmail and SendVerificationEmail
+	m.verificationRepo.On("DeleteByUserID", ctx, tenantID, userID).Return(nil)
 	m.verificationRepo.On("Create", ctx, mock.AnythingOfType("*domain.EmailVerification")).Return(nil)
 	m.emailService.On("SendVerificationEmail", ctx, user.Email, user.Username, mock.AnythingOfType("map[string]interface {}")).Return(nil)
 
 	// Execute
-	err := m.uc.ResendVerificationEmail(ctx, userID, "192.168.1.1", "Mozilla/5.0")
+	err := m.uc.ResendVerificationEmail(ctx, tenantID, userID, "192.168.1.1", "Mozilla/5.0")
 
 	// Assert
 	assert.NoError(t, err)
@@ -387,12 +411,13 @@ func TestResendVerificationEmail_UserNotFound(t *testing.T) {
 	ctx := context.Background()
 
 	userID := uuid.New().String()
+	tenantID := "test-tenant"
 
 	// Mock expectations
-	m.userRepo.On("GetByID", ctx, userID).Return(nil, domain.ErrUserNotFound)
+	m.userRepo.On("GetByID", ctx, tenantID, userID).Return(nil, domain.ErrUserNotFound)
 
 	// Execute
-	err := m.uc.ResendVerificationEmail(ctx, userID, "192.168.1.1", "Mozilla/5.0")
+	err := m.uc.ResendVerificationEmail(ctx, tenantID, userID, "192.168.1.1", "Mozilla/5.0")
 
 	// Assert
 	assert.Error(t, err)
@@ -410,8 +435,10 @@ func TestResendVerificationEmail_EmailAlreadyVerified(t *testing.T) {
 	ctx := context.Background()
 
 	userID := uuid.New().String()
+	tenantID := "test-tenant"
 	user := &domain.User{
 		ID:            userID,
+		TenantID:      tenantID,
 		Username:      "testuser",
 		Email:         "test@example.com",
 		EmailVerified: true, // Ya verificado
@@ -419,10 +446,10 @@ func TestResendVerificationEmail_EmailAlreadyVerified(t *testing.T) {
 	}
 
 	// Mock expectations
-	m.userRepo.On("GetByID", ctx, userID).Return(user, nil)
+	m.userRepo.On("GetByID", ctx, tenantID, userID).Return(user, nil)
 
 	// Execute
-	err := m.uc.ResendVerificationEmail(ctx, userID, "192.168.1.1", "Mozilla/5.0")
+	err := m.uc.ResendVerificationEmail(ctx, tenantID, userID, "192.168.1.1", "Mozilla/5.0")
 
 	// Assert
 	assert.Error(t, err)
@@ -441,8 +468,10 @@ func TestSendVerificationEmail_CreateError(t *testing.T) {
 	ctx := context.Background()
 
 	userID := uuid.New().String()
+	tenantID := "test-tenant"
 	user := &domain.User{
 		ID:            userID,
+		TenantID:      tenantID,
 		Username:      "testuser",
 		Email:         "test@example.com",
 		EmailVerified: false,
@@ -452,13 +481,14 @@ func TestSendVerificationEmail_CreateError(t *testing.T) {
 	}
 
 	input := SendVerificationInput{
+		TenantID:  tenantID,
 		UserID:    userID,
 		IPAddress: "192.168.1.1",
 		UserAgent: "Mozilla/5.0",
 	}
 
 	// Mock expectations
-	m.userRepo.On("GetByID", ctx, userID).Return(user, nil)
+	m.userRepo.On("GetByID", ctx, tenantID, userID).Return(user, nil)
 	m.verificationRepo.On("Create", ctx, mock.AnythingOfType("*domain.EmailVerification")).Return(fmt.Errorf("database error"))
 
 	// Execute
@@ -477,10 +507,12 @@ func TestVerifyEmail_UpdateError(t *testing.T) {
 	ctx := context.Background()
 
 	userID := uuid.New().String()
+	tenantID := "test-tenant"
 	token := "valid_token_12345"
 
 	verification := &domain.EmailVerification{
 		ID:         uuid.New().String(),
+		TenantID:   tenantID,
 		UserID:     userID,
 		TokenHash:  "hashed_token",
 		ExpiresAt:  time.Now().Add(24 * time.Hour),
@@ -492,6 +524,7 @@ func TestVerifyEmail_UpdateError(t *testing.T) {
 
 	user := &domain.User{
 		ID:            userID,
+		TenantID:      tenantID,
 		Username:      "testuser",
 		Email:         "test@example.com",
 		EmailVerified: false,
@@ -499,13 +532,13 @@ func TestVerifyEmail_UpdateError(t *testing.T) {
 	}
 
 	// Mock expectations
-	m.verificationRepo.On("GetByTokenHash", ctx, mock.AnythingOfType("string")).Return(verification, nil)
-	m.userRepo.On("GetByID", ctx, userID).Return(user, nil)
-	m.verificationRepo.On("MarkAsVerified", ctx, mock.AnythingOfType("string")).Return(nil)
+	m.verificationRepo.On("GetByTokenHash", ctx, tenantID, mock.AnythingOfType("string")).Return(verification, nil)
+	m.userRepo.On("GetByID", ctx, tenantID, userID).Return(user, nil)
+	m.verificationRepo.On("MarkAsVerified", ctx, tenantID, mock.AnythingOfType("string")).Return(nil)
 	m.userRepo.On("Update", ctx, mock.AnythingOfType("*domain.User")).Return(fmt.Errorf("update failed"))
 
 	// Execute
-	err := m.uc.VerifyEmail(ctx, token)
+	err := m.uc.VerifyEmail(ctx, tenantID, token)
 
 	// Assert
 	assert.Error(t, err)
@@ -520,10 +553,12 @@ func TestVerifyEmail_MarkAsVerifiedError(t *testing.T) {
 	ctx := context.Background()
 
 	userID := uuid.New().String()
+	tenantID := "test-tenant"
 	token := "valid_token_12345"
 
 	verification := &domain.EmailVerification{
 		ID:         uuid.New().String(),
+		TenantID:   tenantID,
 		UserID:     userID,
 		TokenHash:  "hashed_token",
 		ExpiresAt:  time.Now().Add(24 * time.Hour),
@@ -535,6 +570,7 @@ func TestVerifyEmail_MarkAsVerifiedError(t *testing.T) {
 
 	user := &domain.User{
 		ID:            userID,
+		TenantID:      tenantID,
 		Username:      "testuser",
 		Email:         "test@example.com",
 		EmailVerified: false,
@@ -542,12 +578,12 @@ func TestVerifyEmail_MarkAsVerifiedError(t *testing.T) {
 	}
 
 	// Mock expectations
-	m.verificationRepo.On("GetByTokenHash", ctx, mock.AnythingOfType("string")).Return(verification, nil)
-	m.userRepo.On("GetByID", ctx, userID).Return(user, nil)
-	m.verificationRepo.On("MarkAsVerified", ctx, mock.AnythingOfType("string")).Return(fmt.Errorf("mark failed"))
+	m.verificationRepo.On("GetByTokenHash", ctx, tenantID, mock.AnythingOfType("string")).Return(verification, nil)
+	m.userRepo.On("GetByID", ctx, tenantID, userID).Return(user, nil)
+	m.verificationRepo.On("MarkAsVerified", ctx, tenantID, mock.AnythingOfType("string")).Return(fmt.Errorf("mark failed"))
 
 	// Execute
-	err := m.uc.VerifyEmail(ctx, token)
+	err := m.uc.VerifyEmail(ctx, tenantID, token)
 
 	// Assert
 	assert.Error(t, err)
@@ -562,10 +598,12 @@ func TestVerifyEmail_UserNotFound(t *testing.T) {
 	ctx := context.Background()
 
 	userID := uuid.New().String()
+	tenantID := "test-tenant"
 	token := "valid_token_12345"
 
 	verification := &domain.EmailVerification{
 		ID:         uuid.New().String(),
+		TenantID:   tenantID,
 		UserID:     userID,
 		TokenHash:  "hashed_token",
 		ExpiresAt:  time.Now().Add(24 * time.Hour),
@@ -576,11 +614,11 @@ func TestVerifyEmail_UserNotFound(t *testing.T) {
 	}
 
 	// Mock expectations
-	m.verificationRepo.On("GetByTokenHash", ctx, mock.AnythingOfType("string")).Return(verification, nil)
-	m.userRepo.On("GetByID", ctx, userID).Return(nil, domain.ErrUserNotFound)
+	m.verificationRepo.On("GetByTokenHash", ctx, tenantID, mock.AnythingOfType("string")).Return(verification, nil)
+	m.userRepo.On("GetByID", ctx, tenantID, userID).Return(nil, domain.ErrUserNotFound)
 
 	// Execute
-	err := m.uc.VerifyEmail(ctx, token)
+	err := m.uc.VerifyEmail(ctx, tenantID, token)
 
 	// Assert
 	assert.Error(t, err)

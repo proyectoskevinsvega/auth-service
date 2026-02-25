@@ -8,4 +8,5 @@ import (
 
 type RiskService interface {
 	AssessLoginRisk(ctx context.Context, user *domain.User, currentIP string) (*domain.RiskAssessment, *domain.Geolocation, error)
+	VerifyGeofencing(ctx context.Context, tenantID string, countryCode string) error
 }
