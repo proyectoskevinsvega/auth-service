@@ -7,12 +7,12 @@ Prioridades basadas en impacto de seguridad, demanda de funcionalidad y compleji
 
 ## 🔴 P0 — Crítico (Seguridad / Deuda técnica)
 
-| Feature                           | Estado       | Descripción                                                                                                                                                                                        |
-| --------------------------------- | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Adaptive Authentication**       | ❌ Pendiente | Análisis de riesgo en tiempo real basado en: "Impossible travel" (cambio de ubicación geográfico imposible en tiempo real), IP de alto riesgo (TOR, VPNs públicas), y biometría de comportamiento. |
-| **Account lockout configurable**  | ❌ Pendiente | Políticas de bloqueo de cuenta por intentos fallidos. Configurable por tenant: número de intentos, duración del bloqueo, escalamiento progresivo.                                                  |
-| **Password expiration policies**  | ❌ Pendiente | Forzar cambio de contraseña después de N días. Notificación previa por email. Configurable por entorno.                                                                                            |
-| **Forced password reset (admin)** | ❌ Pendiente | Capacidad de forzar reset de contraseña a un usuario desde el admin API. Invalida todas las sesiones activas.                                                                                      |
+| Feature                           | Estado        | Descripción                                                                                                                                                                                        |
+| --------------------------------- | ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Adaptive Authentication**       | ✅ Completado | Análisis de riesgo en tiempo real basado en: "Impossible travel" (cambio de ubicación geográfico imposible en tiempo real), IP de alto riesgo (TOR, VPNs públicas), y biometría de comportamiento. |
+| **Account lockout configurable**  | ❌ Pendiente  | Políticas de bloqueo de cuenta por intentos fallidos. Configurable por tenant: número de intentos, duración del bloqueo, escalamiento progresivo.                                                  |
+| **Password expiration policies**  | ❌ Pendiente  | Forzar cambio de contraseña después de N días. Notificación previa por email. Configurable por entorno.                                                                                            |
+| **Forced password reset (admin)** | ❌ Pendiente  | Capacidad de forzar reset de contraseña a un usuario desde el admin API. Invalida todas las sesiones activas.                                                                                      |
 
 ---
 
@@ -68,6 +68,7 @@ Prioridades basadas en impacto de seguridad, demanda de funcionalidad y compleji
 
 | Feature                                          | Versión |
 | ------------------------------------------------ | ------- |
+| Adaptive Authentication (Impossible Travel)      | v1.1    |
 | JWT RSA-256 + Refresh Token Rotation             | v1.0    |
 | OAuth 2.0 (Google, GitHub)                       | v1.0    |
 | 2FA/TOTP (Google Authenticator)                  | v1.0    |
