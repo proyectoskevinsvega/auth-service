@@ -68,3 +68,16 @@ type EmailVerificationRepository interface {
 	DeleteByUserID(ctx context.Context, userID string) error
 	DeleteExpired(ctx context.Context) (int64, error)
 }
+
+type RoleRepository interface {
+	CreateRole(ctx context.Context, role *domain.Role) error
+	GetRoleByName(ctx context.Context, name string) (*domain.Role, error)
+	ListRoles(ctx context.Context) ([]*domain.Role, error)
+	AddPermissionToRole(ctx context.Context, roleID, permissionID string) error
+	AssignRoleToUser(ctx context.Context, userID, roleID string) error
+	RemoveRoleFromUser(ctx context.Context, userID, roleID string) error
+	GetUserRoles(ctx context.Context, userID string) ([]domain.Role, error)
+	CreatePermission(ctx context.Context, perm *domain.Permission) error
+	GetPermissionByName(ctx context.Context, name string) (*domain.Permission, error)
+	ListPermissions(ctx context.Context) ([]*domain.Permission, error)
+}

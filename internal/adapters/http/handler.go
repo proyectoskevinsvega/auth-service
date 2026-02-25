@@ -151,11 +151,20 @@ func (h *Handler) SetupRoutes(telemetryEnabled bool) http.Handler {
 		// OIDC Discovery (.well-known)
 		r.Get("/.well-known/openid-configuration", h.GetOIDCConfiguration)
 
-		// Admin routes (Protected by AuthMiddleware for now, further RBAC can be added)
+		// Admin routes (Protected by AuthMiddleware and Admin role)
 		r.Group(func(r chi.Router) {
 			r.Use(h.authMiddleware.RequireAuth)
-			// TODO: Add AdminRoleMiddleware if implemented
+			r.Use(h.authMiddleware.RequireRole("admin"))
+
 			r.Post("/admin/users/{id}/force-reset", h.AdminForcePasswordReset)
+
+			// RBAC Management
+			r.Get("/admin/roles", h.ListRoles)
+			r.Post("/admin/roles", h.CreateRole)
+			r.Get("/admin/permissions", h.ListPermissions)
+			r.Post("/admin/permissions", h.CreatePermission)
+			r.Post("/admin/roles/{roleID}/permissions", h.AddPermissionToRole)
+			r.Post("/admin/users/{userID}/roles", h.AssignRoleToUser)
 		})
 	})
 
@@ -1316,6 +1325,128 @@ func (h *Handler) handleAuthError(w http.ResponseWriter, err error) {
 			h.logger.Error().Err(err).Msg("unhandled error")
 			respondWithError(w, http.StatusInternalServerError, "internal server error", "INTERNAL_ERROR")
 		}
+	}
+}
+
+// RBAC Handlers
+
+func (h *Handler) ListRoles(w http.ResponseWriter, r *http.Request) {
+	roles, err := h.authUC.ListRoles(r.Context())
+	if err != nil {
+		h.handleAuthError(w, err)
+		return
+	}
+
+	response := make([]RoleResponse, len(roles))
+	for i, role := range roles {
+		response[i] = mapRoleToResponse(role)
+	}
+
+	respondWithJSON(w, http.StatusOK, response)
+}
+
+func (h *Handler) CreateRole(w http.ResponseWriter, r *http.Request) {
+	var req CreateRoleRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respondWithError(w, http.StatusBadRequest, "invalid request body", "INVALID_BODY")
+		return
+	}
+
+	if err := h.authUC.CreateRole(r.Context(), req.Name, req.Description); err != nil {
+		h.handleAuthError(w, err)
+		return
+	}
+
+	respondWithJSON(w, http.StatusCreated, MessageResponse{Message: "role created successfully"})
+}
+
+func (h *Handler) ListPermissions(w http.ResponseWriter, r *http.Request) {
+	perms, err := h.authUC.ListPermissions(r.Context())
+	if err != nil {
+		h.handleAuthError(w, err)
+		return
+	}
+
+	response := make([]PermissionResponse, len(perms))
+	for i, perm := range perms {
+		response[i] = mapPermissionToResponse(perm)
+	}
+
+	respondWithJSON(w, http.StatusOK, response)
+}
+
+func (h *Handler) CreatePermission(w http.ResponseWriter, r *http.Request) {
+	var req CreatePermissionRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respondWithError(w, http.StatusBadRequest, "invalid request body", "INVALID_BODY")
+		return
+	}
+
+	if err := h.authUC.CreatePermission(r.Context(), req.Name, req.Description); err != nil {
+		h.handleAuthError(w, err)
+		return
+	}
+
+	respondWithJSON(w, http.StatusCreated, MessageResponse{Message: "permission created successfully"})
+}
+
+func (h *Handler) AddPermissionToRole(w http.ResponseWriter, r *http.Request) {
+	roleID := chi.URLParam(r, "roleID")
+	var req struct {
+		PermissionID string `json:"permission_id" validate:"required"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respondWithError(w, http.StatusBadRequest, "invalid request body", "INVALID_BODY")
+		return
+	}
+
+	if err := h.authUC.AddPermissionToRole(r.Context(), roleID, req.PermissionID); err != nil {
+		h.handleAuthError(w, err)
+		return
+	}
+
+	respondWithJSON(w, http.StatusOK, MessageResponse{Message: "permission added to role successfully"})
+}
+
+func (h *Handler) AssignRoleToUser(w http.ResponseWriter, r *http.Request) {
+	userID := chi.URLParam(r, "userID")
+	var req struct {
+		RoleID string `json:"role_id" validate:"required"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respondWithError(w, http.StatusBadRequest, "invalid request body", "INVALID_BODY")
+		return
+	}
+
+	if err := h.authUC.AssignRoleToUser(r.Context(), userID, req.RoleID); err != nil {
+		h.handleAuthError(w, err)
+		return
+	}
+
+	respondWithJSON(w, http.StatusOK, MessageResponse{Message: "role assigned to user successfully"})
+}
+
+// Mappers
+
+func mapRoleToResponse(role *domain.Role) RoleResponse {
+	perms := make([]PermissionResponse, len(role.Permissions))
+	for i, p := range role.Permissions {
+		perms[i] = mapPermissionToResponse(&p)
+	}
+
+	return RoleResponse{
+		ID:          role.ID,
+		Name:        role.Name,
+		Description: role.Description,
+		Permissions: perms,
+	}
+}
+
+func mapPermissionToResponse(perm *domain.Permission) PermissionResponse {
+	return PermissionResponse{
+		ID:          perm.ID,
+		Name:        perm.Name,
+		Description: perm.Description,
 	}
 }
 

@@ -12,7 +12,7 @@ import (
 type contextKey string
 
 const (
-	UserContextKey contextKey = "user"
+	UserContextKey  contextKey = "user"
 	TokenContextKey contextKey = "token"
 )
 
@@ -77,4 +77,61 @@ func GetUserIDFromContext(ctx context.Context) (string, bool) {
 func GetTokenFromContext(ctx context.Context) (*domain.Token, bool) {
 	token, ok := ctx.Value(TokenContextKey).(*domain.Token)
 	return token, ok
+}
+
+func (m *AuthMiddleware) RequireRole(role string) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			token, ok := GetTokenFromContext(r.Context())
+			if !ok {
+				respondWithError(w, http.StatusUnauthorized, "unauthorized", "UNAUTHORIZED")
+				return
+			}
+
+			if !token.HasRole(role) {
+				respondWithError(w, http.StatusForbidden, "insufficient permissions: role "+role+" required", "FORBIDDEN")
+				return
+			}
+
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+func (m *AuthMiddleware) RequirePermission(permission string) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			token, ok := GetTokenFromContext(r.Context())
+			if !ok {
+				respondWithError(w, http.StatusUnauthorized, "unauthorized", "UNAUTHORIZED")
+				return
+			}
+
+			if !token.HasPermission(permission) {
+				respondWithError(w, http.StatusForbidden, "insufficient permissions: permission "+permission+" required", "FORBIDDEN")
+				return
+			}
+
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+func (m *AuthMiddleware) RequireScope(scope string) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			token, ok := GetTokenFromContext(r.Context())
+			if !ok {
+				respondWithError(w, http.StatusUnauthorized, "unauthorized", "UNAUTHORIZED")
+				return
+			}
+
+			if !token.HasScope(scope) {
+				respondWithError(w, http.StatusForbidden, "insufficient scope: "+scope+" required", "FORBIDDEN")
+				return
+			}
+
+			next.ServeHTTP(w, r)
+		})
+	}
 }

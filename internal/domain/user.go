@@ -33,7 +33,9 @@ type User struct {
 	FailedLoginAttempts   int
 	LockedUntil           *time.Time
 	PasswordChangedAt     time.Time
-	PasswordResetRequired bool // Added new field
+	PasswordResetRequired bool
+	Roles                 []Role                 // Added for RBAC
+	Attributes            map[string]interface{} // Added for ABAC
 }
 
 type NewUserInput struct {
@@ -68,6 +70,8 @@ func NewUser(input NewUserInput) (*User, error) {
 		OAuthProviderID: input.OAuthProviderID,
 		CreatedAt:       now,
 		UpdatedAt:       now,
+		Roles:           []Role{},
+		Attributes:      make(map[string]interface{}),
 	}, nil
 }
 
@@ -234,4 +238,24 @@ func (u *User) IsPasswordExpired(expiryDays int) bool {
 	}
 	// Password is considered expired if it has been more than expiryDays since PasswordChangedAt
 	return time.Now().After(u.PasswordChangedAt.Add(time.Hour * 24 * time.Duration(expiryDays)))
+}
+
+func (u *User) HasPermission(permissionName string) bool {
+	for _, role := range u.Roles {
+		for _, perm := range role.Permissions {
+			if perm.Name == permissionName {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func (u *User) HasRole(roleName string) bool {
+	for _, role := range u.Roles {
+		if role.Name == roleName {
+			return true
+		}
+	}
+	return false
 }

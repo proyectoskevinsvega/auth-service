@@ -7,21 +7,27 @@ import (
 )
 
 type Token struct {
-	JTI       string
-	UserID    string
-	Email     string
-	IssuedAt  int64
-	ExpiresAt int64
+	JTI         string
+	UserID      string
+	Email       string
+	IssuedAt    int64
+	ExpiresAt   int64
+	Roles       []string // Added for RBAC
+	Scopes      []string // Added for OAuth2 scopes
+	Permissions []string // Added for granular RBAC
 }
 
 func NewToken(userID string, email string, expiry time.Duration) *Token {
 	now := time.Now()
 	return &Token{
-		JTI:       uuid.New().String(),
-		UserID:    userID,
-		Email:     email,
-		IssuedAt:  now.Unix(),
-		ExpiresAt: now.Add(expiry).Unix(),
+		JTI:         uuid.New().String(),
+		UserID:      userID,
+		Email:       email,
+		IssuedAt:    now.Unix(),
+		ExpiresAt:   now.Add(expiry).Unix(),
+		Roles:       []string{},
+		Scopes:      []string{},
+		Permissions: []string{},
 	}
 }
 
@@ -42,6 +48,33 @@ func (t *Token) IssuedAtTime() time.Time {
 
 func (t *Token) ExpiresAtTime() time.Time {
 	return time.Unix(t.ExpiresAt, 0)
+}
+
+func (t *Token) HasRole(role string) bool {
+	for _, r := range t.Roles {
+		if r == role {
+			return true
+		}
+	}
+	return false
+}
+
+func (t *Token) HasScope(scope string) bool {
+	for _, s := range t.Scopes {
+		if s == scope {
+			return true
+		}
+	}
+	return false
+}
+
+func (t *Token) HasPermission(permission string) bool {
+	for _, p := range t.Permissions {
+		if p == permission {
+			return true
+		}
+	}
+	return false
 }
 
 type RefreshToken struct {

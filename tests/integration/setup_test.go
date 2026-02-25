@@ -83,6 +83,7 @@ func SetupTestServer(t *testing.T) *TestServer {
 	sessionRepo := postgresadapter.NewSessionRepository(dbPool)
 	auditRepo := postgresadapter.NewAuditLogRepository(dbPool)
 	emailVerificationRepo := postgresadapter.NewEmailVerificationRepository(dbPool)
+	roleRepo := postgresadapter.NewRoleRepository(dbPool)
 
 	// Initialize crypto adapters
 	jwtService := cryptoadapter.NewJWTService(
@@ -133,6 +134,7 @@ func SetupTestServer(t *testing.T) *TestServer {
 		make(map[string]ports.OAuthProvider), // no OAuth in basic tests
 		cfg,
 		nil, // riskService
+		roleRepo,
 	)
 
 	sessionUC := usecase.NewSessionUseCase(

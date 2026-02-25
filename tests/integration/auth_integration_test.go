@@ -145,6 +145,7 @@ func setupTestSuite(t *testing.T) *TestSuite {
 	resetRepo := postgresadapter.NewPasswordResetRepository(dbPool)
 	sessionRepo := postgresadapter.NewSessionRepository(dbPool)
 	auditRepo := postgresadapter.NewAuditLogRepository(dbPool)
+	roleRepo := postgresadapter.NewRoleRepository(dbPool)
 
 	// Inicializar adaptadores crypto
 	jwtService := cryptoadapter.NewJWTService(
@@ -190,6 +191,7 @@ func setupTestSuite(t *testing.T) *TestSuite {
 		nil,                          // oauthProviders
 		cfg,
 		nil, // riskService
+		roleRepo,
 	)
 
 	return &TestSuite{

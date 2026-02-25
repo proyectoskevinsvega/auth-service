@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"math/big"
+	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -27,13 +28,19 @@ func NewJWTService(privateKey *rsa.PrivateKey, publicKey *rsa.PublicKey, issuer 
 }
 
 type CustomClaims struct {
-	Email string `json:"email"`
+	Email string   `json:"email"`
+	Roles []string `json:"roles,omitempty"`
+	Scope string   `json:"scp,omitempty"`
+	Perms []string `json:"perms,omitempty"`
 	jwt.RegisteredClaims
 }
 
 func (s *JWTService) Generate(ctx context.Context, token *domain.Token) (string, error) {
 	claims := CustomClaims{
 		Email: token.Email,
+		Roles: token.Roles,
+		Scope: strings.Join(token.Scopes, " "),
+		Perms: token.Permissions,
 		RegisteredClaims: jwt.RegisteredClaims{
 			Subject:   token.UserID,
 			IssuedAt:  jwt.NewNumericDate(time.Unix(token.IssuedAt, 0)),
@@ -77,11 +84,14 @@ func (s *JWTService) Verify(ctx context.Context, tokenString string) (*domain.To
 	}
 
 	return &domain.Token{
-		JTI:       claims.ID,
-		UserID:    claims.Subject,
-		Email:     claims.Email,
-		IssuedAt:  claims.IssuedAt.Unix(),
-		ExpiresAt: claims.ExpiresAt.Unix(),
+		JTI:         claims.ID,
+		UserID:      claims.Subject,
+		Email:       claims.Email,
+		Roles:       claims.Roles,
+		Scopes:      strings.Split(claims.Scope, " "),
+		Permissions: claims.Perms,
+		IssuedAt:    claims.IssuedAt.Unix(),
+		ExpiresAt:   claims.ExpiresAt.Unix(),
 	}, nil
 }
 

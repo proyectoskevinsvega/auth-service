@@ -29,6 +29,7 @@ func BenchmarkLogin(b *testing.B) {
 	geoService := new(mocks.MockGeolocationService)
 	emailService := new(mocks.MockEmailService)
 	notifier := new(mocks.MockNotificationPublisher)
+	roleRepo := new(mocks.MockRoleRepository)
 
 	cfg := &config.Config{
 		JWT: config.JWTConfig{
@@ -63,6 +64,7 @@ func BenchmarkLogin(b *testing.B) {
 		nil,
 		cfg,
 		nil, // riskService
+		roleRepo,
 	)
 
 	ctx := context.Background()
@@ -123,6 +125,7 @@ func BenchmarkRegister(b *testing.B) {
 	geoService := new(mocks.MockGeolocationService)
 	emailService := new(mocks.MockEmailService)
 	notifier := new(mocks.MockNotificationPublisher)
+	roleRepo := new(mocks.MockRoleRepository)
 
 	cfg := &config.Config{
 		JWT: config.JWTConfig{
@@ -157,6 +160,7 @@ func BenchmarkRegister(b *testing.B) {
 		nil,
 		cfg,
 		nil, // riskService
+		roleRepo,
 	)
 
 	ctx := context.Background()

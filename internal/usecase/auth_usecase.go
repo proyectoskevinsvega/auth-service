@@ -32,6 +32,7 @@ type AuthUseCase struct {
 	oauthProviders map[string]ports.OAuthProvider
 	config         *config.Config
 	riskService    ports.RiskService
+	roleRepo       ports.RoleRepository // Added for RBAC
 }
 
 func NewAuthUseCase(
@@ -51,6 +52,7 @@ func NewAuthUseCase(
 	oauthProviders map[string]ports.OAuthProvider,
 	cfg *config.Config,
 	riskService ports.RiskService,
+	roleRepo ports.RoleRepository,
 ) *AuthUseCase {
 	return &AuthUseCase{
 		userRepo:       userRepo,
@@ -69,6 +71,7 @@ func NewAuthUseCase(
 		oauthProviders: oauthProviders,
 		config:         cfg,
 		riskService:    riskService,
+		roleRepo:       roleRepo,
 	}
 }
 
@@ -211,6 +214,15 @@ func (uc *AuthUseCase) Login(ctx context.Context, input LoginInput) (*LoginRespo
 
 	// Generate JWT
 	token := domain.NewToken(user.ID, user.Email, uc.config.JWT.AccessExpiry)
+
+	// Map roles and permissions to token
+	for _, role := range user.Roles {
+		token.Roles = append(token.Roles, role.Name)
+		for _, perm := range role.Permissions {
+			token.Permissions = append(token.Permissions, perm.Name)
+		}
+	}
+
 	accessToken, err := uc.jwtService.Generate(ctx, token)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate JWT: %w", err)
@@ -666,6 +678,15 @@ func (uc *AuthUseCase) OAuthLogin(ctx context.Context, provider, code, state, ip
 	}
 
 	token := domain.NewToken(user.ID, user.Email, uc.config.JWT.AccessExpiry)
+
+	// Map roles and permissions to token
+	for _, role := range user.Roles {
+		token.Roles = append(token.Roles, role.Name)
+		for _, perm := range role.Permissions {
+			token.Permissions = append(token.Permissions, perm.Name)
+		}
+	}
+
 	accessToken, err := uc.jwtService.Generate(ctx, token)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate JWT: %w", err)
@@ -728,4 +749,32 @@ func (uc *AuthUseCase) GetUserInfo(ctx context.Context, userID string) (*domain.
 		return nil, err
 	}
 	return user, nil
+}
+
+// Role Management
+
+func (uc *AuthUseCase) CreateRole(ctx context.Context, name, description string) error {
+	role := domain.NewRole(name, description)
+	return uc.roleRepo.CreateRole(ctx, role)
+}
+
+func (uc *AuthUseCase) ListRoles(ctx context.Context) ([]*domain.Role, error) {
+	return uc.roleRepo.ListRoles(ctx)
+}
+
+func (uc *AuthUseCase) CreatePermission(ctx context.Context, name, description string) error {
+	perm := domain.NewPermission(name, description)
+	return uc.roleRepo.CreatePermission(ctx, perm)
+}
+
+func (uc *AuthUseCase) ListPermissions(ctx context.Context) ([]*domain.Permission, error) {
+	return uc.roleRepo.ListPermissions(ctx)
+}
+
+func (uc *AuthUseCase) AssignRoleToUser(ctx context.Context, userID, roleID string) error {
+	return uc.roleRepo.AssignRoleToUser(ctx, userID, roleID)
+}
+
+func (uc *AuthUseCase) AddPermissionToRole(ctx context.Context, roleID, permID string) error {
+	return uc.roleRepo.AddPermissionToRole(ctx, roleID, permID)
 }

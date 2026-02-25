@@ -30,6 +30,7 @@ type AuthUseCaseMocks struct {
 	emailService   *mocks.MockEmailService
 	notifier       *mocks.MockNotificationPublisher
 	riskService    *mocks.MockRiskService
+	roleRepo       *mocks.MockRoleRepository
 }
 
 func setupAuthUseCase(_ *testing.T) *AuthUseCaseMocks {
@@ -43,6 +44,7 @@ func setupAuthUseCase(_ *testing.T) *AuthUseCaseMocks {
 	tokenGen := new(mocks.MockTokenGenerator)
 	rateLimiter := new(mocks.MockRateLimiter)
 	sessionStore := new(mocks.MockSessionStore)
+	roleRepo := new(mocks.MockRoleRepository)
 	geoService := new(mocks.MockGeolocationService)
 	emailService := new(mocks.MockEmailService)
 	notifier := new(mocks.MockNotificationPublisher)
@@ -81,6 +83,7 @@ func setupAuthUseCase(_ *testing.T) *AuthUseCaseMocks {
 		nil, // oauthProviders
 		cfg,
 		riskService,
+		roleRepo,
 	)
 
 	return &AuthUseCaseMocks{
@@ -99,6 +102,7 @@ func setupAuthUseCase(_ *testing.T) *AuthUseCaseMocks {
 		emailService:   emailService,
 		notifier:       notifier,
 		riskService:    riskService,
+		roleRepo:       roleRepo,
 	}
 }
 

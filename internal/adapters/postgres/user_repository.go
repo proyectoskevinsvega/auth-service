@@ -23,8 +23,8 @@ func (r *UserRepository) Create(ctx context.Context, user *domain.User, password
 		INSERT INTO auth_users (
 			id, username, email, password_hash, active, email_verified,
 			two_factor_enabled, two_factor_secret, oauth_provider, oauth_provider_id,
-			created_at, updated_at, password_changed_at, password_reset_required
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+			created_at, updated_at, password_changed_at, password_reset_required, attributes
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
 	`
 
 	// Convert empty strings to NULL for optional fields
@@ -51,7 +51,7 @@ func (r *UserRepository) Create(ctx context.Context, user *domain.User, password
 	_, err := r.db.Exec(ctx, query,
 		user.ID, user.Username, user.Email, passwordHash, user.Active, user.EmailVerified,
 		user.TwoFactorEnabled, twoFactorSecret, oauthProvider, oauthProviderID,
-		user.CreatedAt, user.UpdatedAt, user.CreatedAt, user.PasswordResetRequired,
+		user.CreatedAt, user.UpdatedAt, user.CreatedAt, user.PasswordResetRequired, user.Attributes,
 	)
 
 	if err != nil {
@@ -67,7 +67,7 @@ func (r *UserRepository) GetByID(ctx context.Context, id string) (*domain.User, 
 			   two_factor_enabled, two_factor_secret, oauth_provider, oauth_provider_id,
 			   created_at, updated_at, last_login_at, last_login_ip, last_login_country,
 			   last_login_latitude, last_login_longitude, failed_login_attempts, locked_until,
-			   password_changed_at, password_reset_required
+			   password_changed_at, password_reset_required, attributes
 		FROM auth_users
 		WHERE id = $1
 	`
@@ -82,7 +82,7 @@ func (r *UserRepository) GetByID(ctx context.Context, id string) (*domain.User, 
 		&user.TwoFactorEnabled, &twoFactorSecret, &oauthProvider, &oauthProviderID,
 		&user.CreatedAt, &user.UpdatedAt, &lastLoginAt, &lastLoginIP, &lastLoginCountry,
 		&lastLoginLatitude, &lastLoginLongitude, &user.FailedLoginAttempts, &lockedUntil,
-		&user.PasswordChangedAt, &user.PasswordResetRequired,
+		&user.PasswordChangedAt, &user.PasswordResetRequired, &user.Attributes,
 	)
 
 	if err != nil {
@@ -113,6 +113,13 @@ func (r *UserRepository) GetByID(ctx context.Context, id string) (*domain.User, 
 	user.LastLoginLatitude = lastLoginLatitude
 	user.LastLoginLongitude = lastLoginLongitude
 
+	// Load roles
+	roles, err := r.getUserRoles(ctx, user.ID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load user roles: %w", err)
+	}
+	user.Roles = roles
+
 	return user, nil
 }
 
@@ -121,7 +128,7 @@ func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*domain.
 		SELECT id, username, email, password_hash, active, email_verified,
 			   two_factor_enabled, two_factor_secret, oauth_provider, oauth_provider_id,
 			   created_at, updated_at, last_login_at, last_login_ip, last_login_country,
-			   failed_login_attempts, locked_until, password_changed_at, password_reset_required
+			   failed_login_attempts, locked_until, password_changed_at, password_reset_required, attributes
 		FROM auth_users
 		WHERE email = $1
 	`
@@ -134,7 +141,7 @@ func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*domain.
 		&user.ID, &user.Username, &user.Email, &user.PasswordHash, &user.Active, &user.EmailVerified,
 		&user.TwoFactorEnabled, &twoFactorSecret, &oauthProvider, &oauthProviderID,
 		&user.CreatedAt, &user.UpdatedAt, &lastLoginAt, &lastLoginIP, &lastLoginCountry,
-		&user.FailedLoginAttempts, &lockedUntil, &user.PasswordChangedAt, &user.PasswordResetRequired,
+		&user.FailedLoginAttempts, &lockedUntil, &user.PasswordChangedAt, &user.PasswordResetRequired, &user.Attributes,
 	)
 
 	if err != nil {
@@ -163,6 +170,13 @@ func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*domain.
 		user.LastLoginCountry = *lastLoginCountry
 	}
 
+	// Load roles
+	roles, err := r.getUserRoles(ctx, user.ID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load user roles: %w", err)
+	}
+	user.Roles = roles
+
 	return user, nil
 }
 
@@ -171,7 +185,7 @@ func (r *UserRepository) GetByUsername(ctx context.Context, username string) (*d
 		SELECT id, username, email, password_hash, active, email_verified,
 			   two_factor_enabled, two_factor_secret, oauth_provider, oauth_provider_id,
 			   created_at, updated_at, last_login_at, last_login_ip, last_login_country,
-			   failed_login_attempts, locked_until, password_changed_at, password_reset_required
+			   failed_login_attempts, locked_until, password_changed_at, password_reset_required, attributes
 		FROM auth_users
 		WHERE username = $1
 	`
@@ -184,7 +198,7 @@ func (r *UserRepository) GetByUsername(ctx context.Context, username string) (*d
 		&user.ID, &user.Username, &user.Email, &user.PasswordHash, &user.Active, &user.EmailVerified,
 		&user.TwoFactorEnabled, &twoFactorSecret, &oauthProvider, &oauthProviderID,
 		&user.CreatedAt, &user.UpdatedAt, &lastLoginAt, &lastLoginIP, &lastLoginCountry,
-		&user.FailedLoginAttempts, &lockedUntil, &user.PasswordChangedAt, &user.PasswordResetRequired,
+		&user.FailedLoginAttempts, &lockedUntil, &user.PasswordChangedAt, &user.PasswordResetRequired, &user.Attributes,
 	)
 
 	if err != nil {
@@ -213,6 +227,13 @@ func (r *UserRepository) GetByUsername(ctx context.Context, username string) (*d
 		user.LastLoginCountry = *lastLoginCountry
 	}
 
+	// Load roles
+	roles, err := r.getUserRoles(ctx, user.ID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load user roles: %w", err)
+	}
+	user.Roles = roles
+
 	return user, nil
 }
 
@@ -222,7 +243,7 @@ func (r *UserRepository) GetByEmailOrUsername(ctx context.Context, identifier st
 			two_factor_enabled, two_factor_secret, oauth_provider, oauth_provider_id,
 			created_at, updated_at, last_login_at, last_login_ip, last_login_country,
 			last_login_latitude, last_login_longitude, failed_login_attempts, locked_until,
-			password_changed_at
+			password_changed_at, password_reset_required, attributes
 		FROM auth_users
 		WHERE email = $1 OR username = $1
 	`
@@ -237,6 +258,7 @@ func (r *UserRepository) GetByEmailOrUsername(ctx context.Context, identifier st
 		&user.TwoFactorEnabled, &twoFactorSecret, &oauthProvider, &oauthProviderID,
 		&user.CreatedAt, &user.UpdatedAt, &lastLoginAt, &lastLoginIP, &lastLoginCountry,
 		&lastLoginLatitude, &lastLoginLongitude, &user.FailedLoginAttempts, &lockedUntil, &user.PasswordChangedAt,
+		&user.PasswordResetRequired, &user.Attributes,
 	)
 
 	if err != nil {
@@ -267,6 +289,13 @@ func (r *UserRepository) GetByEmailOrUsername(ctx context.Context, identifier st
 	user.LastLoginLatitude = lastLoginLatitude
 	user.LastLoginLongitude = lastLoginLongitude
 
+	// Load roles
+	roles, err := r.getUserRoles(ctx, user.ID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load user roles: %w", err)
+	}
+	user.Roles = roles
+
 	return user, nil
 }
 
@@ -275,7 +304,7 @@ func (r *UserRepository) GetByOAuthProvider(ctx context.Context, provider, provi
 		SELECT id, username, email, password_hash, active, email_verified,
 			   two_factor_enabled, two_factor_secret, oauth_provider, oauth_provider_id,
 			   created_at, updated_at, last_login_at, last_login_ip, last_login_country,
-			   failed_login_attempts, locked_until, password_changed_at, password_reset_required
+			   failed_login_attempts, locked_until, password_changed_at, password_reset_required, attributes
 		FROM auth_users
 		WHERE oauth_provider = $1 AND oauth_provider_id = $2
 	`
@@ -288,7 +317,7 @@ func (r *UserRepository) GetByOAuthProvider(ctx context.Context, provider, provi
 		&user.ID, &user.Username, &user.Email, &user.PasswordHash, &user.Active, &user.EmailVerified,
 		&user.TwoFactorEnabled, &twoFactorSecret, &oauthProvider, &oauthProviderID,
 		&user.CreatedAt, &user.UpdatedAt, &lastLoginAt, &lastLoginIP, &lastLoginCountry,
-		&user.FailedLoginAttempts, &lockedUntil, &user.PasswordChangedAt, &user.PasswordResetRequired,
+		&user.FailedLoginAttempts, &lockedUntil, &user.PasswordChangedAt, &user.PasswordResetRequired, &user.Attributes,
 	)
 
 	if err != nil {
@@ -317,6 +346,13 @@ func (r *UserRepository) GetByOAuthProvider(ctx context.Context, provider, provi
 		user.LastLoginCountry = *lastLoginCountry
 	}
 
+	// Load roles
+	roles, err := r.getUserRoles(ctx, user.ID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load user roles: %w", err)
+	}
+	user.Roles = roles
+
 	return user, nil
 }
 
@@ -327,7 +363,7 @@ func (r *UserRepository) Update(ctx context.Context, user *domain.User) error {
 			two_factor_enabled = $6, two_factor_secret = $7,
 			updated_at = $8, last_login_at = $9, last_login_ip = $10, last_login_country = $11,
 			last_login_latitude = $12, last_login_longitude = $13,
-			failed_login_attempts = $14, locked_until = $15, password_reset_required = $16
+			failed_login_attempts = $14, locked_until = $15, password_reset_required = $16, attributes = $17
 		WHERE id = $1
 	`
 
@@ -357,7 +393,7 @@ func (r *UserRepository) Update(ctx context.Context, user *domain.User) error {
 		user.TwoFactorEnabled, twoFactorSecret,
 		user.UpdatedAt, user.LastLoginAt, lastLoginIP, lastLoginCountry,
 		user.LastLoginLatitude, user.LastLoginLongitude,
-		user.FailedLoginAttempts, user.LockedUntil, user.PasswordResetRequired,
+		user.FailedLoginAttempts, user.LockedUntil, user.PasswordResetRequired, user.Attributes,
 	)
 
 	if err != nil {
@@ -455,4 +491,61 @@ func (r *UserRepository) Delete(ctx context.Context, id string) error {
 	}
 
 	return nil
+}
+
+func (r *UserRepository) getUserRoles(ctx context.Context, userID string) ([]domain.Role, error) {
+	query := `
+		SELECT r.id, r.name, r.description, r.created_at, r.updated_at 
+		FROM auth_roles r
+		JOIN auth_user_roles ur ON r.id = ur.role_id
+		WHERE ur.user_id = $1
+	`
+	rows, err := r.db.Query(ctx, query, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user roles: %w", err)
+	}
+	defer rows.Close()
+
+	var roles []domain.Role
+	for rows.Next() {
+		role := domain.Role{}
+		if err := rows.Scan(&role.ID, &role.Name, &role.Description, &role.CreatedAt, &role.UpdatedAt); err != nil {
+			return nil, err
+		}
+		roles = append(roles, role)
+	}
+
+	for i := range roles {
+		perms, err := r.getRolePermissions(ctx, roles[i].ID)
+		if err != nil {
+			return nil, err
+		}
+		roles[i].Permissions = perms
+	}
+
+	return roles, nil
+}
+
+func (r *UserRepository) getRolePermissions(ctx context.Context, roleID string) ([]domain.Permission, error) {
+	query := `
+		SELECT p.id, p.name, p.description, p.created_at, p.updated_at 
+		FROM auth_permissions p
+		JOIN auth_role_permissions rp ON p.id = rp.permission_id
+		WHERE rp.role_id = $1
+	`
+	rows, err := r.db.Query(ctx, query, roleID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get role permissions: %w", err)
+	}
+	defer rows.Close()
+
+	var perms []domain.Permission
+	for rows.Next() {
+		p := domain.Permission{}
+		if err := rows.Scan(&p.ID, &p.Name, &p.Description, &p.CreatedAt, &p.UpdatedAt); err != nil {
+			return nil, err
+		}
+		perms = append(perms, p)
+	}
+	return perms, nil
 }

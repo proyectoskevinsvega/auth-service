@@ -18,12 +18,12 @@ Prioridades basadas en impacto de seguridad, demanda de funcionalidad y compleji
 
 ## 🟠 P1 — Alta prioridad (Features core)
 
-| Feature                                | Estado        | Descripción                                                                                                          |
-| -------------------------------------- | ------------- | -------------------------------------------------------------------------------------------------------------------- |
-| **Admin Web Console & Management API** | ❌ Pendiente  | Interfaz gráfica y API de administración para gestionar tenants, llaves RSA, y políticas de seguridad global.        |
-| **OIDC Discovery & UserInfo**          | ✅ Completado | Implementar endpoints `/.well-known/openid-configuration` y `/userinfo` para cumplimiento total con OIDC.            |
-| **Dynamic Scopes & RBAC/ABAC**         | ❌ Pendiente  | Soporte para scopes dinámicos (OAuth2) y Modelos de Control de Acceso basado en Atributos (ABAC) para apps externas. |
-| **Passwordless (FIDO2/WebAuthn)**      | ❌ Pendiente  | Autenticación biométrica (FaceID/TouchID) y hardware keys como factor primario o secundario.                         |
+| Feature                                | Estado        | Descripción                                                                                                      |
+| -------------------------------------- | ------------- | ---------------------------------------------------------------------------------------------------------------- |
+| **Admin Web Console & Management API** | ❌ Pendiente  | Interfaz gráfica y API de administración para gestionar tenants, llaves RSA, y políticas de seguridad global.    |
+| **OIDC Discovery & UserInfo**          | ✅ Completado | Implementar endpoints `/.well-known/openid-configuration` y `/userinfo` para cumplimiento total con OIDC.        |
+| **Dynamic Scopes & RBAC/ABAC**         | ✅ Completado | Soporte para scopes dinámicos (OAuth2) y Modelos de Control de Acceso basado en Roles (RBAC) y Atributos (ABAC). |
+| **Passwordless (FIDO2/WebAuthn)**      | ❌ Pendiente  | Autenticación biométrica (FaceID/TouchID) y hardware keys como factor primario o secundario.                     |
 
 ---
 
@@ -72,6 +72,8 @@ Prioridades basadas en impacto de seguridad, demanda de funcionalidad y compleji
 | Adaptive Authentication (Impossible Travel)      | v1.1    |
 | Password expiration policies                     | v1.1    |
 | Forced password reset (admin)                    | v1.1    |
+| Dynamic Scopes & RBAC/ABAC                       | v1.2    |
+| OIDC Discovery & UserInfo                        | v1.2    |
 | JWT RSA-256 + Refresh Token Rotation             | v1.0    |
 | OAuth 2.0 (Google, GitHub)                       | v1.0    |
 | 2FA/TOTP (Google Authenticator)                  | v1.0    |

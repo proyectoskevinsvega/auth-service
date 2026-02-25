@@ -169,3 +169,28 @@ type HealthResponse struct {
 	Service string `json:"service" example:"auth-service"` // Nombre del servicio
 	Version string `json:"version" example:"1.0.0"`        // Versión del servicio
 }
+
+// RBAC DTOs
+
+type CreateRoleRequest struct {
+	Name        string `json:"name" validate:"required,min=3,max=50"`
+	Description string `json:"description"`
+}
+
+type CreatePermissionRequest struct {
+	Name        string `json:"name" validate:"required,min=3,max=50"`
+	Description string `json:"description"`
+}
+
+type RoleResponse struct {
+	ID          string               `json:"id"`
+	Name        string               `json:"name"`
+	Description string               `json:"description,omitempty"`
+	Permissions []PermissionResponse `json:"permissions,omitempty"`
+}
+
+type PermissionResponse struct {
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Description string `json:"description,omitempty"`
+}
