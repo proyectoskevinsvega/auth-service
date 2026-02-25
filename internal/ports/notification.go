@@ -26,4 +26,7 @@ type EmailService interface {
 
 	// SendSecurityAlert sends a security alert email
 	SendSecurityAlert(ctx context.Context, to, subject, message string) error
+
+	// SendPasswordExpiryWarning sends a warning email about password expiration
+	SendPasswordExpiryWarning(ctx context.Context, to, name string, daysRemaining int) error
 }

@@ -15,6 +15,7 @@ type UserRepository interface {
 	GetByOAuthProvider(ctx context.Context, provider, providerID string) (*domain.User, error)
 	Update(ctx context.Context, user *domain.User) error
 	UpdatePassword(ctx context.Context, userID, newPasswordHash string) error
+	GetExpiringPasswords(ctx context.Context, thresholdDays int) ([]*domain.User, error)
 }
 
 type SessionRepository interface {

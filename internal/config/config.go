@@ -108,6 +108,12 @@ type GitHubOAuthConfig struct {
 type SecurityConfig struct {
 	SessionInactivityDays int           // Default session inactivity in days (default: 30)
 	Lockout               LockoutConfig // Account lockout configuration (P0)
+	PasswordExpiry        PasswordExpiryConfig
+}
+
+type PasswordExpiryConfig struct {
+	ExpiryDays  int // Days until password expires (default: 90)
+	WarningDays int // Days before expiry to start showing warnings (default: 7)
 }
 
 type LockoutConfig struct {
@@ -227,6 +233,10 @@ func Load() (*Config, error) {
 				BaseDuration:     time.Minute * time.Duration(getEnvAsInt("LOCKOUT_BASE_DURATION_MINS", 5)),
 				EscalationFactor: getEnvAsFloat("LOCKOUT_ESCALATION_FACTOR", 3.0),
 				MaxDuration:      time.Hour * 24 * time.Duration(getEnvAsInt("LOCKOUT_MAX_DURATION_DAYS", 1)),
+			},
+			PasswordExpiry: PasswordExpiryConfig{
+				ExpiryDays:  getEnvAsInt("PASSWORD_EXPIRY_DAYS", 90),
+				WarningDays: getEnvAsInt("PASSWORD_EXPIRY_WARNING_DAYS", 7),
 			},
 		},
 		Telemetry: TelemetryConfig{

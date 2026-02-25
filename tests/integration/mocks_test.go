@@ -37,7 +37,11 @@ func (m *mockEmailService) Send2FADisabled(ctx context.Context, to string) error
 	return nil
 }
 
-func (m *mockEmailService) SendSecurityAlert(ctx context.Context, to, alertType, ipAddress string) error {
+func (m *mockEmailService) SendSecurityAlert(ctx context.Context, to, subject, message string) error {
+	return nil
+}
+
+func (m *mockEmailService) SendPasswordExpiryWarning(ctx context.Context, to, name string, daysRemaining int) error {
 	return nil
 }
 

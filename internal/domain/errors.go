@@ -14,6 +14,7 @@ var (
 	ErrUserNotFound          = errors.New("user not found")
 	ErrUserInactive          = errors.New("user account is inactive")
 	ErrAccountLocked         = errors.New("user account is blocked due to excessive failed attempts")
+	ErrPasswordExpired       = errors.New("password has expired and must be changed")
 
 	// Token errors
 	ErrInvalidToken        = errors.New("invalid token")

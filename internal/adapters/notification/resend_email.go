@@ -25,10 +25,10 @@ func NewResendEmailService(apiKey, from, fromName string) *ResendEmailService {
 }
 
 type resendRequest struct {
-	From    string `json:"from"`
+	From    string   `json:"from"`
 	To      []string `json:"to"`
-	Subject string `json:"subject"`
-	HTML    string `json:"html"`
+	Subject string   `json:"subject"`
+	HTML    string   `json:"html"`
 }
 
 func (s *ResendEmailService) sendEmail(ctx context.Context, to, subject, html string) error {
@@ -156,6 +156,29 @@ func (s *ResendEmailService) SendSecurityAlert(ctx context.Context, to, subject,
 		<p>%s</p>
 		<p>If this wasn't you, please secure your account immediately.</p>
 	`, message)
+
+	return s.sendEmail(ctx, to, subject, html)
+}
+
+func (s *ResendEmailService) SendPasswordExpiryWarning(ctx context.Context, to, name string, daysRemaining int) error {
+	subject := "Tu contraseña expirará pronto"
+	html := fmt.Sprintf(`
+		<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+			<h2 style="color: #333;">Hola %s,</h2>
+			<p>Te informamos que tu contraseña de Vertercloud expirará en <strong>%d días</strong> por políticas de seguridad.</p>
+			<p>Para evitar interrupciones en tu acceso, te recomendamos cambiarla lo antes posible.</p>
+
+			<div style="background-color: #fff3cd; padding: 20px; border-radius: 5px; border: 1px solid #ffeeba; margin: 20px 0;">
+				<p style="margin: 0; color: #856404;"><strong>Importante:</strong> Una vez expirada, no podrás iniciar sesión hasta que restablezcas tu contraseña.</p>
+			</div>
+
+			<p>Puedes cambiar tu contraseña desde tu perfil de usuario o usando la opción de "Olvidé mi contraseña" en el login.</p>
+
+			<p style="color: #999; font-size: 12px; margin-top: 30px;">Si ya cambiaste tu contraseña recientemente, puedes ignorar este correo.</p>
+
+			<p>Saludos,<br>El equipo de Vertercloud</p>
+		</div>
+	`, name, daysRemaining)
 
 	return s.sendEmail(ctx, to, subject, html)
 }

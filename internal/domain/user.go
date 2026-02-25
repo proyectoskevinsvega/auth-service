@@ -32,6 +32,7 @@ type User struct {
 	LastLoginLongitude  *float64
 	FailedLoginAttempts int
 	LockedUntil         *time.Time
+	PasswordChangedAt   time.Time
 }
 
 type NewUserInput struct {
@@ -224,4 +225,12 @@ func (u *User) IsLocked() bool {
 		return false
 	}
 	return time.Now().Before(*u.LockedUntil)
+}
+
+func (u *User) IsPasswordExpired(expiryDays int) bool {
+	if expiryDays <= 0 {
+		return false
+	}
+	// Password is considered expired if it has been more than expiryDays since PasswordChangedAt
+	return time.Now().After(u.PasswordChangedAt.Add(time.Hour * 24 * time.Duration(expiryDays)))
 }

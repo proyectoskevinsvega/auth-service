@@ -67,6 +67,14 @@ func (m *MockUserRepository) UpdatePassword(ctx context.Context, userID, newPass
 	return args.Error(0)
 }
 
+func (m *MockUserRepository) GetExpiringPasswords(ctx context.Context, thresholdDays int) ([]*domain.User, error) {
+	args := m.Called(ctx, thresholdDays)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*domain.User), args.Error(1)
+}
+
 func (m *MockUserRepository) Delete(ctx context.Context, id string) error {
 	args := m.Called(ctx, id)
 	return args.Error(0)

@@ -153,6 +153,12 @@ func (uc *AuthUseCase) Login(ctx context.Context, input LoginInput) (*LoginRespo
 		fmt.Printf("warning: failed to reset failed login attempts: %v\n", err)
 	}
 
+	// Check password expiration (P0)
+	if user.IsPasswordExpired(uc.config.Security.PasswordExpiry.ExpiryDays) {
+		_ = uc.auditRepo.Create(ctx, domain.NewAuditLogEntry(user.ID, "password_expired", input.IPAddress, input.UserAgent, "", false, "password has expired", nil))
+		return nil, domain.ErrPasswordExpired
+	}
+
 	// Check 2FA if enabled
 	if user.TwoFactorEnabled && input.TwoFACode == "" {
 		return nil, domain.Err2FARequired
@@ -496,6 +502,55 @@ func (uc *AuthUseCase) completePasswordReset(ctx context.Context, resetToken *do
 	}()
 
 	return nil
+}
+
+func (uc *AuthUseCase) NotifyExpiringPasswords(ctx context.Context) (int, error) {
+	// 1. Get configuration
+	expiry := uc.config.Security.PasswordExpiry
+	if expiry.ExpiryDays <= 0 || expiry.WarningDays <= 0 {
+		return 0, nil // Disabled
+	}
+
+	// 2. Calculate threshold for query
+	// We want users whose password was changed at least (ExpiryDays - WarningDays) ago
+	thresholdDays := expiry.ExpiryDays - expiry.WarningDays
+
+	// 3. Get users
+	users, err := uc.userRepo.GetExpiringPasswords(ctx, thresholdDays)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get expiring passwords: %w", err)
+	}
+
+	// 4. Send notifications
+	notifiedCount := 0
+	for _, user := range users {
+		// Calculate precise days remaining
+		daysUsed := int(time.Since(user.PasswordChangedAt).Hours() / 24)
+		daysRemaining := expiry.ExpiryDays - daysUsed
+
+		// Only notify if within context deadline
+		select {
+		case <-ctx.Done():
+			return notifiedCount, ctx.Err()
+		default:
+			// Send email
+			err := uc.emailService.SendPasswordExpiryWarning(ctx, user.Email, user.Username, daysRemaining)
+			if err != nil {
+				// Log error but continue with others
+				fmt.Printf("failed to send expiry warning to %s: %v\n", user.Email, err)
+				continue
+			}
+
+			// Audit log
+			_ = uc.auditRepo.Create(ctx, domain.NewAuditLogEntry(user.ID, "password_expiry_warning_sent", "", "", "", true, "", map[string]interface{}{
+				"days_remaining": daysRemaining,
+			}))
+
+			notifiedCount++
+		}
+	}
+
+	return notifiedCount, nil
 }
 
 func (uc *AuthUseCase) OAuthLogin(ctx context.Context, provider, code, state, ipAddress, userAgent, device string) (*LoginResponse, error) {

@@ -46,3 +46,8 @@ func (m *MockEmailService) SendSecurityAlert(ctx context.Context, to, subject, m
 	args := m.Called(ctx, to, subject, message)
 	return args.Error(0)
 }
+
+func (m *MockEmailService) SendPasswordExpiryWarning(ctx context.Context, to, name string, daysRemaining int) error {
+	args := m.Called(ctx, to, name, daysRemaining)
+	return args.Error(0)
+}
