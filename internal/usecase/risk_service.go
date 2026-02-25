@@ -1,0 +1,66 @@
+package usecase
+
+import (
+	"context"
+	"math"
+	"time"
+
+	"github.com/vertercloud/auth-service/internal/domain"
+	"github.com/vertercloud/auth-service/internal/ports"
+)
+
+type RiskService struct {
+	geoService ports.GeolocationService
+}
+
+func NewRiskService(geoService ports.GeolocationService) *RiskService {
+	return &RiskService{
+		geoService: geoService,
+	}
+}
+
+func (s *RiskService) AssessLoginRisk(ctx context.Context, user *domain.User, currentIP string) (*domain.RiskAssessment, *domain.Geolocation, error) {
+	risk := domain.NewRiskAssessment()
+
+	// Get current location
+	currentLoc, err := s.geoService.GetLocation(ctx, currentIP)
+	if err != nil {
+		// Log error but don't fail login, maybe add a small risk score for unknown location
+		risk.AddReason("Could not determine current location", 10)
+		return risk, nil, nil
+	}
+
+	// 1. Check Impossible Travel
+	if user.LastLoginAt != nil && user.LastLoginLatitude != nil && user.LastLoginLongitude != nil {
+		dist := calculateDistance(*user.LastLoginLatitude, *user.LastLoginLongitude, currentLoc.Latitude, currentLoc.Longitude)
+		timeDiff := time.Since(*user.LastLoginAt).Hours()
+
+		if timeDiff > 0 {
+			speed := dist / timeDiff
+			if speed > 800 { // Over 800 km/h is highly suspicious (plane speed)
+				risk.AddReason("Impossible travel detected", 80)
+			} else if speed > 300 { // Fast travel
+				risk.AddReason("Fast travel detected", 30)
+			}
+		}
+	}
+
+	// 2. Check for new country
+	if user.LastLoginCountry != "" && currentLoc.Country != user.LastLoginCountry {
+		risk.AddReason("Login from a new country", 20)
+	}
+
+	return risk, currentLoc, nil
+}
+
+// calculateDistance returns distance in km between two coordinates using Haversine formula
+func calculateDistance(lat1, lon1, lat2, lon2 float64) float64 {
+	const R = 6371 // Earth radius in km
+	dLat := (lat2 - lat1) * math.Pi / 180
+	dLon := (lon2 - lon1) * math.Pi / 180
+	a := math.Sin(dLat/2)*math.Sin(dLat/2) +
+		math.Cos(lat1*math.Pi/180)*math.Cos(lat2*math.Pi/180)*
+			math.Sin(dLon/2)*math.Sin(dLon/2)
+	c := 2 * math.Atan2(math.Sqrt(a), math.Sqrt(1-a))
+	return R * c
+}

@@ -1,0 +1,1083 @@
+basePath: /api/v1
+consumes:
+- application/json
+definitions:
+  http.Disable2FARequest:
+    properties:
+      code:
+        description: Código TOTP de 6 dígitos para confirmar
+        example: "123456"
+        type: string
+    required:
+    - code
+    type: object
+  http.Enable2FAResponse:
+    properties:
+      qr_code:
+        description: Código QR en formato Data URI
+        example: data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA...
+        type: string
+      secret:
+        description: Secret TOTP para configurar en la app
+        example: JBSWY3DPEHPK3PXP
+        type: string
+    type: object
+  http.ErrorResponse:
+    properties:
+      code:
+        description: Código interno del error
+        example: AUTH_001
+        type: string
+      error:
+        description: Identificador del error
+        example: invalid_credentials
+        type: string
+      message:
+        description: Mensaje descriptivo del error
+        example: Email or password incorrect
+        type: string
+    type: object
+  http.ForgotPasswordRequest:
+    properties:
+      email:
+        description: Correo electrónico de la cuenta
+        example: user@example.com
+        type: string
+    required:
+    - email
+    type: object
+  http.HealthResponse:
+    properties:
+      service:
+        description: Nombre del servicio
+        example: auth-service
+        type: string
+      status:
+        description: Estado del servicio (healthy, unhealthy)
+        example: healthy
+        type: string
+      version:
+        description: Versión del servicio
+        example: 1.0.0
+        type: string
+    type: object
+  http.JWKResponse:
+    properties:
+      alg:
+        description: Algoritmo (RS256)
+        example: RS256
+        type: string
+      e:
+        description: Exponente RSA (base64url)
+        example: AQAB
+        type: string
+      kty:
+        description: Tipo de clave (RSA)
+        example: RSA
+        type: string
+      "n":
+        description: Módulo RSA (base64url)
+        example: xGOr-H3z...
+        type: string
+      use:
+        description: Uso de la clave (signature)
+        example: sig
+        type: string
+    type: object
+  http.JWKSResponse:
+    properties:
+      keys:
+        description: Array de claves públicas
+        items:
+          $ref: '#/definitions/http.JWKResponse'
+        type: array
+    type: object
+  http.LoginRequest:
+    properties:
+      identifier:
+        description: Email o nombre de usuario
+        example: johndoe
+        type: string
+      password:
+        description: Contraseña
+        example: SecurePass123!
+        type: string
+      two_fa_code:
+        description: Código 2FA (opcional, solo si está habilitado)
+        example: "123456"
+        type: string
+    required:
+    - identifier
+    - password
+    type: object
+  http.LoginResponse:
+    properties:
+      access_token:
+        description: JWT token de acceso
+        example: eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
+        type: string
+      refresh_token:
+        description: Token de actualización
+        example: eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
+        type: string
+      user:
+        allOf:
+        - $ref: '#/definitions/http.UserResponse'
+        description: Información del usuario
+    type: object
+  http.MessageResponse:
+    properties:
+      message:
+        description: Mensaje de respuesta
+        example: Operation completed successfully
+        type: string
+    type: object
+  http.RefreshTokenRequest:
+    properties:
+      refresh_token:
+        description: Token de actualización
+        example: eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
+        type: string
+    required:
+    - refresh_token
+    type: object
+  http.RefreshTokenResponse:
+    properties:
+      access_token:
+        description: Nuevo JWT token de acceso
+        example: eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
+        type: string
+      refresh_token:
+        description: Nuevo token de actualización
+        example: eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
+        type: string
+    type: object
+  http.RegisterRequest:
+    properties:
+      email:
+        description: Correo electrónico válido
+        example: user@example.com
+        type: string
+      password:
+        description: Contraseña (mínimo 8 caracteres)
+        example: SecurePass123!
+        minLength: 8
+        type: string
+      username:
+        description: Nombre de usuario único (3-30 caracteres)
+        example: johndoe
+        maxLength: 30
+        minLength: 3
+        type: string
+    required:
+    - email
+    - password
+    - username
+    type: object
+  http.ResetPasswordRequest:
+    properties:
+      new_password:
+        description: Nueva contraseña
+        example: NewSecurePass123!
+        minLength: 8
+        type: string
+      token:
+        description: Token recibido por email
+        example: abc123...
+        type: string
+    required:
+    - new_password
+    - token
+    type: object
+  http.ResetPasswordWithCodeRequest:
+    properties:
+      code:
+        description: Código de 6 dígitos recibido por email
+        example: "123456"
+        type: string
+      email:
+        description: Correo electrónico de la cuenta
+        example: user@example.com
+        type: string
+      new_password:
+        description: Nueva contraseña
+        example: NewSecurePass123!
+        minLength: 8
+        type: string
+    required:
+    - code
+    - email
+    - new_password
+    type: object
+  http.SessionResponse:
+    properties:
+      country:
+        description: Código de país (ISO 3166-1 alpha-2)
+        example: US
+        type: string
+      created_at:
+        description: Fecha de creación de la sesión
+        example: "2024-01-15T10:30:00Z"
+        type: string
+      device:
+        description: Dispositivo/navegador
+        example: Chrome on Windows
+        type: string
+      id:
+        description: ID de la sesión
+        example: 650e8400-e29b-41d4-a716-446655440001
+        type: string
+      ip_address:
+        description: Dirección IP de la sesión
+        example: 192.168.1.100
+        type: string
+      is_current:
+        description: Indica si es la sesión actual
+        example: true
+        type: boolean
+      last_used_at:
+        description: Última vez que se usó
+        example: "2024-01-15T12:45:00Z"
+        type: string
+      user_agent:
+        description: User agent completo
+        example: Mozilla/5.0 (Windows NT 10.0...)
+        type: string
+    type: object
+  http.SessionsResponse:
+    properties:
+      sessions:
+        description: Lista de sesiones activas
+        items:
+          $ref: '#/definitions/http.SessionResponse'
+        type: array
+    type: object
+  http.UpdateUserRequest:
+    properties:
+      email:
+        description: Nuevo correo electrónico (opcional)
+        example: newemail@example.com
+        type: string
+      username:
+        description: Nuevo nombre de usuario (opcional)
+        example: newusername
+        type: string
+    type: object
+  http.UserResponse:
+    properties:
+      active:
+        description: Estado de la cuenta
+        example: true
+        type: boolean
+      created_at:
+        description: Fecha de creación de la cuenta
+        example: "2024-01-15T10:30:00Z"
+        type: string
+      email:
+        description: Correo electrónico
+        example: user@example.com
+        type: string
+      email_verified:
+        description: Indica si el email está verificado
+        example: true
+        type: boolean
+      id:
+        description: ID único del usuario (UUID)
+        example: 550e8400-e29b-41d4-a716-446655440000
+        type: string
+      two_factor_enabled:
+        description: Indica si 2FA está habilitado
+        example: false
+        type: boolean
+      username:
+        description: Nombre de usuario
+        example: johndoe
+        type: string
+    type: object
+  http.Verify2FARequest:
+    properties:
+      code:
+        description: Código TOTP de 6 dígitos
+        example: "123456"
+        type: string
+    required:
+    - code
+    type: object
+host: localhost:8080
+info:
+  contact:
+    email: support@vertercloud.com
+    name: Vertercloud Support
+  description: |-
+    Microservicio central de autenticación para la plataforma Vertercloud.
+    Gestiona JWT, sesiones, 2FA, OAuth, verificación de email y validación de tokens.
+  license:
+    name: Proprietary
+    url: https://vertercloud.com/license
+  title: Vertercloud Auth Service API
+  version: "1.0"
+paths:
+  /auth/.well-known/jwks.json:
+    get:
+      consumes:
+      - application/json
+      description: Retorna las claves públicas en formato JWKS (JSON Web Key Set)
+        para verificar tokens JWT firmados por este servicio
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/http.JWKSResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      summary: Obtener claves públicas JWT
+      tags:
+      - Authentication
+  /auth/2fa/disable:
+    post:
+      consumes:
+      - application/json
+      description: Deshabilita 2FA para el usuario actual. Requiere proporcionar un
+        código TOTP válido para confirmar.
+      parameters:
+      - description: Código TOTP de 6 dígitos
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/http.Disable2FARequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/http.MessageResponse'
+        "400":
+          description: Código inválido, faltante o 2FA no habilitado
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "401":
+          description: No autenticado
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Deshabilitar autenticación de dos factores
+      tags:
+      - Two-Factor Authentication
+  /auth/2fa/enable:
+    post:
+      consumes:
+      - application/json
+      description: Genera un secreto TOTP y un código QR para habilitar 2FA. El usuario
+        debe escanear el QR y verificar con Verify2FA.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Retorna secret y qr_code (base64)
+          schema:
+            $ref: '#/definitions/http.Enable2FAResponse'
+        "400":
+          description: 2FA ya habilitado
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "401":
+          description: No autenticado
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Habilitar autenticación de dos factores
+      tags:
+      - Two-Factor Authentication
+  /auth/2fa/verify:
+    post:
+      consumes:
+      - application/json
+      description: Verifica el código TOTP de 6 dígitos y confirma la habilitación
+        de 2FA para el usuario. Debe llamarse después de Enable2FA.
+      parameters:
+      - description: Código TOTP de 6 dígitos
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/http.Verify2FARequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/http.MessageResponse'
+        "400":
+          description: Código inválido o faltante
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "401":
+          description: No autenticado
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Verificar y confirmar 2FA
+      tags:
+      - Two-Factor Authentication
+  /auth/forgot-password:
+    post:
+      consumes:
+      - application/json
+      description: Envía un email con un código de 6 dígitos y un enlace para restablecer
+        la contraseña. El código expira en 15 minutos. Siempre retorna éxito para
+        evitar enumeración de emails.
+      parameters:
+      - description: Email del usuario
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/http.ForgotPasswordRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/http.MessageResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      summary: Solicitar restablecimiento de contraseña
+      tags:
+      - Authentication
+  /auth/login:
+    post:
+      consumes:
+      - application/json
+      description: Autentica al usuario con email/username y contraseña. Retorna tokens
+        JWT de acceso y actualización. Soporta 2FA si está habilitado.
+      parameters:
+      - description: Credenciales de inicio de sesión
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/http.LoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/http.LoginResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "401":
+          description: Credenciales inválidas
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "403":
+          description: Cuenta inactiva o email no verificado
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "429":
+          description: Demasiados intentos de inicio de sesión
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      summary: Iniciar sesión
+      tags:
+      - Authentication
+  /auth/logout:
+    post:
+      consumes:
+      - application/json
+      description: Revoca el token de acceso actual agregándolo a la lista negra.
+        El token no podrá ser usado nuevamente.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/http.MessageResponse'
+        "401":
+          description: No autenticado
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Cerrar sesión
+      tags:
+      - Authentication
+  /auth/me:
+    get:
+      consumes:
+      - application/json
+      description: Retorna la información del usuario autenticado actualmente
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/http.UserResponse'
+        "401":
+          description: No autenticado
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Obtener perfil del usuario actual
+      tags:
+      - User Profile
+    put:
+      consumes:
+      - application/json
+      description: Actualiza el email y/o username del usuario autenticado. Si se
+        cambia el email, se requiere nueva verificación.
+      parameters:
+      - description: Datos a actualizar (email y/o username)
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/http.UpdateUserRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/http.UserResponse'
+        "400":
+          description: Datos inválidos
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "401":
+          description: No autenticado
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "409":
+          description: Email o username ya existe
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Actualizar perfil del usuario
+      tags:
+      - User Profile
+  /auth/oauth/github:
+    get:
+      consumes:
+      - application/json
+      description: Redirige al usuario a la página de autenticación de GitHub OAuth
+      produces:
+      - application/json
+      responses:
+        "307":
+          description: Redirección a GitHub OAuth
+          schema:
+            type: string
+      summary: Iniciar autenticación con GitHub
+      tags:
+      - OAuth
+  /auth/oauth/github/callback:
+    get:
+      consumes:
+      - application/json
+      description: Procesa el callback de GitHub OAuth. Crea usuario si no existe
+        o inicia sesión si ya existe. Retorna tokens JWT.
+      parameters:
+      - description: Código de autorización de GitHub
+        in: query
+        name: code
+        required: true
+        type: string
+      - description: Estado de la solicitud OAuth
+        in: query
+        name: state
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/http.LoginResponse'
+        "400":
+          description: Código de autorización faltante
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      summary: Callback de GitHub OAuth
+      tags:
+      - OAuth
+  /auth/oauth/google:
+    get:
+      consumes:
+      - application/json
+      description: Redirige al usuario a la página de autenticación de Google OAuth
+      produces:
+      - application/json
+      responses:
+        "307":
+          description: Redirección a Google OAuth
+          schema:
+            type: string
+      summary: Iniciar autenticación con Google
+      tags:
+      - OAuth
+  /auth/oauth/google/callback:
+    get:
+      consumes:
+      - application/json
+      description: Procesa el callback de Google OAuth. Crea usuario si no existe
+        o inicia sesión si ya existe. Retorna tokens JWT.
+      parameters:
+      - description: Código de autorización de Google
+        in: query
+        name: code
+        required: true
+        type: string
+      - description: Estado de la solicitud OAuth
+        in: query
+        name: state
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/http.LoginResponse'
+        "400":
+          description: Código de autorización faltante
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      summary: Callback de Google OAuth
+      tags:
+      - OAuth
+  /auth/refresh:
+    post:
+      consumes:
+      - application/json
+      description: Genera un nuevo access token usando un refresh token válido. Implementa
+        rotación automática de refresh tokens.
+      parameters:
+      - description: Refresh token
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/http.RefreshTokenRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/http.RefreshTokenResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "401":
+          description: Refresh token inválido o expirado
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      summary: Renovar token de acceso
+      tags:
+      - Authentication
+  /auth/register:
+    post:
+      consumes:
+      - application/json
+      description: Crea una nueva cuenta de usuario con username, email y contraseña.
+        Envía un email de verificación de forma asíncrona.
+      parameters:
+      - description: Datos de registro
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/http.RegisterRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/http.UserResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "409":
+          description: Email o username ya existe
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      summary: Registrar nuevo usuario
+      tags:
+      - Authentication
+  /auth/resend-verification:
+    post:
+      consumes:
+      - application/json
+      description: Reenvía el email de verificación al usuario autenticado. Solo disponible
+        si el email no está verificado.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/http.MessageResponse'
+        "401":
+          description: No autenticado
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "409":
+          description: Email ya verificado
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "429":
+          description: Demasiados intentos
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Reenviar email de verificación
+      tags:
+      - Email Verification
+  /auth/reset-password:
+    post:
+      consumes:
+      - application/json
+      description: Restablece la contraseña usando el token recibido por email (URL).
+        El token es válido por 15 minutos.
+      parameters:
+      - description: Token y nueva contraseña
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/http.ResetPasswordRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/http.MessageResponse'
+        "400":
+          description: Token inválido o expirado
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      summary: Restablecer contraseña con token
+      tags:
+      - Authentication
+  /auth/reset-password-code:
+    post:
+      consumes:
+      - application/json
+      description: Restablece la contraseña usando el código de 6 dígitos recibido
+        por email. El código es válido por 15 minutos.
+      parameters:
+      - description: Email, código de 6 dígitos y nueva contraseña
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/http.ResetPasswordWithCodeRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/http.MessageResponse'
+        "400":
+          description: Código inválido o expirado
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      summary: Restablecer contraseña con código
+      tags:
+      - Authentication
+  /auth/sessions:
+    get:
+      consumes:
+      - application/json
+      description: Retorna todas las sesiones activas del usuario autenticado, marcando
+        la sesión actual
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/http.SessionsResponse'
+        "401":
+          description: No autenticado
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Listar sesiones activas
+      tags:
+      - Sessions
+  /auth/sessions/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Revoca una sesión específica por su ID. No permite revocar la sesión
+        actual (usar logout).
+      parameters:
+      - description: ID de la sesión a revocar
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/http.MessageResponse'
+        "400":
+          description: ID de sesión requerido
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "401":
+          description: No autenticado
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "404":
+          description: Sesión no encontrada
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Revocar una sesión específica
+      tags:
+      - Sessions
+  /auth/sessions/all:
+    delete:
+      consumes:
+      - application/json
+      description: Revoca todas las sesiones del usuario excepto la sesión actual.
+        Útil para cerrar sesión en todos los dispositivos.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Retorna mensaje y cantidad de sesiones revocadas
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: No autenticado
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Revocar todas las sesiones excepto la actual
+      tags:
+      - Sessions
+  /auth/verify-email:
+    get:
+      consumes:
+      - application/json
+      description: Verifica el email mediante un enlace GET (para clics desde el correo).
+        Retorna HTML con confirmación visual.
+      parameters:
+      - description: Token de verificación desde el email
+        in: query
+        name: token
+        required: true
+        type: string
+      produces:
+      - text/html
+      responses:
+        "200":
+          description: HTML con mensaje de éxito
+          schema:
+            type: string
+        "400":
+          description: Token inválido, expirado o ya usado
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "404":
+          description: Token no encontrado
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "409":
+          description: Email ya verificado
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      summary: Verificar email (GET)
+      tags:
+      - Email Verification
+    post:
+      consumes:
+      - application/json
+      description: Verifica el email del usuario usando el token recibido por correo.
+        El token es válido por 48 horas.
+      parameters:
+      - description: Token de verificación
+        in: body
+        name: request
+        required: true
+        schema:
+          properties:
+            token:
+              type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/http.MessageResponse'
+        "400":
+          description: Token inválido, expirado o ya usado
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "404":
+          description: Token no encontrado
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "409":
+          description: Email ya verificado
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      summary: Verificar email (POST)
+      tags:
+      - Email Verification
+  /health:
+    get:
+      consumes:
+      - application/json
+      description: Verifica el estado del servicio. Retorna 200 si el servicio está
+        operativo.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/http.HealthResponse'
+      summary: Health check
+      tags:
+      - System
+produces:
+- application/json
+schemes:
+- http
+- https
+securityDefinitions:
+  BearerAuth:
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"
+tags:
+- description: Endpoints para registro, login, y gestión de tokens
+  name: Authentication
+- description: Endpoints para gestión de perfil de usuario
+  name: User Profile
+- description: Endpoints para gestión de sesiones activas
+  name: Sessions
+- description: Endpoints para autenticación de dos factores (TOTP)
+  name: Two-Factor Authentication
+- description: Endpoints para verificación de correo electrónico
+  name: Email Verification
+- description: Endpoints para autenticación con Google y GitHub
+  name: OAuth
+- description: Endpoints de salud y monitoreo del servicio
+  name: System

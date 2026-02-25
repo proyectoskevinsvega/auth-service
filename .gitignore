@@ -1,0 +1,78 @@
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+auth-service
+bin/
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool
+*.out
+coverage.txt
+
+# Dependency directories
+vendor/
+
+# Go workspace file
+go.work
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Keys
+keys/
+*.pem
+*.key
+
+# Database
+*.db
+*.sqlite
+
+# Logs
+logs/
+*.log
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Geolocation database
+data/GeoLite2-*.mmdb
+
+# Temporary files
+tmp/
+temp/
+
+# Profiling
+*.prof
+cpu.prof
+mem.prof
+01-auth-service.md
+coverage.out
+IMPLEMENTATION_STATUS.md
+PERFORMANCE_COMPARISON.md
+PORTFOLIO.md
+README.md
+promt.md
+QUICKSTART.md
+SWAGGER_SETUP.md
+keys
+keys/private.pem
+keys/public.pem
+docs/PROMETHEUS_QUERIES.md
+docs/TELEMETRY.md
+docs/CICD.md
+.claude

@@ -1,0 +1,44 @@
+[Unit]
+Description=Vertercloud Authentication Service
+Documentation=https://github.com/vertercloud/auth-service
+After=network.target postgresql.service redis.service
+Wants=postgresql.service redis.service
+
+[Service]
+Type=simple
+User=auth-service
+Group=auth-service
+WorkingDirectory=/opt/auth-service
+
+# Cargar variables de entorno
+EnvironmentFile=/opt/auth-service/.env
+
+# Ejecutar el binario
+ExecStart=/opt/auth-service/bin/auth-service
+
+# Reiniciar automáticamente si falla
+Restart=always
+RestartSec=10s
+
+# Límites de recursos
+LimitNOFILE=65536
+LimitNPROC=4096
+
+# Seguridad
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/auth-service/logs
+ReadOnlyPaths=/opt/auth-service
+
+# Logs
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=auth-service
+
+# Timeout
+TimeoutStopSec=30s
+
+[Install]
+WantedBy=multi-user.target

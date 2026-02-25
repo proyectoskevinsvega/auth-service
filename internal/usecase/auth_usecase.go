@@ -1,0 +1,596 @@
+package usecase
+
+import (
+	"context"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/hex"
+	"fmt"
+	"math/big"
+	"strings"
+	"time"
+
+	"github.com/vertercloud/auth-service/internal/config"
+	"github.com/vertercloud/auth-service/internal/domain"
+	"github.com/vertercloud/auth-service/internal/ports"
+)
+
+type AuthUseCase struct {
+	userRepo       ports.UserRepository
+	sessionRepo    ports.SessionRepository
+	refreshRepo    ports.RefreshTokenRepository
+	resetRepo      ports.PasswordResetRepository
+	auditRepo      ports.AuditLogRepository
+	jwtService     ports.JWTService
+	passwordHasher ports.PasswordHasher
+	tokenGen       ports.TokenGenerator
+	rateLimiter    ports.RateLimiter
+	sessionStore   ports.SessionStore
+	geoService     ports.GeolocationService
+	emailService   ports.EmailService
+	notifier       ports.NotificationPublisher
+	oauthProviders map[string]ports.OAuthProvider
+	config         *config.Config
+	riskService    ports.RiskService
+}
+
+func NewAuthUseCase(
+	userRepo ports.UserRepository,
+	sessionRepo ports.SessionRepository,
+	refreshRepo ports.RefreshTokenRepository,
+	resetRepo ports.PasswordResetRepository,
+	auditRepo ports.AuditLogRepository,
+	jwtService ports.JWTService,
+	passwordHasher ports.PasswordHasher,
+	tokenGen ports.TokenGenerator,
+	rateLimiter ports.RateLimiter,
+	sessionStore ports.SessionStore,
+	geoService ports.GeolocationService,
+	emailService ports.EmailService,
+	notifier ports.NotificationPublisher,
+	oauthProviders map[string]ports.OAuthProvider,
+	cfg *config.Config,
+	riskService ports.RiskService,
+) *AuthUseCase {
+	return &AuthUseCase{
+		userRepo:       userRepo,
+		sessionRepo:    sessionRepo,
+		refreshRepo:    refreshRepo,
+		resetRepo:      resetRepo,
+		auditRepo:      auditRepo,
+		jwtService:     jwtService,
+		passwordHasher: passwordHasher,
+		tokenGen:       tokenGen,
+		rateLimiter:    rateLimiter,
+		sessionStore:   sessionStore,
+		geoService:     geoService,
+		emailService:   emailService,
+		notifier:       notifier,
+		oauthProviders: oauthProviders,
+		config:         cfg,
+		riskService:    riskService,
+	}
+}
+
+type LoginInput struct {
+	Identifier string // Email o username
+	Password   string
+	TwoFACode  string
+	IPAddress  string
+	UserAgent  string
+	Device     string
+}
+
+type LoginResponse struct {
+	AccessToken  string
+	RefreshToken string
+	User         *domain.User
+}
+
+func (uc *AuthUseCase) Login(ctx context.Context, input LoginInput) (*LoginResponse, error) {
+	// Rate limiting
+	rateLimitKey := "login:" + input.IPAddress
+	exceeded, err := uc.rateLimiter.CheckLimit(ctx, rateLimitKey, uc.config.RateLimit.LoginAttempts, uc.config.RateLimit.LoginWindow)
+	if err != nil {
+		return nil, fmt.Errorf("rate limit check failed: %w", err)
+	}
+	if exceeded {
+		return nil, domain.ErrRateLimitExceeded
+	}
+
+	// Increment rate limit counter (non-blocking, log error only)
+	if _, err := uc.rateLimiter.Increment(ctx, rateLimitKey, uc.config.RateLimit.LoginWindow); err != nil {
+		// Log but don't fail - rate limiting tracking is not critical for request flow
+		fmt.Printf("warning: failed to increment login rate limit for %s: %v\n", input.IPAddress, err)
+	}
+
+	// Get user by email or username
+	user, err := uc.userRepo.GetByEmailOrUsername(ctx, input.Identifier)
+	if err != nil {
+		_ = uc.auditRepo.Create(ctx, domain.NewAuditLogEntry("", "login", input.IPAddress, input.UserAgent, "", false, "invalid credentials", nil))
+		return nil, domain.ErrInvalidCredentials
+	}
+
+	// Check if user is active
+	if !user.Active {
+		return nil, domain.ErrUserInactive
+	}
+
+	// Verify password
+	valid, err := uc.passwordHasher.Verify(input.Password, user.PasswordHash)
+	if err != nil || !valid {
+		_ = uc.auditRepo.Create(ctx, domain.NewAuditLogEntry(user.ID, "login", input.IPAddress, input.UserAgent, "", false, "invalid credentials", nil))
+		return nil, domain.ErrInvalidCredentials
+	}
+
+	// Check 2FA if enabled
+	if user.TwoFactorEnabled && input.TwoFACode == "" {
+		return nil, domain.Err2FARequired
+	}
+
+	// Risk Assessment (P0)
+	risk, currentLoc, err := uc.riskService.AssessLoginRisk(ctx, user, input.IPAddress)
+	if err != nil {
+		fmt.Printf("warning: risk assessment failed: %v\n", err)
+	}
+
+	if risk != nil && risk.IsBlocked {
+		_ = uc.auditRepo.Create(ctx, domain.NewAuditLogEntry(user.ID, "login_blocked", input.IPAddress, input.UserAgent, "", false, "high risk login blocked", map[string]interface{}{"reasons": risk.Reasons}))
+		return nil, domain.ErrForbidden
+	}
+
+	// 2FA requirement (if risk is medium)
+	isMFAForced := risk != nil && risk.RequireMFA
+
+	// Check 2FA if enabled or forced by risk
+	if (user.TwoFactorEnabled || isMFAForced) && input.TwoFACode == "" {
+		return nil, domain.Err2FARequired
+	}
+
+	country := "XX"
+	if currentLoc != nil {
+		country = currentLoc.Country
+	}
+
+	// Create session
+	inactivityTTL := time.Duration(uc.config.Security.SessionInactivityDays) * 24 * time.Hour
+	session := domain.NewSession(domain.NewSessionInput{
+		UserID:        user.ID,
+		IPAddress:     input.IPAddress,
+		Country:       country,
+		Device:        input.Device,
+		UserAgent:     input.UserAgent,
+		InactivityTTL: inactivityTTL,
+	})
+
+	if err := uc.sessionRepo.Create(ctx, session); err != nil {
+		return nil, fmt.Errorf("failed to create session: %w", err)
+	}
+
+	// Generate JWT
+	token := domain.NewToken(user.ID, user.Email, uc.config.JWT.AccessExpiry)
+	accessToken, err := uc.jwtService.Generate(ctx, token)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate JWT: %w", err)
+	}
+
+	// Generate refresh token
+	refreshTokenStr, _ := uc.tokenGen.GenerateSecureToken(32)
+	refreshTokenHash := hashToken(refreshTokenStr)
+
+	refreshToken := domain.NewRefreshToken(user.ID, session.ID, refreshTokenHash, uc.config.JWT.RefreshExpiry)
+	if err := uc.refreshRepo.Create(ctx, refreshToken); err != nil {
+		return nil, fmt.Errorf("failed to create refresh token: %w", err)
+	}
+
+	// Save previous country before updating
+	previousCountry := user.LastLoginCountry
+
+	// Prepare response before async operations
+	response := &LoginResponse{
+		AccessToken:  accessToken,
+		RefreshToken: refreshTokenStr,
+		User:         user,
+	}
+
+	// Async operations (non-critical, fire-and-forget)
+	// These operations don't block the response for better performance
+	go func() {
+		// Use background context to avoid cancellation when request ends
+		bgCtx := context.Background()
+
+		// Update user last login
+		var lat, lon *float64
+		if currentLoc != nil {
+			lat = &currentLoc.Latitude
+			lon = &currentLoc.Longitude
+		}
+		user.UpdateLastLogin(input.IPAddress, country, lat, lon)
+		_ = uc.userRepo.Update(bgCtx, user)
+
+		// Audit log
+		_ = uc.auditRepo.Create(bgCtx, domain.NewAuditLogEntry(user.ID, "login", input.IPAddress, input.UserAgent, country, true, "", nil))
+
+		// Check for new country and send notification
+		if previousCountry != "" && country != previousCountry {
+			event := domain.NewEvent(domain.EventLoginNewCountry, user.ID, user.Email, map[string]interface{}{
+				"ip":      input.IPAddress,
+				"country": country,
+			})
+			_ = uc.notifier.Publish(bgCtx, event)
+		}
+	}()
+
+	return response, nil
+}
+
+type RegisterInput struct {
+	Username  string
+	Email     string
+	Password  string
+	IPAddress string
+	UserAgent string
+}
+
+func (uc *AuthUseCase) Register(ctx context.Context, input RegisterInput) (*domain.User, error) {
+	// Rate limiting - fail-safe: if rate limiter fails, reject request to prevent abuse
+	rateLimitKey := "register:" + input.IPAddress
+	exceeded, err := uc.rateLimiter.CheckLimit(ctx, rateLimitKey, uc.config.RateLimit.RegisterAttempts, uc.config.RateLimit.RegisterWindow)
+	if err != nil {
+		return nil, fmt.Errorf("rate limit check failed: %w", err)
+	}
+	if exceeded {
+		return nil, domain.ErrRateLimitExceeded
+	}
+
+	// Validate username
+	if err := domain.ValidateUsername(input.Username); err != nil {
+		return nil, err
+	}
+
+	// Validate email
+	if err := domain.ValidateEmail(input.Email); err != nil {
+		return nil, err
+	}
+
+	// Validate password
+	if err := domain.ValidatePassword(input.Password); err != nil {
+		return nil, err
+	}
+
+	// Check if username exists
+	existingUsername, _ := uc.userRepo.GetByUsername(ctx, input.Username)
+	if existingUsername != nil {
+		return nil, domain.ErrUsernameAlreadyExists
+	}
+
+	// Check if email exists
+	existingEmail, _ := uc.userRepo.GetByEmail(ctx, input.Email)
+	if existingEmail != nil {
+		return nil, domain.ErrEmailAlreadyExists
+	}
+
+	// Hash password
+	passwordHash, err := uc.passwordHasher.Hash(input.Password)
+	if err != nil {
+		return nil, fmt.Errorf("failed to hash password: %w", err)
+	}
+
+	// Create user
+	user, err := domain.NewUser(domain.NewUserInput{
+		Username: input.Username,
+		Email:    input.Email,
+		Password: input.Password,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	if err := uc.userRepo.Create(ctx, user, passwordHash); err != nil {
+		return nil, fmt.Errorf("failed to create user: %w", err)
+	}
+
+	// Async operations (non-critical, fire-and-forget)
+	// These operations don't block the response for better performance
+	go func() {
+		// Use background context to avoid cancellation when request ends
+		bgCtx := context.Background()
+
+		// Increment rate limit
+		if _, err := uc.rateLimiter.Increment(bgCtx, rateLimitKey, uc.config.RateLimit.RegisterWindow); err != nil {
+			fmt.Printf("warning: failed to increment register rate limit for %s: %v\n", input.IPAddress, err)
+		}
+
+		// Get location for audit log
+		currentLoc, _ := uc.geoService.GetLocation(bgCtx, input.IPAddress)
+		country := "XX"
+		if currentLoc != nil {
+			country = currentLoc.Country
+		}
+
+		// Audit log
+		_ = uc.auditRepo.Create(bgCtx, domain.NewAuditLogEntry(user.ID, "register", input.IPAddress, input.UserAgent, country, true, "", nil))
+
+		// Send welcome email (can be slow)
+		_ = uc.emailService.SendWelcome(bgCtx, user.Email, user.Username)
+
+		// Publish event
+		event := domain.NewEvent(domain.EventUserRegistered, user.ID, user.Email, nil)
+		_ = uc.notifier.Publish(bgCtx, event)
+	}()
+
+	return user, nil
+}
+
+func (uc *AuthUseCase) ForgotPassword(ctx context.Context, email, ipAddress string) error {
+	user, err := uc.userRepo.GetByEmail(ctx, email)
+	if err != nil {
+		// Don't reveal if email exists
+		return nil
+	}
+
+	// Generate reset token y código de 6 dígitos
+	resetTokenStr, _ := uc.tokenGen.GenerateSecureToken(32)
+
+	// Generar código de 6 dígitos
+	codeGen := &CodeGenerator{}
+	code, _ := codeGen.GenerateNumericCode(6)
+
+	resetToken := domain.NewPasswordResetToken(user.ID, resetTokenStr, code)
+
+	if err := uc.resetRepo.Create(ctx, resetToken); err != nil {
+		return fmt.Errorf("failed to create reset token: %w", err)
+	}
+
+	// Async operations (non-critical, fire-and-forget)
+	// These operations don't block the response for better performance
+	go func() {
+		// Use background context to avoid cancellation when request ends
+		bgCtx := context.Background()
+
+		// Send reset email con código y URL (can be slow)
+		resetURL := BuildURL(uc.config.Server.Environment, uc.config.Server.BaseDomain, fmt.Sprintf("/api/v1/auth/reset-password?token=%s", resetTokenStr))
+		_ = uc.emailService.SendPasswordReset(bgCtx, user.Email, code, resetURL)
+
+		// Audit log
+		_ = uc.auditRepo.Create(bgCtx, domain.NewAuditLogEntry(user.ID, "forgot_password", ipAddress, "", "", true, "", nil))
+	}()
+
+	return nil
+}
+
+type CodeGenerator struct{}
+
+func (g *CodeGenerator) GenerateNumericCode(digits int) (string, error) {
+	if digits <= 0 || digits > 10 {
+		return "", fmt.Errorf("digits must be between 1 and 10")
+	}
+
+	// Calculate maximum value for the given number of digits (e.g., 6 digits = 999999)
+	max := new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(digits)), nil)
+	max.Sub(max, big.NewInt(1)) // 999999 for 6 digits
+
+	// Generate a random number in the range [0, max]
+	n, err := rand.Int(rand.Reader, max.Add(max, big.NewInt(1)))
+	if err != nil {
+		return "", fmt.Errorf("failed to generate random code: %w", err)
+	}
+
+	// Format with leading zeros to ensure the correct number of digits
+	format := fmt.Sprintf("%%0%dd", digits)
+	return fmt.Sprintf(format, n), nil
+}
+
+// ResetPasswordWithToken resetea la contraseña usando el token URL
+func (uc *AuthUseCase) ResetPasswordWithToken(ctx context.Context, token, newPassword, ipAddress string) error {
+	// Validate password
+	if err := domain.ValidatePassword(newPassword); err != nil {
+		return err
+	}
+
+	// Get reset token
+	resetToken, err := uc.resetRepo.GetByToken(ctx, token)
+	if err != nil {
+		return domain.ErrInvalidResetToken
+	}
+
+	if !resetToken.IsValid() {
+		return domain.ErrResetTokenExpired
+	}
+
+	return uc.completePasswordReset(ctx, resetToken, newPassword, ipAddress)
+}
+
+// ResetPasswordWithCode resetea la contraseña usando el código de 6 dígitos
+func (uc *AuthUseCase) ResetPasswordWithCode(ctx context.Context, email, code, newPassword, ipAddress string) error {
+	// Validate password
+	if err := domain.ValidatePassword(newPassword); err != nil {
+		return err
+	}
+
+	// Get user by email
+	user, err := uc.userRepo.GetByEmail(ctx, email)
+	if err != nil {
+		return domain.ErrInvalidResetToken
+	}
+
+	// Get reset token by code
+	resetToken, err := uc.resetRepo.GetByCode(ctx, user.ID, code)
+	if err != nil {
+		return domain.ErrInvalidResetToken
+	}
+
+	if !resetToken.IsValid() {
+		return domain.ErrResetTokenExpired
+	}
+
+	return uc.completePasswordReset(ctx, resetToken, newPassword, ipAddress)
+}
+
+func (uc *AuthUseCase) completePasswordReset(ctx context.Context, resetToken *domain.PasswordResetToken, newPassword, ipAddress string) error {
+	// Hash new password
+	passwordHash, err := uc.passwordHasher.Hash(newPassword)
+	if err != nil {
+		return fmt.Errorf("failed to hash password: %w", err)
+	}
+
+	// Update password
+	if err := uc.userRepo.UpdatePassword(ctx, resetToken.UserID, passwordHash); err != nil {
+		return fmt.Errorf("failed to update password: %w", err)
+	}
+
+	// Async operations (non-critical, fire-and-forget)
+	// Password has already been changed successfully, these operations don't block
+	go func() {
+		// Use background context to avoid cancellation when request ends
+		bgCtx := context.Background()
+
+		// Mark token as used
+		_ = uc.resetRepo.MarkAsUsed(bgCtx, resetToken.ID)
+
+		// Revoke all sessions (security measure, but password is already changed)
+		_ = uc.sessionRepo.RevokeAllByUserID(bgCtx, resetToken.UserID, "system", "password_reset")
+		_ = uc.refreshRepo.RevokeByUserID(bgCtx, resetToken.UserID)
+
+		// Get user for event
+		user, _ := uc.userRepo.GetByID(bgCtx, resetToken.UserID)
+
+		// Audit log
+		_ = uc.auditRepo.Create(bgCtx, domain.NewAuditLogEntry(resetToken.UserID, "reset_password", ipAddress, "", "", true, "", nil))
+
+		// Publish event
+		if user != nil {
+			event := domain.NewEvent(domain.EventPasswordChanged, user.ID, user.Email, nil)
+			_ = uc.notifier.Publish(bgCtx, event)
+		}
+	}()
+
+	return nil
+}
+
+func (uc *AuthUseCase) OAuthLogin(ctx context.Context, provider, code, state, ipAddress, userAgent, device string) (*LoginResponse, error) {
+	oauthProvider, exists := uc.oauthProviders[provider]
+	if !exists {
+		return nil, domain.ErrOAuthProviderNotFound
+	}
+
+	// Exchange code for user info
+	userInfo, err := oauthProvider.Exchange(ctx, code)
+	if err != nil {
+		return nil, domain.ErrOAuthCodeInvalid
+	}
+
+	// Check if user exists
+	user, err := uc.userRepo.GetByOAuthProvider(ctx, provider, userInfo.ProviderID)
+	if err != nil {
+		// Create new user
+		newUser, err := domain.NewUser(domain.NewUserInput{
+			Email:           userInfo.Email,
+			OAuthProvider:   provider,
+			OAuthProviderID: userInfo.ProviderID,
+		})
+		if err != nil {
+			return nil, err
+		}
+
+		if err := uc.userRepo.Create(ctx, newUser, ""); err != nil {
+			return nil, fmt.Errorf("failed to create OAuth user: %w", err)
+		}
+
+		user = newUser
+	}
+
+	// Generar username del email si es OAuth (antes del @ )
+	if user.Username == "" && user.OAuthProvider != "" {
+		// Extraer la parte antes del @
+		parts := strings.Split(userInfo.Email, "@")
+		if len(parts) > 0 {
+			user.Username = parts[0]
+		}
+	}
+
+	// Continue with normal login flow
+	risk, currentLoc, err := uc.riskService.AssessLoginRisk(ctx, user, ipAddress)
+	if err != nil {
+		fmt.Printf("warning: risk assessment failed: %v\n", err)
+	}
+
+	if risk != nil && risk.IsBlocked {
+		_ = uc.auditRepo.Create(ctx, domain.NewAuditLogEntry(user.ID, "oauth_login_blocked", ipAddress, userAgent, "", false, "high risk oauth login blocked", map[string]interface{}{"reasons": risk.Reasons}))
+		return nil, domain.ErrForbidden
+	}
+
+	country := "XX"
+	if currentLoc != nil {
+		country = currentLoc.Country
+	}
+
+	inactivityTTL := time.Duration(uc.config.Security.SessionInactivityDays) * 24 * time.Hour
+	session := domain.NewSession(domain.NewSessionInput{
+		UserID:        user.ID,
+		IPAddress:     ipAddress,
+		Country:       country,
+		Device:        device,
+		UserAgent:     userAgent,
+		InactivityTTL: inactivityTTL,
+	})
+
+	if err := uc.sessionRepo.Create(ctx, session); err != nil {
+		return nil, fmt.Errorf("failed to create session: %w", err)
+	}
+
+	token := domain.NewToken(user.ID, user.Email, uc.config.JWT.AccessExpiry)
+	accessToken, err := uc.jwtService.Generate(ctx, token)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate JWT: %w", err)
+	}
+
+	refreshTokenStr, _ := uc.tokenGen.GenerateSecureToken(32)
+	refreshTokenHash := hashToken(refreshTokenStr)
+
+	refreshToken := domain.NewRefreshToken(user.ID, session.ID, refreshTokenHash, uc.config.JWT.RefreshExpiry)
+	if err := uc.refreshRepo.Create(ctx, refreshToken); err != nil {
+		return nil, fmt.Errorf("failed to create refresh token: %w", err)
+	}
+
+	// Save previous country before updating
+	previousCountry := user.LastLoginCountry
+
+	// Prepare response before async operations
+	response := &LoginResponse{
+		AccessToken:  accessToken,
+		RefreshToken: refreshTokenStr,
+		User:         user,
+	}
+
+	// Async operations (non-critical, fire-and-forget)
+	go func() {
+		// Use background context to avoid cancellation when request ends
+		bgCtx := context.Background()
+
+		// Update user last login
+		var lat, lon *float64
+		if currentLoc != nil {
+			lat = &currentLoc.Latitude
+			lon = &currentLoc.Longitude
+		}
+		user.UpdateLastLogin(ipAddress, country, lat, lon)
+		_ = uc.userRepo.Update(bgCtx, user)
+
+		// Check for new country and send notification
+		if previousCountry != "" && country != previousCountry {
+			event := domain.NewEvent(domain.EventLoginNewCountry, user.ID, user.Email, map[string]interface{}{
+				"ip":      ipAddress,
+				"country": country,
+			})
+			_ = uc.notifier.Publish(bgCtx, event)
+		}
+	}()
+
+	return response, nil
+}
+
+func hashToken(token string) string {
+	hash := sha256.Sum256([]byte(token))
+	return hex.EncodeToString(hash[:])
+}

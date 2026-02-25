@@ -1,0 +1,107 @@
+run:
+  timeout: 5m
+  issues-exit-code: 1
+  tests: true
+  modules-download-mode: readonly
+
+linters:
+  enable:
+    - errcheck        # Check for unchecked errors
+    - gosimple        # Simplify code
+    - govet           # Vet examines Go source code
+    - ineffassign     # Detect ineffectual assignments
+    - staticcheck     # Static analysis checks
+    - unused          # Check for unused constants, variables, functions, and types
+    - gofmt           # Check if code was gofmt-ed
+    - goimports       # Check import statements are formatted
+    - misspell        # Find commonly misspelled English words
+    - revive          # Fast, configurable, extensible, flexible, and beautiful linter
+    - gosec           # Security checks
+    - bodyclose       # Check HTTP response body is closed
+    - noctx           # Find sending http request without context.Context
+    - unconvert       # Remove unnecessary type conversions
+    - unparam         # Report unused function parameters
+    - gocritic        # Provides diagnostics that check for bugs, performance, and style issues
+    - gocyclo         # Computes cyclomatic complexity
+    - dupl            # Code clone detection
+    - goconst         # Find repeated strings that could be constants
+    - prealloc        # Find slice declarations that could potentially be preallocated
+    - exportloopref   # Check for pointers to enclosing loop variables
+    - sqlclosecheck   # Check sql.Rows and sql.Stmt are closed
+
+linters-settings:
+  errcheck:
+    check-type-assertions: true
+    check-blank: true
+
+  govet:
+    check-shadowing: true
+    enable-all: true
+
+  gocyclo:
+    min-complexity: 15
+
+  dupl:
+    threshold: 100
+
+  goconst:
+    min-len: 3
+    min-occurrences: 3
+
+  misspell:
+    locale: US
+
+  revive:
+    rules:
+      - name: var-naming
+        severity: warning
+        disabled: false
+      - name: package-comments
+        severity: warning
+        disabled: false
+      - name: exported
+        severity: warning
+        disabled: false
+
+  gosec:
+    severity: medium
+    confidence: medium
+    excludes:
+      - G104  # Audit errors not checked (we use errcheck for this)
+      - G304  # File path from variable (common in config)
+
+  staticcheck:
+    checks: ["all"]
+
+issues:
+  exclude-rules:
+    # Exclude some linters from running on tests files
+    - path: _test\.go
+      linters:
+        - gocyclo
+        - errcheck
+        - dupl
+        - gosec
+        - goconst
+
+    # Exclude some staticcheck messages
+    - linters:
+        - staticcheck
+      text: "SA1019:"  # Ignore deprecation warnings
+
+    # Exclude errors about missing comments on exported items
+    - linters:
+        - revive
+      text: "exported: exported"
+      path: internal/domain/
+
+  max-issues-per-linter: 0
+  max-same-issues: 0
+  new: false
+
+output:
+  format: colored-line-number
+  print-issued-lines: true
+  print-linter-name: true
+  uniq-by-line: true
+  sort-results: true

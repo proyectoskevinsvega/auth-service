@@ -1,0 +1,190 @@
+package domain
+
+import (
+	"fmt"
+	"regexp"
+	"time"
+
+	"github.com/google/uuid"
+)
+
+var emailRegex = regexp.MustCompile(`^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$`)
+var usernameRegex = regexp.MustCompile(`^[a-zA-Z0-9_-]{3,30}$`)
+
+type User struct {
+	ID                 string
+	Username           string
+	Email              string
+	PasswordHash       string
+	Active             bool
+	EmailVerified      bool
+	TwoFactorEnabled   bool
+	TwoFactorSecret    string
+	OAuthProvider      string // "google", "github", or empty for email/password
+	OAuthProviderID    string
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
+	LastLoginAt        *time.Time
+	LastLoginIP        string
+	LastLoginCountry   string
+	LastLoginLatitude  *float64
+	LastLoginLongitude *float64
+}
+
+type NewUserInput struct {
+	Username        string
+	Email           string
+	Password        string
+	OAuthProvider   string
+	OAuthProviderID string
+}
+
+func NewUser(input NewUserInput) (*User, error) {
+	if err := ValidateEmail(input.Email); err != nil {
+		return nil, err
+	}
+
+	if err := ValidateUsername(input.Username); err != nil {
+		return nil, err
+	}
+
+	if input.OAuthProvider == "" && input.Password == "" {
+		return nil, ErrInvalidPassword
+	}
+
+	now := time.Now()
+	return &User{
+		ID:              uuid.New().String(),
+		Username:        input.Username,
+		Email:           input.Email,
+		Active:          true,
+		EmailVerified:   input.OAuthProvider != "", // Auto-verify OAuth users
+		OAuthProvider:   input.OAuthProvider,
+		OAuthProviderID: input.OAuthProviderID,
+		CreatedAt:       now,
+		UpdatedAt:       now,
+	}, nil
+}
+
+func ValidateEmail(email string) error {
+	if email == "" {
+		return ErrInvalidEmail
+	}
+	if !emailRegex.MatchString(email) {
+		return ErrInvalidEmail
+	}
+	return nil
+}
+
+func ValidateUsername(username string) error {
+	if username == "" {
+		return ErrInvalidInput
+	}
+	if !usernameRegex.MatchString(username) {
+		return fmt.Errorf("username must be 3-30 characters (letters, numbers, hyphens and underscores)")
+	}
+	return nil
+}
+
+func ValidatePassword(password string) error {
+	// Trim spaces for validation
+	trimmedPassword := password
+
+	// Check for leading/trailing spaces
+	if password != trimmedPassword {
+		return fmt.Errorf("password cannot have leading or trailing spaces")
+	}
+
+	// Check minimum length
+	if len(password) < 8 {
+		return fmt.Errorf("password must be at least 8 characters long")
+	}
+
+	// Check for at least one uppercase letter
+	hasUpper := false
+	for _, c := range password {
+		if c >= 'A' && c <= 'Z' {
+			hasUpper = true
+			break
+		}
+	}
+	if !hasUpper {
+		return fmt.Errorf("password must contain at least one uppercase letter")
+	}
+
+	// Check for at least one lowercase letter
+	hasLower := false
+	for _, c := range password {
+		if c >= 'a' && c <= 'z' {
+			hasLower = true
+			break
+		}
+	}
+	if !hasLower {
+		return fmt.Errorf("password must contain at least one lowercase letter")
+	}
+
+	// Check for at least one digit
+	hasDigit := false
+	for _, c := range password {
+		if c >= '0' && c <= '9' {
+			hasDigit = true
+			break
+		}
+	}
+	if !hasDigit {
+		return fmt.Errorf("password must contain at least one number")
+	}
+
+	// Check for at least one special character
+	hasSpecial := false
+	specialChars := "!@#$%^&*()_+-=[]{}|;:,.<>?/"
+	for _, c := range password {
+		for _, s := range specialChars {
+			if c == s {
+				hasSpecial = true
+				break
+			}
+		}
+		if hasSpecial {
+			break
+		}
+	}
+	if !hasSpecial {
+		return fmt.Errorf("password must contain at least one special character (!@#$%%^&*()_+-=[]{}|;:,.<>?/)")
+	}
+
+	return nil
+}
+
+func (u *User) UpdateLastLogin(ip, country string, lat, lon *float64) {
+	now := time.Now()
+	u.LastLoginAt = &now
+	u.LastLoginIP = ip
+	u.LastLoginCountry = country
+	u.LastLoginLatitude = lat
+	u.LastLoginLongitude = lon
+	u.UpdatedAt = now
+}
+
+func (u *User) Enable2FA(secret string) {
+	u.TwoFactorEnabled = true
+	u.TwoFactorSecret = secret
+	u.UpdatedAt = time.Now()
+}
+
+func (u *User) Disable2FA() {
+	u.TwoFactorEnabled = false
+	u.TwoFactorSecret = ""
+	u.UpdatedAt = time.Now()
+}
+
+func (u *User) Deactivate() {
+	u.Active = false
+	u.UpdatedAt = time.Now()
+}
+
+func (u *User) Activate() {
+	u.Active = true
+	u.UpdatedAt = time.Now()
+}

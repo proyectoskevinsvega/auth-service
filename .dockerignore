@@ -1,0 +1,92 @@
+# Git files
+.git
+.gitignore
+.gitattributes
+
+# GitHub workflows
+.github
+
+# Documentation
+*.md
+docs/
+README.md
+LICENSE
+
+# Test files
+*_test.go
+tests/
+testdata/
+coverage.out
+coverage.txt
+*.test
+
+# Build artifacts
+auth-service
+*.exe
+*.dll
+*.so
+*.dylib
+dist/
+bin/
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Environment files
+.env
+.env.local
+.env.*.local
+*.env
+
+# Keys (should never be in image)
+keys/
+*.pem
+*.key
+*.crt
+*.p12
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Dependencies
+vendor/
+
+# CI/CD
+.circleci/
+.travis.yml
+Jenkinsfile
+azure-pipelines.yml
+
+# Kubernetes
+k8s/
+*.yaml
+*.yml
+!docker-compose.yml
+
+# Scripts (if not needed in runtime)
+scripts/
+Makefile
+
+# Load testing
+k6/
+*.js
+
+# Database migrations (copy separately if needed)
+# internal/adapters/postgres/migrations/
+
+# Logs
+*.log
+
+# MaxMind database (too large, mount as volume)
+*.mmdb
+
+# Go workspace
+go.work
+go.work.sum

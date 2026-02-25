@@ -1,0 +1,220 @@
+version: '3.9'
+
+services:
+  # PostgreSQL database
+  postgres:
+    image: postgres:16-alpine
+    container_name: auth-postgres
+    environment:
+      POSTGRES_USER: authuser
+      POSTGRES_PASSWORD: authpassword
+      POSTGRES_DB: auth_service
+      POSTGRES_HOST_AUTH_METHOD: trust
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./internal/adapters/postgres/migrations:/migrations:ro
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U authuser -d auth_service" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - auth-network
+
+  # Redis cache and session store
+  redis:
+    image: redis:7-alpine
+    container_name: auth-redis
+    command: redis-server --requirepass redispassword --maxmemory 256mb --maxmemory-policy allkeys-lru
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: [ "CMD", "redis-cli", "--raw", "incr", "ping" ]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - auth-network
+
+  # Auth Service
+  auth-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        VERSION: dev
+        BUILD_TIME: ${BUILD_TIME:-unknown}
+    container_name: auth-service
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      # Server
+      ENVIRONMENT: development
+      HTTP_PORT: 8080
+      GRPC_PORT: 9090
+      LOG_LEVEL: debug
+      BASE_DOMAIN: http://localhost:8080
+
+      # Database
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: authuser
+      POSTGRES_PASSWORD: authpassword
+      POSTGRES_NAME: auth_service
+      POSTGRES_SSLMODE: disable
+      POSTGRES_MAX_CONNS: 25
+      POSTGRES_MIN_CONNS: 5
+
+      # Redis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: redispassword
+      REDIS_DB: 0
+      REDIS_POOL_SIZE: 50
+      REDIS_CLUSTER_MODE: false
+
+      # JWT (mount keys as volume or use secrets in production)
+      JWT_PRIVATE_KEY_PATH: /keys/private.pem
+      JWT_PUBLIC_KEY_PATH: /keys/public.pem
+      JWT_ISSUER: auth-service-dev
+
+      # Rate Limiting
+      RATE_LIMIT_LOGIN_ATTEMPTS: 5
+      RATE_LIMIT_LOGIN_WINDOW: 1m
+      RATE_LIMIT_REGISTER_ATTEMPTS: 3
+      RATE_LIMIT_REGISTER_WINDOW: 1h
+      RATE_LIMIT_REFRESH_ATTEMPTS: 10
+      RATE_LIMIT_REFRESH_WINDOW: 1m
+
+      # Optional services (disabled by default)
+      EMAIL_ENABLED: false
+      GOOGLE_OAUTH_ENABLED: false
+      GITHUB_OAUTH_ENABLED: false
+      GEOLOCATION_ENABLED: false
+      NOTIFICATIONS_ENABLED: false
+
+      # Telemetry (OpenTelemetry)
+      TELEMETRY_ENABLED: false
+      TELEMETRY_SERVICE_NAME: auth-service
+      TELEMETRY_SERVICE_VERSION: 1.0.0
+      TELEMETRY_ENVIRONMENT: development
+      TELEMETRY_EXPORTER_TYPE: jaeger
+      TELEMETRY_JAEGER_ENDPOINT: http://jaeger:14268/api/traces
+      TELEMETRY_SAMPLING_RATE: 1.0
+      TELEMETRY_TRACE_HTTP: true
+      TELEMETRY_TRACE_GRPC: true
+      TELEMETRY_TRACE_DATABASE: true
+      TELEMETRY_TRACE_REDIS: true
+    ports:
+      - "8080:8080"
+      - "9090:9090"
+    volumes:
+      # Mount RSA keys (generate first with: make keys)
+      - ./keys:/keys:ro
+    healthcheck:
+      test: [ "CMD", "/usr/local/bin/auth-service", "health" ]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    networks:
+      - auth-network
+    restart: unless-stopped
+
+  # Migration runner (one-off service)
+  migrate:
+    image: migrate/migrate:latest
+    container_name: auth-migrate
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./internal/adapters/postgres/migrations:/migrations:ro
+    command:
+      - "-path=/migrations"
+      - "-database=postgres://authuser:authpassword@postgres:5432/auth_service?sslmode=disable"
+      - "up"
+    networks:
+      - auth-network
+    profiles:
+      - tools
+
+  # Prometheus for metrics (optional)
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: auth-prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    networks:
+      - auth-network
+    profiles:
+      - monitoring
+
+  # Grafana for dashboards (optional)
+  grafana:
+    image: grafana/grafana:latest
+    container_name: auth-grafana
+    depends_on:
+      - prometheus
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_INSTALL_PLUGINS: grafana-piechart-panel
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /etc/grafana/provisioning/dashboards/auth-service/auth-service-overview.json
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/etc/grafana/provisioning/dashboards/auth-service:ro
+    networks:
+      - auth-network
+    profiles:
+      - monitoring
+
+  # Jaeger for distributed tracing (optional)
+  jaeger:
+    image: jaegertracing/all-in-one:1.55
+    container_name: auth-jaeger
+    environment:
+      COLLECTOR_ZIPKIN_HOST_PORT: :9411
+      COLLECTOR_OTLP_ENABLED: true
+    ports:
+      - "16686:16686" # Jaeger UI
+      - "14268:14268" # Jaeger Collector HTTP
+      - "14250:14250" # Jaeger Collector gRPC
+      - "4317:4317" # OTLP gRPC receiver
+      - "4318:4318" # OTLP HTTP receiver
+    networks:
+      - auth-network
+    profiles:
+      - monitoring
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+
+networks:
+  auth-network:
+    driver: bridge

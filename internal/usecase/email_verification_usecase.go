@@ -1,0 +1,212 @@
+package usecase
+
+import (
+	"context"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/base64"
+	"fmt"
+	"time"
+
+	"github.com/rs/zerolog"
+	"github.com/vertercloud/auth-service/internal/domain"
+	"github.com/vertercloud/auth-service/internal/ports"
+)
+
+const (
+	// Email verification token expires after 24 hours
+	EmailVerificationExpiry = 24 * time.Hour
+	// Token length in bytes (32 bytes = 256 bits of entropy)
+	VerificationTokenLength = 32
+)
+
+type EmailVerificationUseCase struct {
+	userRepo         ports.UserRepository
+	verificationRepo ports.EmailVerificationRepository
+	emailService     ports.EmailService
+	logger           zerolog.Logger
+	baseDomain       string
+	environment      string
+}
+
+func NewEmailVerificationUseCase(
+	userRepo ports.UserRepository,
+	verificationRepo ports.EmailVerificationRepository,
+	emailService ports.EmailService,
+	logger zerolog.Logger,
+	baseDomain string,
+	environment string,
+) *EmailVerificationUseCase {
+	return &EmailVerificationUseCase{
+		userRepo:         userRepo,
+		verificationRepo: verificationRepo,
+		emailService:     emailService,
+		logger:           logger,
+		baseDomain:       baseDomain,
+		environment:      environment,
+	}
+}
+
+type SendVerificationInput struct {
+	UserID    string
+	IPAddress string
+	UserAgent string
+}
+
+// SendVerificationEmail generates a verification token and sends email
+func (uc *EmailVerificationUseCase) SendVerificationEmail(ctx context.Context, input SendVerificationInput) error {
+	// Get user
+	user, err := uc.userRepo.GetByID(ctx, input.UserID)
+	if err != nil {
+		return fmt.Errorf("failed to get user: %w", err)
+	}
+
+	// Check if email is already verified
+	if user.EmailVerified {
+		return domain.ErrEmailAlreadyVerified
+	}
+
+	// Generate secure random token
+	token, tokenHash, err := uc.generateVerificationToken()
+	if err != nil {
+		return fmt.Errorf("failed to generate token: %w", err)
+	}
+
+	// Create verification record
+	verification := domain.NewEmailVerification(
+		user.ID,
+		tokenHash,
+		EmailVerificationExpiry,
+		input.IPAddress,
+		input.UserAgent,
+	)
+
+	if err := uc.verificationRepo.Create(ctx, verification); err != nil {
+		return fmt.Errorf("failed to create verification: %w", err)
+	}
+
+	// Build verification URL
+	verificationURL := BuildURL(uc.environment, uc.baseDomain, fmt.Sprintf("/api/v1/auth/verify-email?token=%s", token))
+
+	// Send email (only if email service is enabled)
+	if uc.emailService != nil {
+		emailData := map[string]interface{}{
+			"username":         user.Username,
+			"verification_url": verificationURL,
+			"token":            token,
+			"expires_hours":    int(EmailVerificationExpiry.Hours()),
+		}
+
+		if err := uc.emailService.SendVerificationEmail(ctx, user.Email, user.Username, emailData); err != nil {
+			uc.logger.Error().Err(err).Str("user_id", user.ID).Msg("failed to send verification email")
+			// Don't fail the request if email sending fails
+			return fmt.Errorf("failed to send verification email: %w", err)
+		}
+
+		uc.logger.Info().Str("user_id", user.ID).Str("email", user.Email).Msg("verification email sent")
+	} else {
+		uc.logger.Warn().Str("user_id", user.ID).Msg("email service disabled, verification token created but not sent")
+	}
+
+	return nil
+}
+
+// VerifyEmail verifies an email using the provided token
+func (uc *EmailVerificationUseCase) VerifyEmail(ctx context.Context, token string) error {
+	// Hash the token to match database
+	tokenHash := uc.hashToken(token)
+
+	// Get verification record
+	verification, err := uc.verificationRepo.GetByTokenHash(ctx, tokenHash)
+	if err != nil {
+		return err // Returns ErrVerificationTokenNotFound if not found
+	}
+
+	// Check if already verified
+	if verification.IsVerified() {
+		return domain.ErrVerificationTokenUsed
+	}
+
+	// Check if expired
+	if verification.IsExpired() {
+		return domain.ErrVerificationTokenExpired
+	}
+
+	// Get user
+	user, err := uc.userRepo.GetByID(ctx, verification.UserID)
+	if err != nil {
+		return fmt.Errorf("failed to get user: %w", err)
+	}
+
+	// Check if email already verified (edge case: multiple tokens)
+	if user.EmailVerified {
+		return domain.ErrEmailAlreadyVerified
+	}
+
+	// Mark verification as used
+	if err := uc.verificationRepo.MarkAsVerified(ctx, tokenHash); err != nil {
+		return fmt.Errorf("failed to mark verification as used: %w", err)
+	}
+
+	// Update user email_verified flag
+	user.EmailVerified = true
+	user.UpdatedAt = time.Now()
+
+	if err := uc.userRepo.Update(ctx, user); err != nil {
+		return fmt.Errorf("failed to update user: %w", err)
+	}
+
+	uc.logger.Info().Str("user_id", user.ID).Str("email", user.Email).Msg("email verified successfully")
+
+	return nil
+}
+
+// ResendVerificationEmail deletes old tokens and sends a new verification email
+func (uc *EmailVerificationUseCase) ResendVerificationEmail(ctx context.Context, userID, ipAddress, userAgent string) error {
+	// Get user
+	user, err := uc.userRepo.GetByID(ctx, userID)
+	if err != nil {
+		return fmt.Errorf("failed to get user: %w", err)
+	}
+
+	// Check if email is already verified
+	if user.EmailVerified {
+		return domain.ErrEmailAlreadyVerified
+	}
+
+	// Delete old verification tokens for this user
+	if err := uc.verificationRepo.DeleteByUserID(ctx, userID); err != nil {
+		uc.logger.Warn().Err(err).Str("user_id", userID).Msg("failed to delete old verification tokens")
+		// Continue anyway
+	}
+
+	// Send new verification email
+	return uc.SendVerificationEmail(ctx, SendVerificationInput{
+		UserID:    userID,
+		IPAddress: ipAddress,
+		UserAgent: userAgent,
+	})
+}
+
+// generateVerificationToken generates a secure random token and its hash
+func (uc *EmailVerificationUseCase) generateVerificationToken() (token string, tokenHash string, err error) {
+	// Generate random bytes
+	bytes := make([]byte, VerificationTokenLength)
+	if _, err := rand.Read(bytes); err != nil {
+		return "", "", fmt.Errorf("failed to generate random bytes: %w", err)
+	}
+
+	// Encode to base64url WITHOUT padding for cleaner URLs
+	token = base64.URLEncoding.WithPadding(base64.NoPadding).EncodeToString(bytes)
+
+	// Hash for storage (prevents token leakage from database dumps)
+	tokenHash = uc.hashToken(token)
+
+	return token, tokenHash, nil
+}
+
+// hashToken creates a SHA-256 hash of the token
+func (uc *EmailVerificationUseCase) hashToken(token string) string {
+	hash := sha256.Sum256([]byte(token))
+	return fmt.Sprintf("%x", hash)
+}

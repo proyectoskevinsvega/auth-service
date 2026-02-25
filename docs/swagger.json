@@ -1,0 +1,1586 @@
+{
+    "consumes": [
+        "application/json"
+    ],
+    "produces": [
+        "application/json"
+    ],
+    "schemes": [
+        "http",
+        "https"
+    ],
+    "swagger": "2.0",
+    "info": {
+        "description": "Microservicio central de autenticación para la plataforma Vertercloud.\nGestiona JWT, sesiones, 2FA, OAuth, verificación de email y validación de tokens.",
+        "title": "Vertercloud Auth Service API",
+        "contact": {
+            "name": "Vertercloud Support",
+            "email": "support@vertercloud.com"
+        },
+        "license": {
+            "name": "Proprietary",
+            "url": "https://vertercloud.com/license"
+        },
+        "version": "1.0"
+    },
+    "host": "localhost:8080",
+    "basePath": "/api/v1",
+    "paths": {
+        "/auth/.well-known/jwks.json": {
+            "get": {
+                "description": "Retorna las claves públicas en formato JWKS (JSON Web Key Set) para verificar tokens JWT firmados por este servicio",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Authentication"
+                ],
+                "summary": "Obtener claves públicas JWT",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/http.JWKSResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/http.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/2fa/disable": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Deshabilita 2FA para el usuario actual. Requiere proporcionar un código TOTP válido para confirmar.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Two-Factor Authentication"
+                ],
+                "summary": "Deshabilitar autenticación de dos factores",
+                "parameters": [
+                    {
+                        "description": "Código TOTP de 6 dígitos",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/http.Disable2FARequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/http.MessageResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Código inválido, faltante o 2FA no habilitado",
+                        "schema": {
+                            "$ref": "#/definitions/http.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "No autenticado",
+                        "schema": {
+                            "$ref": "#/definitions/http.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/http.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/2fa/enable": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Genera un secreto TOTP y un código QR para habilitar 2FA. El usuario debe escanear el QR y verificar con Verify2FA.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Two-Factor Authentication"
+                ],
+                "summary": "Habilitar autenticación de dos factores",
+                "responses": {
+                    "200": {
+                        "description": "Retorna secret y qr_code (base64)",
+                        "schema": {
+                            "$ref": "#/definitions/http.Enable2FAResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "2FA ya habilitado",
+                        "schema": {
+                            "$ref": "#/definitions/http.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "No autenticado",
+                        "schema": {
+                            "$ref": "#/definitions/http.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/http.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/2fa/verify": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Verifica el código TOTP de 6 dígitos y confirma la habilitación de 2FA para el usuario. Debe llamarse después de Enable2FA.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Two-Factor Authentication"
+                ],
+                "summary": "Verificar y confirmar 2FA",
+                "parameters": [
+                    {
+                        "description": "Código TOTP de 6 dígitos",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/http.Verify2FARequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/http.MessageResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Código inválido o faltante",
+                        "schema": {
+                            "$ref": "#/definitions/http.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "No autenticado",
+                        "schema": {
+                            "$ref": "#/definitions/http.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/http.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/forgot-password": {
+            "post": {
+                "description": "Envía un email con un código de 6 dígitos y un enlace para restablecer la contraseña. El código expira en 15 minutos. Siempre retorna éxito para evitar enumeración de emails.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Authentication"
+                ],
+                "summary": "Solicitar restablecimiento de contraseña",
+                "parameters": [
+                    {
+                        "description": "Email del usuario",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/http.ForgotPasswordRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/http.MessageResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/http.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/http.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/login": {
+            "post": {
+                "description": "Autentica al usuario con email/username y contraseña. Retorna tokens JWT de acceso y actualización. Soporta 2FA si está habilitado.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Authentication"
+                ],
+                "summary": "Iniciar sesión",
+                "parameters": [
+                    {
+                        "description": "Credenciales de inicio de sesión",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/http.LoginRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/http.LoginResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/http.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Credenciales inválidas",
+                        "schema": {
+                            "$ref": "#/definitions/http.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Cuenta inactiva o email no verificado",
+                        "schema": {
+                            "$ref": "#/definitions/http.ErrorResponse"
+                        }
+                    },
+                    "429": {
+                        "description": "Demasiados intentos de inicio de sesión",
+                        "schema": {
+                            "$ref": "#/definitions/http.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/http.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/logout": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Revoca el token de acceso actual agregándolo a la lista negra. El token no podrá ser usado nuevamente.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Authentication"
+                ],
+                "summary": "Cerrar sesión",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/http.MessageResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "No autenticado",
+                        "schema": {
+                            "$ref": "#/definitions/http.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/http.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/me": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retorna la información del usuario autenticado actualmente",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "User Profile"
+                ],
+                "summary": "Obtener perfil del usuario actual",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/http.UserResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "No autenticado",
+                        "schema": {
+                            "$ref": "#/definitions/http.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/http.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Actualiza el email y/o username del usuario autenticado. Si se cambia el email, se requiere nueva verificación.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "User Profile"
+                ],
+                "summary": "Actualizar perfil del usuario",
+                "parameters": [
+                    {
+                        "description": "Datos a actualizar (email y/o username)",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/http.UpdateUserRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/http.UserResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Datos inválidos",
+                        "schema": {
+                            "$ref": "#/definitions/http.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "No autenticado",
+                        "schema": {
+                            "$ref": "#/definitions/http.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Email o username ya existe",
+                        "schema": {
+                            "$ref": "#/definitions/http.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/http.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/oauth/github": {
+            "get": {
+                "description": "Redirige al usuario a la página de autenticación de GitHub OAuth",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "OAuth"
+                ],
+                "summary": "Iniciar autenticación con GitHub",
+                "responses": {
+                    "307": {
+                        "description": "Redirección a GitHub OAuth",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/oauth/github/callback": {
+            "get": {
+                "description": "Procesa el callback de GitHub OAuth. Crea usuario si no existe o inicia sesión si ya existe. Retorna tokens JWT.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "OAuth"
+                ],
+                "summary": "Callback de GitHub OAuth",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Código de autorización de GitHub",
+                        "name": "code",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Estado de la solicitud OAuth",
+                        "name": "state",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/http.LoginResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Código de autorización faltante",
+                        "schema": {
+                            "$ref": "#/definitions/http.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/http.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/oauth/google": {
+            "get": {
+                "description": "Redirige al usuario a la página de autenticación de Google OAuth",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "OAuth"
+                ],
+                "summary": "Iniciar autenticación con Google",
+                "responses": {
+                    "307": {
+                        "description": "Redirección a Google OAuth",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/oauth/google/callback": {
+            "get": {
+                "description": "Procesa el callback de Google OAuth. Crea usuario si no existe o inicia sesión si ya existe. Retorna tokens JWT.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "OAuth"
+                ],
+                "summary": "Callback de Google OAuth",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Código de autorización de Google",
+                        "name": "code",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Estado de la solicitud OAuth",
+                        "name": "state",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/http.LoginResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Código de autorización faltante",
+                        "schema": {
+                            "$ref": "#/definitions/http.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/http.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/refresh": {
+            "post": {
+                "description": "Genera un nuevo access token usando un refresh token válido. Implementa rotación automática de refresh tokens.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Authentication"
+                ],
+                "summary": "Renovar token de acceso",
+                "parameters": [
+                    {
+                        "description": "Refresh token",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/http.RefreshTokenRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/http.RefreshTokenResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/http.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Refresh token inválido o expirado",
+                        "schema": {
+                            "$ref": "#/definitions/http.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/http.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/register": {
+            "post": {
+                "description": "Crea una nueva cuenta de usuario con username, email y contraseña. Envía un email de verificación de forma asíncrona.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Authentication"
+                ],
+                "summary": "Registrar nuevo usuario",
+                "parameters": [
+                    {
+                        "description": "Datos de registro",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/http.RegisterRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/http.UserResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/http.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Email o username ya existe",
+                        "schema": {
+                            "$ref": "#/definitions/http.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/http.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/resend-verification": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Reenvía el email de verificación al usuario autenticado. Solo disponible si el email no está verificado.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Email Verification"
+                ],
+                "summary": "Reenviar email de verificación",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/http.MessageResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "No autenticado",
+                        "schema": {
+                            "$ref": "#/definitions/http.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Email ya verificado",
+                        "schema": {
+                            "$ref": "#/definitions/http.ErrorResponse"
+                        }
+                    },
+                    "429": {
+                        "description": "Demasiados intentos",
+                        "schema": {
+                            "$ref": "#/definitions/http.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/http.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/reset-password": {
+            "post": {
+                "description": "Restablece la contraseña usando el token recibido por email (URL). El token es válido por 15 minutos.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Authentication"
+                ],
+                "summary": "Restablecer contraseña con token",
+                "parameters": [
+                    {
+                        "description": "Token y nueva contraseña",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/http.ResetPasswordRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/http.MessageResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Token inválido o expirado",
+                        "schema": {
+                            "$ref": "#/definitions/http.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/http.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/reset-password-code": {
+            "post": {
+                "description": "Restablece la contraseña usando el código de 6 dígitos recibido por email. El código es válido por 15 minutos.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Authentication"
+                ],
+                "summary": "Restablecer contraseña con código",
+                "parameters": [
+                    {
+                        "description": "Email, código de 6 dígitos y nueva contraseña",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/http.ResetPasswordWithCodeRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/http.MessageResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Código inválido o expirado",
+                        "schema": {
+                            "$ref": "#/definitions/http.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/http.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/sessions": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retorna todas las sesiones activas del usuario autenticado, marcando la sesión actual",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Sessions"
+                ],
+                "summary": "Listar sesiones activas",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/http.SessionsResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "No autenticado",
+                        "schema": {
+                            "$ref": "#/definitions/http.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/http.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/sessions/all": {
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Revoca todas las sesiones del usuario excepto la sesión actual. Útil para cerrar sesión en todos los dispositivos.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Sessions"
+                ],
+                "summary": "Revocar todas las sesiones excepto la actual",
+                "responses": {
+                    "200": {
+                        "description": "Retorna mensaje y cantidad de sesiones revocadas",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "401": {
+                        "description": "No autenticado",
+                        "schema": {
+                            "$ref": "#/definitions/http.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/http.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/sessions/{id}": {
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Revoca una sesión específica por su ID. No permite revocar la sesión actual (usar logout).",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Sessions"
+                ],
+                "summary": "Revocar una sesión específica",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID de la sesión a revocar",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/http.MessageResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "ID de sesión requerido",
+                        "schema": {
+                            "$ref": "#/definitions/http.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "No autenticado",
+                        "schema": {
+                            "$ref": "#/definitions/http.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Sesión no encontrada",
+                        "schema": {
+                            "$ref": "#/definitions/http.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/http.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/verify-email": {
+            "get": {
+                "description": "Verifica el email mediante un enlace GET (para clics desde el correo). Retorna HTML con confirmación visual.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "text/html"
+                ],
+                "tags": [
+                    "Email Verification"
+                ],
+                "summary": "Verificar email (GET)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Token de verificación desde el email",
+                        "name": "token",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "HTML con mensaje de éxito",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "Token inválido, expirado o ya usado",
+                        "schema": {
+                            "$ref": "#/definitions/http.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Token no encontrado",
+                        "schema": {
+                            "$ref": "#/definitions/http.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Email ya verificado",
+                        "schema": {
+                            "$ref": "#/definitions/http.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "Verifica el email del usuario usando el token recibido por correo. El token es válido por 48 horas.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Email Verification"
+                ],
+                "summary": "Verificar email (POST)",
+                "parameters": [
+                    {
+                        "description": "Token de verificación",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "token": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/http.MessageResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Token inválido, expirado o ya usado",
+                        "schema": {
+                            "$ref": "#/definitions/http.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Token no encontrado",
+                        "schema": {
+                            "$ref": "#/definitions/http.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Email ya verificado",
+                        "schema": {
+                            "$ref": "#/definitions/http.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/http.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/health": {
+            "get": {
+                "description": "Verifica el estado del servicio. Retorna 200 si el servicio está operativo.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "System"
+                ],
+                "summary": "Health check",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/http.HealthResponse"
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "definitions": {
+        "http.Disable2FARequest": {
+            "type": "object",
+            "required": [
+                "code"
+            ],
+            "properties": {
+                "code": {
+                    "description": "Código TOTP de 6 dígitos para confirmar",
+                    "type": "string",
+                    "example": "123456"
+                }
+            }
+        },
+        "http.Enable2FAResponse": {
+            "type": "object",
+            "properties": {
+                "qr_code": {
+                    "description": "Código QR en formato Data URI",
+                    "type": "string",
+                    "example": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA..."
+                },
+                "secret": {
+                    "description": "Secret TOTP para configurar en la app",
+                    "type": "string",
+                    "example": "JBSWY3DPEHPK3PXP"
+                }
+            }
+        },
+        "http.ErrorResponse": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "description": "Código interno del error",
+                    "type": "string",
+                    "example": "AUTH_001"
+                },
+                "error": {
+                    "description": "Identificador del error",
+                    "type": "string",
+                    "example": "invalid_credentials"
+                },
+                "message": {
+                    "description": "Mensaje descriptivo del error",
+                    "type": "string",
+                    "example": "Email or password incorrect"
+                }
+            }
+        },
+        "http.ForgotPasswordRequest": {
+            "type": "object",
+            "required": [
+                "email"
+            ],
+            "properties": {
+                "email": {
+                    "description": "Correo electrónico de la cuenta",
+                    "type": "string",
+                    "example": "user@example.com"
+                }
+            }
+        },
+        "http.HealthResponse": {
+            "type": "object",
+            "properties": {
+                "service": {
+                    "description": "Nombre del servicio",
+                    "type": "string",
+                    "example": "auth-service"
+                },
+                "status": {
+                    "description": "Estado del servicio (healthy, unhealthy)",
+                    "type": "string",
+                    "example": "healthy"
+                },
+                "version": {
+                    "description": "Versión del servicio",
+                    "type": "string",
+                    "example": "1.0.0"
+                }
+            }
+        },
+        "http.JWKResponse": {
+            "type": "object",
+            "properties": {
+                "alg": {
+                    "description": "Algoritmo (RS256)",
+                    "type": "string",
+                    "example": "RS256"
+                },
+                "e": {
+                    "description": "Exponente RSA (base64url)",
+                    "type": "string",
+                    "example": "AQAB"
+                },
+                "kty": {
+                    "description": "Tipo de clave (RSA)",
+                    "type": "string",
+                    "example": "RSA"
+                },
+                "n": {
+                    "description": "Módulo RSA (base64url)",
+                    "type": "string",
+                    "example": "xGOr-H3z..."
+                },
+                "use": {
+                    "description": "Uso de la clave (signature)",
+                    "type": "string",
+                    "example": "sig"
+                }
+            }
+        },
+        "http.JWKSResponse": {
+            "type": "object",
+            "properties": {
+                "keys": {
+                    "description": "Array de claves públicas",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/http.JWKResponse"
+                    }
+                }
+            }
+        },
+        "http.LoginRequest": {
+            "type": "object",
+            "required": [
+                "identifier",
+                "password"
+            ],
+            "properties": {
+                "identifier": {
+                    "description": "Email o nombre de usuario",
+                    "type": "string",
+                    "example": "johndoe"
+                },
+                "password": {
+                    "description": "Contraseña",
+                    "type": "string",
+                    "example": "SecurePass123!"
+                },
+                "two_fa_code": {
+                    "description": "Código 2FA (opcional, solo si está habilitado)",
+                    "type": "string",
+                    "example": "123456"
+                }
+            }
+        },
+        "http.LoginResponse": {
+            "type": "object",
+            "properties": {
+                "access_token": {
+                    "description": "JWT token de acceso",
+                    "type": "string",
+                    "example": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9..."
+                },
+                "refresh_token": {
+                    "description": "Token de actualización",
+                    "type": "string",
+                    "example": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9..."
+                },
+                "user": {
+                    "description": "Información del usuario",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/http.UserResponse"
+                        }
+                    ]
+                }
+            }
+        },
+        "http.MessageResponse": {
+            "type": "object",
+            "properties": {
+                "message": {
+                    "description": "Mensaje de respuesta",
+                    "type": "string",
+                    "example": "Operation completed successfully"
+                }
+            }
+        },
+        "http.RefreshTokenRequest": {
+            "type": "object",
+            "required": [
+                "refresh_token"
+            ],
+            "properties": {
+                "refresh_token": {
+                    "description": "Token de actualización",
+                    "type": "string",
+                    "example": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9..."
+                }
+            }
+        },
+        "http.RefreshTokenResponse": {
+            "type": "object",
+            "properties": {
+                "access_token": {
+                    "description": "Nuevo JWT token de acceso",
+                    "type": "string",
+                    "example": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9..."
+                },
+                "refresh_token": {
+                    "description": "Nuevo token de actualización",
+                    "type": "string",
+                    "example": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9..."
+                }
+            }
+        },
+        "http.RegisterRequest": {
+            "type": "object",
+            "required": [
+                "email",
+                "password",
+                "username"
+            ],
+            "properties": {
+                "email": {
+                    "description": "Correo electrónico válido",
+                    "type": "string",
+                    "example": "user@example.com"
+                },
+                "password": {
+                    "description": "Contraseña (mínimo 8 caracteres)",
+                    "type": "string",
+                    "minLength": 8,
+                    "example": "SecurePass123!"
+                },
+                "username": {
+                    "description": "Nombre de usuario único (3-30 caracteres)",
+                    "type": "string",
+                    "maxLength": 30,
+                    "minLength": 3,
+                    "example": "johndoe"
+                }
+            }
+        },
+        "http.ResetPasswordRequest": {
+            "type": "object",
+            "required": [
+                "new_password",
+                "token"
+            ],
+            "properties": {
+                "new_password": {
+                    "description": "Nueva contraseña",
+                    "type": "string",
+                    "minLength": 8,
+                    "example": "NewSecurePass123!"
+                },
+                "token": {
+                    "description": "Token recibido por email",
+                    "type": "string",
+                    "example": "abc123..."
+                }
+            }
+        },
+        "http.ResetPasswordWithCodeRequest": {
+            "type": "object",
+            "required": [
+                "code",
+                "email",
+                "new_password"
+            ],
+            "properties": {
+                "code": {
+                    "description": "Código de 6 dígitos recibido por email",
+                    "type": "string",
+                    "example": "123456"
+                },
+                "email": {
+                    "description": "Correo electrónico de la cuenta",
+                    "type": "string",
+                    "example": "user@example.com"
+                },
+                "new_password": {
+                    "description": "Nueva contraseña",
+                    "type": "string",
+                    "minLength": 8,
+                    "example": "NewSecurePass123!"
+                }
+            }
+        },
+        "http.SessionResponse": {
+            "type": "object",
+            "properties": {
+                "country": {
+                    "description": "Código de país (ISO 3166-1 alpha-2)",
+                    "type": "string",
+                    "example": "US"
+                },
+                "created_at": {
+                    "description": "Fecha de creación de la sesión",
+                    "type": "string",
+                    "example": "2024-01-15T10:30:00Z"
+                },
+                "device": {
+                    "description": "Dispositivo/navegador",
+                    "type": "string",
+                    "example": "Chrome on Windows"
+                },
+                "id": {
+                    "description": "ID de la sesión",
+                    "type": "string",
+                    "example": "650e8400-e29b-41d4-a716-446655440001"
+                },
+                "ip_address": {
+                    "description": "Dirección IP de la sesión",
+                    "type": "string",
+                    "example": "192.168.1.100"
+                },
+                "is_current": {
+                    "description": "Indica si es la sesión actual",
+                    "type": "boolean",
+                    "example": true
+                },
+                "last_used_at": {
+                    "description": "Última vez que se usó",
+                    "type": "string",
+                    "example": "2024-01-15T12:45:00Z"
+                },
+                "user_agent": {
+                    "description": "User agent completo",
+                    "type": "string",
+                    "example": "Mozilla/5.0 (Windows NT 10.0...)"
+                }
+            }
+        },
+        "http.SessionsResponse": {
+            "type": "object",
+            "properties": {
+                "sessions": {
+                    "description": "Lista de sesiones activas",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/http.SessionResponse"
+                    }
+                }
+            }
+        },
+        "http.UpdateUserRequest": {
+            "type": "object",
+            "properties": {
+                "email": {
+                    "description": "Nuevo correo electrónico (opcional)",
+                    "type": "string",
+                    "example": "newemail@example.com"
+                },
+                "username": {
+                    "description": "Nuevo nombre de usuario (opcional)",
+                    "type": "string",
+                    "example": "newusername"
+                }
+            }
+        },
+        "http.UserResponse": {
+            "type": "object",
+            "properties": {
+                "active": {
+                    "description": "Estado de la cuenta",
+                    "type": "boolean",
+                    "example": true
+                },
+                "created_at": {
+                    "description": "Fecha de creación de la cuenta",
+                    "type": "string",
+                    "example": "2024-01-15T10:30:00Z"
+                },
+                "email": {
+                    "description": "Correo electrónico",
+                    "type": "string",
+                    "example": "user@example.com"
+                },
+                "email_verified": {
+                    "description": "Indica si el email está verificado",
+                    "type": "boolean",
+                    "example": true
+                },
+                "id": {
+                    "description": "ID único del usuario (UUID)",
+                    "type": "string",
+                    "example": "550e8400-e29b-41d4-a716-446655440000"
+                },
+                "two_factor_enabled": {
+                    "description": "Indica si 2FA está habilitado",
+                    "type": "boolean",
+                    "example": false
+                },
+                "username": {
+                    "description": "Nombre de usuario",
+                    "type": "string",
+                    "example": "johndoe"
+                }
+            }
+        },
+        "http.Verify2FARequest": {
+            "type": "object",
+            "required": [
+                "code"
+            ],
+            "properties": {
+                "code": {
+                    "description": "Código TOTP de 6 dígitos",
+                    "type": "string",
+                    "example": "123456"
+                }
+            }
+        }
+    },
+    "securityDefinitions": {
+        "BearerAuth": {
+            "type": "apiKey",
+            "name": "Authorization",
+            "in": "header"
+        }
+    },
+    "tags": [
+        {
+            "description": "Endpoints para registro, login, y gestión de tokens",
+            "name": "Authentication"
+        },
+        {
+            "description": "Endpoints para gestión de perfil de usuario",
+            "name": "User Profile"
+        },
+        {
+            "description": "Endpoints para gestión de sesiones activas",
+            "name": "Sessions"
+        },
+        {
+            "description": "Endpoints para autenticación de dos factores (TOTP)",
+            "name": "Two-Factor Authentication"
+        },
+        {
+            "description": "Endpoints para verificación de correo electrónico",
+            "name": "Email Verification"
+        },
+        {
+            "description": "Endpoints para autenticación con Google y GitHub",
+            "name": "OAuth"
+        },
+        {
+            "description": "Endpoints de salud y monitoreo del servicio",
+            "name": "System"
+        }
+    ]
+}
