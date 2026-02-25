@@ -20,21 +20,24 @@ type EmailVerificationUseCaseMocks struct {
 	userRepo         *mocks.MockUserRepository
 	verificationRepo *mocks.MockEmailVerificationRepository
 	emailService     *mocks.MockEmailService
+	notifier         *mocks.MockNotificationPublisher
 }
 
 func setupEmailVerificationUseCase(_ *testing.T) EmailVerificationUseCaseMocks {
 	userRepo := new(mocks.MockUserRepository)
 	verificationRepo := new(mocks.MockEmailVerificationRepository)
 	emailService := new(mocks.MockEmailService)
+	notifier := new(mocks.MockNotificationPublisher)
 	logger := zerolog.New(os.Stdout).Level(zerolog.Disabled)
 
-	uc := NewEmailVerificationUseCase(userRepo, verificationRepo, emailService, logger, "example.com", "development")
+	uc := NewEmailVerificationUseCase(userRepo, verificationRepo, emailService, notifier, logger, "example.com", "development")
 
 	return EmailVerificationUseCaseMocks{
 		uc:               uc,
 		userRepo:         userRepo,
 		verificationRepo: verificationRepo,
 		emailService:     emailService,
+		notifier:         notifier,
 	}
 }
 

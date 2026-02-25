@@ -24,6 +24,7 @@ type EmailVerificationUseCase struct {
 	userRepo         ports.UserRepository
 	verificationRepo ports.EmailVerificationRepository
 	emailService     ports.EmailService
+	notifier         ports.NotificationPublisher
 	logger           zerolog.Logger
 	baseDomain       string
 	environment      string
@@ -33,6 +34,7 @@ func NewEmailVerificationUseCase(
 	userRepo ports.UserRepository,
 	verificationRepo ports.EmailVerificationRepository,
 	emailService ports.EmailService,
+	notifier ports.NotificationPublisher,
 	logger zerolog.Logger,
 	baseDomain string,
 	environment string,
@@ -41,6 +43,7 @@ func NewEmailVerificationUseCase(
 		userRepo:         userRepo,
 		verificationRepo: verificationRepo,
 		emailService:     emailService,
+		notifier:         notifier,
 		logger:           logger,
 		baseDomain:       baseDomain,
 		environment:      environment,
@@ -159,6 +162,10 @@ func (uc *EmailVerificationUseCase) VerifyEmail(ctx context.Context, tenantID, t
 	}
 
 	uc.logger.Info().Str("user_id", user.ID).Str("email", user.Email).Msg("email verified successfully")
+
+	// Emit webhook event
+	event := domain.NewEvent(user.TenantID, domain.EventEmailVerified, user.ID, user.Email, nil)
+	_ = uc.notifier.Publish(ctx, event)
 
 	return nil
 }

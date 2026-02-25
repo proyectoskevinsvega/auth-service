@@ -372,6 +372,7 @@ func initializeDependencies(cfg *config.Config, logger zerolog.Logger, telemetry
 		userRepo,
 		emailVerificationRepo,
 		emailService,
+		redisNotifier, // Added notifier
 		logger,
 		cfg.Server.BaseDomain,
 		cfg.Server.Environment,

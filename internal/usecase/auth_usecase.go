@@ -151,8 +151,22 @@ func (uc *AuthUseCase) Login(ctx context.Context, input LoginInput) (*LoginRespo
 		}))
 
 		if user.IsLocked() {
+			event := domain.NewEvent(user.TenantID, domain.EventAccountLocked, user.ID, user.Email, map[string]interface{}{
+				"reason":       "too_many_failed_attempts",
+				"ip":           input.IPAddress,
+				"locked_until": user.LockedUntil,
+			})
+			_ = uc.notifier.Publish(ctx, event)
 			return nil, domain.ErrAccountLocked
 		}
+
+		event := domain.NewEvent(user.TenantID, domain.EventLoginFailed, user.ID, user.Email, map[string]interface{}{
+			"reason":          "invalid_credentials",
+			"ip":              input.IPAddress,
+			"failed_attempts": user.FailedLoginAttempts,
+		})
+		_ = uc.notifier.Publish(ctx, event)
+
 		return nil, domain.ErrInvalidCredentials
 	}
 
@@ -235,6 +249,13 @@ func (uc *AuthUseCase) Login(ctx context.Context, input LoginInput) (*LoginRespo
 
 			if !found {
 				_ = uc.auditRepo.Create(ctx, domain.NewAuditLogEntry(user.TenantID, user.ID, "login_failed_2fa", input.IPAddress, input.UserAgent, "", false, "invalid 2FA code", nil))
+
+				event := domain.NewEvent(user.TenantID, domain.EventLoginFailed, user.ID, user.Email, map[string]interface{}{
+					"reason": "invalid_2fa_code",
+					"ip":     input.IPAddress,
+				})
+				_ = uc.notifier.Publish(ctx, event)
+
 				return nil, domain.ErrInvalid2FACode
 			}
 		}
@@ -312,6 +333,14 @@ func (uc *AuthUseCase) Login(ctx context.Context, input LoginInput) (*LoginRespo
 
 		// Audit log
 		_ = uc.auditRepo.Create(bgCtx, domain.NewAuditLogEntry(user.TenantID, user.ID, "login", input.IPAddress, input.UserAgent, country, true, "", nil))
+
+		// Login Success Event
+		successEvent := domain.NewEvent(user.TenantID, domain.EventLoginSuccess, user.ID, user.Email, map[string]interface{}{
+			"ip":      input.IPAddress,
+			"country": country,
+			"device":  input.Device,
+		})
+		_ = uc.notifier.Publish(bgCtx, successEvent)
 
 		// Check for new country and send notification
 		if previousCountry != "" && country != previousCountry {

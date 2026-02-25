@@ -21,6 +21,10 @@ const (
 	EventPasswordResetRequested EventType = "auth_password_reset_requested"
 	EventPasswordReset          EventType = "auth_password_reset"
 	EventOAuthLinked            EventType = "auth_oauth_linked"
+	EventLoginSuccess           EventType = "auth_login_success"
+	EventLoginFailed            EventType = "auth_login_failed"
+	EventAccountLocked          EventType = "auth_account_locked"
+	EventEmailVerified          EventType = "auth_email_verified"
 )
 
 type Event struct {

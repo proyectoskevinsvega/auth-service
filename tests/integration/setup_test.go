@@ -166,6 +166,7 @@ func SetupTestServer(t *testing.T) *TestServer {
 		userRepo,
 		emailVerificationRepo,
 		emailService,
+		nil, // notifier (not needed for simple integration tests)
 		logger,
 		cfg.Server.BaseDomain,
 		cfg.Server.Environment,

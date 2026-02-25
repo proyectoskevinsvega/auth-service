@@ -348,9 +348,13 @@ Swagger documenta **20+ endpoints** completos:
 - `GET /api/v1/auth/oauth/github` - Iniciar login con GitHub
 - `GET /api/v1/auth/oauth/github/callback` - Callback de GitHub
 
-#### Health (1 endpoint)
-
 - `GET /health` - Estado de salud del servicio
+
+#### Webhooks (3 endpoints)
+
+- `POST /api/v1/auth/webhooks` - Suscribir nuevo webhook (protegido)
+- `GET /api/v1/auth/webhooks` - Listar suscripciones (protegido)
+- `DELETE /api/v1/auth/webhooks/{id}` - Eliminar suscripción (protegido)
 
 #### Admin & RBAC (7 endpoints)
 
@@ -619,6 +623,10 @@ Headers: Authorization: Bearer <jwt>
 | `auth_password_reset_requested` | Solicitud de reset de contraseña |
 | `auth_password_reset`           | Contraseña reseteada             |
 | `auth_oauth_linked`             | OAuth vinculado                  |
+| `auth_login_success`            | Inicio de sesión exitoso         |
+| `auth_login_failed`             | Intento de login fallido         |
+| `auth_account_locked`           | Cuenta bloqueada por seguridad   |
+| `auth_email_verified`           | Email verificado exitosamente    |
 
 ### Clave Pública
 
