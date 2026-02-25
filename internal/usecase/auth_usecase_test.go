@@ -179,7 +179,8 @@ func TestAuthUseCase_Login_Success(t *testing.T) {
 
 	// Risk Assessment and Geo
 	m.riskService.On("AssessLoginRisk", ctx, existingUser, input.IPAddress).Return(domain.NewRiskAssessment(), &domain.Geolocation{Country: "US"}, nil)
-	m.userRepo.On("Update", mock.Anything, mock.AnythingOfType("*domain.User")).Return(nil).Maybe()
+	m.userRepo.On("Update", ctx, existingUser).Return(nil).Once()                                   // Reset attempts call
+	m.userRepo.On("Update", mock.Anything, mock.AnythingOfType("*domain.User")).Return(nil).Maybe() // Async update call
 	m.auditRepo.On("Create", mock.Anything, mock.AnythingOfType("*domain.AuditLogEntry")).Return(nil).Maybe()
 
 	// Execute
@@ -254,6 +255,7 @@ func TestAuthUseCase_Login_InvalidPassword(t *testing.T) {
 	m.rateLimiter.On("Increment", ctx, "login:192.168.1.1", time.Minute).Return(1, nil)
 	m.userRepo.On("GetByEmailOrUsername", ctx, input.Identifier).Return(existingUser, nil)
 	m.passwordHasher.On("Verify", input.Password, existingUser.PasswordHash).Return(false, nil)
+	m.userRepo.On("Update", ctx, existingUser).Return(nil).Once() // Increment attempts call
 	m.auditRepo.On("Create", ctx, mock.AnythingOfType("*domain.AuditLogEntry")).Return(nil)
 
 	// Execute
