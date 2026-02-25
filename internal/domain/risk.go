@@ -1,5 +1,9 @@
 package domain
 
+import (
+	"time"
+)
+
 type RiskLevel string
 
 const (
@@ -9,11 +13,19 @@ const (
 )
 
 type RiskAssessment struct {
-	Score      int
-	Level      RiskLevel
-	Reasons    []string
-	IsBlocked  bool
-	RequireMFA bool
+	Score              int
+	Level              RiskLevel
+	Reasons            []string
+	IsBlocked          bool
+	RequireMFA         bool
+	ThreatIntelligence *ThreatIntelligence
+}
+
+type ThreatIntelligence struct {
+	IP              string
+	ReputationScore int // 0-100 (AbuseIPDB style)
+	LastReportedAt  *time.Time
+	Provider        string
 }
 
 func NewRiskAssessment() *RiskAssessment {

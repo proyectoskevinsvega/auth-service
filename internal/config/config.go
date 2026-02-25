@@ -25,6 +25,7 @@ type Config struct {
 	Notification NotificationConfig
 	Telemetry    TelemetryConfig
 	WebAuthn     WebAuthnConfig
+	ThreatIntel  ThreatIntelConfig
 }
 
 type ServerConfig struct {
@@ -161,6 +162,14 @@ type WebAuthnConfig struct {
 	RPOrigins     []string
 }
 
+type ThreatIntelConfig struct {
+	Enabled           bool
+	Provider          string
+	APIKey            string
+	BlockThreshold    int // 0-100
+	MFAScoreThreshold int // 0-100
+}
+
 func Load() (*Config, error) {
 	// Load RSA keys
 	privateKey, err := loadRSAPrivateKey(getEnv("RSA_PRIVATE_KEY_PATH", "./keys/private.pem"))
@@ -265,6 +274,13 @@ func Load() (*Config, error) {
 			RPID:          getEnv("WEBAUTHN_RP_ID", "localhost"),
 			RPDisplayName: getEnv("WEBAUTHN_RP_DISPLAY_NAME", "VerterCloud"),
 			RPOrigins:     strings.Split(getEnv("WEBAUTHN_RP_ORIGINS", "http://localhost:8080,https://localhost:8080"), ","),
+		},
+		ThreatIntel: ThreatIntelConfig{
+			Enabled:           getEnvAsBool("THREAT_INTEL_ENABLED", false),
+			Provider:          getEnv("THREAT_INTEL_PROVIDER", "abuseipdb"),
+			APIKey:            getEnv("THREAT_INTEL_API_KEY", ""),
+			BlockThreshold:    getEnvAsInt("THREAT_INTEL_BLOCK_THRESHOLD", 80),
+			MFAScoreThreshold: getEnvAsInt("THREAT_INTEL_MFA_THRESHOLD", 40),
 		},
 	}
 

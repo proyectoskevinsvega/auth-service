@@ -5,19 +5,29 @@ import (
 	"math"
 	"time"
 
+	"github.com/vertercloud/auth-service/internal/config"
 	"github.com/vertercloud/auth-service/internal/domain"
 	"github.com/vertercloud/auth-service/internal/ports"
 )
 
 type RiskService struct {
-	geoService ports.GeolocationService
-	tenantRepo ports.TenantRepository
+	geoService         ports.GeolocationService
+	tenantRepo         ports.TenantRepository
+	threatIntelService ports.ThreatIntelligenceService
+	config             *config.Config
 }
 
-func NewRiskService(geoService ports.GeolocationService, tenantRepo ports.TenantRepository) *RiskService {
+func NewRiskService(
+	geoService ports.GeolocationService,
+	tenantRepo ports.TenantRepository,
+	threatIntelService ports.ThreatIntelligenceService,
+	cfg *config.Config,
+) *RiskService {
 	return &RiskService{
-		geoService: geoService,
-		tenantRepo: tenantRepo,
+		geoService:         geoService,
+		tenantRepo:         tenantRepo,
+		threatIntelService: threatIntelService,
+		config:             cfg,
 	}
 }
 
@@ -50,6 +60,18 @@ func (s *RiskService) AssessLoginRisk(ctx context.Context, user *domain.User, cu
 	// 2. Check for new country
 	if user.LastLoginCountry != "" && currentLoc.Country != user.LastLoginCountry {
 		risk.AddReason("Login from a new country", 20)
+	}
+
+	// 3. Check Threat Intelligence
+	if s.threatIntelService != nil && s.config != nil && s.config.ThreatIntel.Enabled {
+		intel, err := s.threatIntelService.CheckIP(ctx, currentIP)
+		if err == nil && intel != nil {
+			risk.ThreatIntelligence = intel
+			if intel.ReputationScore > 0 {
+				points := int(float64(intel.ReputationScore) * 1.0) // 1:1 mapping for now
+				risk.AddReason("Suspicious IP reputation ("+intel.Provider+")", points)
+			}
+		}
 	}
 
 	return risk, currentLoc, nil

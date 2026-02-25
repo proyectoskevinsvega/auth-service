@@ -156,7 +156,7 @@ func setupTestSuite(t *testing.T) *TestSuite {
 	)
 	passwordHasher := cryptoadapter.NewArgon2Hasher()
 	tokenGenerator := cryptoadapter.NewSecureTokenGenerator()
-	riskService := usecase.NewRiskService(nil, tenantRepo)
+	riskService := usecase.NewRiskService(nil, tenantRepo, nil, cfg)
 
 	// Inicializar adaptadores Redis
 	tokenCache := redisadapter.NewTokenCache(redisClient)

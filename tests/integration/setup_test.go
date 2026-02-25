@@ -107,7 +107,7 @@ func SetupTestServer(t *testing.T) *TestServer {
 	// Mock notification services (don't send real emails in tests)
 	emailService := &mockEmailService{}
 	redisNotifier := &mockNotificationPublisher{}
-	riskService := usecase.NewRiskService(nil, tenantRepo) // Geolocation disabled in tests
+	riskService := usecase.NewRiskService(nil, tenantRepo, nil, cfg) // Geolocation and Threat Intel disabled in tests
 
 	// Initialize use cases
 	tokenUC := usecase.NewTokenUseCase(
