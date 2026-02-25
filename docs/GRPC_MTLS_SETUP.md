@@ -7,32 +7,58 @@ Para garantizar que solo plataformas y servicios autorizados puedan comunicarse 
 - **Root CA**: La entidad de confianza que firma todos los certificados.
 - **Server Certificate**: El certificado que el `auth-service` presenta a los clientes.
 - **Client Certificate**: El certificado que tu otra plataforma debe presentar al `auth-service`.
-
----
-
-## 3. Identidad por Certificado (Scalability)
-
-A diferencia de otros sistemas que usan listas de IPs (allowlists), este servicio utiliza el **Common Name (CN)** del certificado para identificar al cliente.
-
-**Ventajas**:
-
-- No necesitas actualizar IPs cada vez que un cliente cambia de servidor.
-- Puedes revocar el acceso a un cliente específico simplemente revocando su certificado.
-- Logs automáticos con el nombre de la empresa/plataforma que realiza la llamada.
-
----
+- **Identity (CN)**: El servicio extrae el _Common Name_ de tu certificado para identificarte en los logs.
 
 ---
 
 ## 2. Generación Automática
 
-¡Buenas noticias! No necesitas correr scripts manuales. El **Auth Service** generará automáticamente la CA y sus propios certificados de servidor al iniciar si `GRPC_TLS_ENABLED=true` y los archivos no existen en la carpeta `./keys`.
-
-Solo asegúrate de que la carpeta `./keys` existe y el servicio tiene permisos de escritura.
+**Auth Service** generará automáticamente la CA y sus propios certificados de servidor al iniciar si `GRPC_TLS_ENABLED=true` y los archivos no existen en la carpeta `./keys`.
 
 ---
 
-## 3. Configuración del Servidor (Auth Service)
+## 3. Emisión de Certificados vía API (M2M)
+
+### Opción A: Flujo Convencional (Conveniente)
+
+El servidor genera la llave privada y el certificado por ti.
+
+**POST** `/api/v1/admin/m2m/certificates`  
+**Auth**: Bearer Token (Rol: Admin)
+
+```json
+{
+  "client_name": "Nombre_Empresa_Aliada"
+}
+```
+
+### Opción B: Flujo Élite (Zero Knowledge - Recomendado)
+
+**Máxima Seguridad**: Tú generas tu propia llave privada localmente y solo nos envías una solicitud de firma (CSR). **Nosotros nunca vemos ni tenemos acceso a tu llave privada.**
+
+**Pasos**:
+
+1. Genera tu llave privada y CSR localmente:
+   ```bash
+   openssl req -new -newkey rsa:4096 -nodes -keyout client.key -out client.csr -subj "/CN=Nombre_Empresa_Aliada"
+   ```
+2. Envía el contenido del archivo `client.csr` al servidor:
+
+**POST** `/api/v1/admin/m2m/certificates/sign`  
+**Auth**: Bearer Token (Rol: Admin)
+
+```json
+{
+  "csr": "-----BEGIN CERTIFICATE REQUEST-----\nMIIB... (contenido de client.csr) \n-----END CERTIFICATE REQUEST-----"
+}
+```
+
+**Respuesta**:
+El servidor te devolverá el `certificate` firmado y el `ca_certificate`. Tú ya tienes la `private_key` (client.key) en tu servidor.
+
+---
+
+## 4. Configuración del Servidor (Auth Service)
 
 En tu archivo `.env`, activa el mTLS:
 
@@ -45,9 +71,7 @@ GRPC_SERVER_KEY_PATH=./keys/server-key.pem
 
 ---
 
-## 4. Cómo conectar desde otro servicio (Cliente)
-
-Para que otra plataforma se conecte, debe cargar el `ca.pem` para verificar al servidor y sus propios `client.pem`/`client-key.pem` para identificarse.
+## 5. Cómo conectar desde otro servicio (Cliente)
 
 ### Ejemplo en Go:
 
@@ -73,13 +97,13 @@ conn, _ := grpc.Dial("auth.yourdomain.com:443", grpc.WithTransportCredentials(cr
 
 ---
 
-## 5. gRPC a través de Cloudflare
+## 6. gRPC a través de Cloudflare
 
 Si usas Cloudflare con el proxy activado (🟠):
 
 1. Ve a **SSL/TLS** -> **Edge Certificates**.
 2. Asegúrate de que **gRPC** esté activado en la pestaña **Network**.
-3. **Importante**: Cloudflare romperá el mTLS si no usas [Cloudflare Authenticated Origin Pulls](https://developers.cloudflare.com/ssl/origin-configuration/authenticated-origin-pull/) o si esperas que el certificado del cliente llegue intacto al servidor.
+3. **Importante**: Cloudflare romperá el mTLS si no usas [Cloudflare Authenticated Origin Pulls](https://developers.cloudflare.com/ssl/origin-configuration/authenticated-origin-pull/).
 
 > [!WARNING]
-> En producciones con Cloudflare, el mTLS suele terminarse en Cloudflare o requerir configuraciones avanzadas. Sin Cloudflare, Nginx puede manejar el mTLS directamente.
+> En producciones con Cloudflare, el mTLS suele terminarse en Cloudflare. Sin Cloudflare, Nginx puede manejar el mTLS directamente.

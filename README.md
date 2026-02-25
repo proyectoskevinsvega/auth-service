@@ -24,6 +24,7 @@ Microservicio central de autenticación para la plataforma Vertercloud. Gestiona
 - **2FA Backup Codes**: Secure recovery system for account access when device is lost.
 - **Webhook Lifecycle Events**: HTTP webhooks with HMAC-SHA256 signatures for real-time event notifications to external services.
 - **Multi-tenant Isolation**: Strong isolation for multi-tenant SaaS architectures.
+- **gRPC Mutual TLS (mTLS)**: Autenticación robusta inter-servicios con certificados y **emisión Élite (Zero-Knowledge) vía CSR**.
 - **Optimizado** para miles de req/s
 - **Documentación API** con Swagger/OpenAPI
 
@@ -630,7 +631,10 @@ GET /api/v1/auth/.well-known/jwks.json
 
 **Package**: `auth.v1`
 **Service**: `auth.v1.AuthService`
-**Port**: `9090`
+**Port**: `9092`
+**Security**: Mutual TLS (mTLS) con soporte para **Zero-Knowledge CSR Signing**.
+
+Ver [Guía de Configuración mTLS](docs/GRPC_MTLS_SETUP.md) para detalles sobre cómo conectar tus servicios.
 
 ### ValidateToken
 

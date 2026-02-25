@@ -397,6 +397,12 @@ func initializeDependencies(cfg *config.Config, logger zerolog.Logger, telemetry
 	}
 	logger.Info().Msg("WebAuthn use case initialized")
 
+	// Initialize CertificateManager for mTLS and M2M
+	certManager := cryptoadapter.NewCertificateManager("./keys")
+
+	m2mUC := usecase.NewM2MUseCase(certManager, logger)
+	logger.Info().Msg("M2M use case initialized")
+
 	// Initialize HTTP handler
 	httpHandler := httpadapter.NewHandler(
 		authUC,
@@ -409,6 +415,7 @@ func initializeDependencies(cfg *config.Config, logger zerolog.Logger, telemetry
 		oauthProviders,
 		jwtService,
 		webauthnUC,
+		m2mUC,
 		logger,
 		cfg.Server.AllowedOrigins,
 		cfg.Server.Environment,
@@ -432,7 +439,6 @@ func initializeDependencies(cfg *config.Config, logger zerolog.Logger, telemetry
 
 	// mTLS Certificate Management (Bootstrap)
 	if cfg.GRPCTLS.Enabled {
-		certManager := cryptoadapter.NewCertificateManager("./keys")
 		if err := certManager.GenerateMtlsSetup(cfg.Server.BaseDomain); err != nil {
 			logger.Error().Err(err).Msg("failed to boostrap mTLS certificates")
 			// We continue anyway, the startGRPCServer will fail later if files are missing

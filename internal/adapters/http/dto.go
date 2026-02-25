@@ -236,6 +236,23 @@ type WebhookResponse struct {
 	CreatedAt  time.Time `json:"created_at"`
 }
 
+// WebhookListResponse representa el listado de webhooks
 type WebhookListResponse struct {
 	Webhooks []WebhookResponse `json:"webhooks"`
+}
+
+// M2M DTOs
+
+type IssueCertificateRequest struct {
+	ClientName string `json:"client_name" validate:"required,min=3,max=50" example:"Empresa_Aliada_A"`
+}
+
+type ClientCertificateResponse struct {
+	Certificate string `json:"certificate"`
+	PrivateKey  string `json:"private_key"`
+	CACert      string `json:"ca_certificate"`
+}
+
+type SignCSRRequest struct {
+	CSR string `json:"csr" validate:"required" example:"-----BEGIN CERTIFICATE REQUEST-----\nMIIB... \n-----END CERTIFICATE REQUEST-----"`
 }

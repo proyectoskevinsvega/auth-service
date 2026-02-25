@@ -33,6 +33,7 @@ type Handler struct {
 	oauthProviders      map[string]ports.OAuthProvider
 	jwtService          ports.JWTService
 	webauthnUC          *usecase.WebAuthnUseCase
+	m2mUC               *usecase.M2MUseCase
 	logger              zerolog.Logger
 	authMiddleware      *AuthMiddleware // This was not removed in the provided snippet, keeping it.
 	allowedOrigins      []string
@@ -53,6 +54,7 @@ func NewHandler(
 	oauthProviders map[string]ports.OAuthProvider,
 	jwtService ports.JWTService,
 	webauthnUC *usecase.WebAuthnUseCase,
+	m2mUC *usecase.M2MUseCase,
 	logger zerolog.Logger,
 	allowedOrigins []string,
 	env string,
@@ -70,6 +72,7 @@ func NewHandler(
 		oauthProviders:      oauthProviders,
 		jwtService:          jwtService,
 		webauthnUC:          webauthnUC,
+		m2mUC:               m2mUC,
 		logger:              logger,
 		authMiddleware:      NewAuthMiddleware(tokenUC), // This was not removed in the provided snippet, keeping it.
 		allowedOrigins:      allowedOrigins,
@@ -186,6 +189,10 @@ func (h *Handler) SetupRoutes(telemetryEnabled bool) http.Handler {
 			r.Post("/admin/permissions", h.CreatePermission)
 			r.Post("/admin/roles/{roleID}/permissions", h.AddPermissionToRole)
 			r.Post("/admin/users/{userID}/roles", h.AssignRoleToUser)
+
+			// Machine-to-Machine (mTLS) Management
+			r.Post("/m2m/certificates", h.IssueClientCertificate)
+			r.Post("/m2m/certificates/sign", h.SignClientCSR)
 		})
 	})
 
@@ -1856,3 +1863,76 @@ type readCloserWrapper struct {
 }
 
 func (w *readCloserWrapper) Close() error { return nil }
+
+// IssueClientCertificate godoc
+// @Summary      Emitir certificado mTLS para cliente
+// @Description  Genera un nuevo par de certificado y llave privada para una plataforma cliente (M2M). Requiere privilegios de Admin.
+// @Tags         M2M
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        request body IssueCertificateRequest true "Datos del cliente"
+// @Success      200 {object} ClientCertificateResponse
+// @Failure      400 {object} ErrorResponse
+// @Failure      401 {object} ErrorResponse
+// @Failure      403 {object} ErrorResponse
+// @Failure      500 {object} ErrorResponse
+// @Router       /admin/m2m/certificates [post]
+func (h *Handler) IssueClientCertificate(w http.ResponseWriter, r *http.Request) {
+	var req IssueCertificateRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respondWithError(w, http.StatusBadRequest, "Invalid request body", "INVALID_REQUEST")
+		return
+	}
+
+	// Validate request (manual validation for simplicity, or use a validator)
+	if req.ClientName == "" {
+		respondWithError(w, http.StatusBadRequest, "client_name is required", "VALIDATION_ERROR")
+		return
+	}
+
+	resp, err := h.m2mUC.IssueCertificate(r.Context(), req.ClientName)
+	if err != nil {
+		h.logger.Error().Err(err).Str("client_name", req.ClientName).Msg("failed to issue certificate")
+		respondWithError(w, http.StatusInternalServerError, "Failed to issue certificate", "INTERNAL_ERROR")
+		return
+	}
+
+	respondWithJSON(w, http.StatusOK, resp)
+}
+
+// SignClientCSR godoc
+// @Summary      Firmar CSR mTLS para cliente
+// @Description  Firma una solicitud de certificado (CSR) generada por el cliente. De esta forma, el servidor nunca toca la llave privada del cliente (Zero Knowledge). Requiere privilegios de Admin.
+// @Tags         M2M
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        request body SignCSRRequest true "CSR del cliente en PEM"
+// @Success      200 {object} ClientCertificateResponse
+// @Failure      400 {object} ErrorResponse
+// @Failure      401 {object} ErrorResponse
+// @Failure      403 {object} ErrorResponse
+// @Failure      500 {object} ErrorResponse
+// @Router       /admin/m2m/certificates/sign [post]
+func (h *Handler) SignClientCSR(w http.ResponseWriter, r *http.Request) {
+	var req SignCSRRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respondWithError(w, http.StatusBadRequest, "Invalid request body", "INVALID_REQUEST")
+		return
+	}
+
+	if req.CSR == "" {
+		respondWithError(w, http.StatusBadRequest, "csr is required", "VALIDATION_ERROR")
+		return
+	}
+
+	resp, err := h.m2mUC.SignClientCSR(r.Context(), req.CSR)
+	if err != nil {
+		h.logger.Error().Err(err).Msg("failed to sign CSR")
+		respondWithError(w, http.StatusInternalServerError, "Failed to sign CSR", "INTERNAL_ERROR")
+		return
+	}
+
+	respondWithJSON(w, http.StatusOK, resp)
+}

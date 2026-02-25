@@ -152,6 +152,17 @@ func (m *CertificateManager) LoadCA(certPath, keyPath string) (*x509.Certificate
 	return caCert, caKey, nil
 }
 
+// SaveToMemory encodes a certificate to PEM in memory
+func (m *CertificateManager) SaveToMemory(cert *x509.Certificate) ([]byte, error) {
+	if cert == nil {
+		return nil, fmt.Errorf("certificate is nil")
+	}
+	return pem.EncodeToMemory(&pem.Block{
+		Type:  "CERTIFICATE",
+		Bytes: cert.Raw,
+	}), nil
+}
+
 // SavePEM saves data to a PEM encoded file
 func (m *CertificateManager) SavePEM(path, pemType string, data []byte) error {
 	pemFile, err := os.Create(path)
@@ -166,27 +177,78 @@ func (m *CertificateManager) SavePEM(path, pemType string, data []byte) error {
 	})
 }
 
-// GenerateClientCert generates a new client certificate signed by the existing CA
-func (m *CertificateManager) GenerateClientCert(clientName string) error {
+// IssueClientCertificate generates a client cert and returns both certificate and key as PEM strings
+func (m *CertificateManager) IssueClientCertificate(clientName string) (certPEM string, keyPEM string, err error) {
 	caCertPath := fmt.Sprintf("%s/ca.pem", m.keyDir)
 	caKeyPath := fmt.Sprintf("%s/ca-key.pem", m.keyDir)
 
 	caCert, caKey, err := m.LoadCA(caCertPath, caKeyPath)
 	if err != nil {
-		return fmt.Errorf("failed to load CA: %w (did you run GenerateMtlsSetup first?)", err)
+		return "", "", fmt.Errorf("failed to load CA: %w (did you run GenerateMtlsSetup first?)", err)
 	}
 
 	certBytes, key, err := m.CreateCert(clientName, caCert, caKey, false)
 	if err != nil {
-		return err
+		return "", "", err
 	}
 
-	if err := m.SavePEM(fmt.Sprintf("%s/%s.pem", m.keyDir, clientName), "CERTIFICATE", certBytes); err != nil {
-		return err
-	}
-	if err := m.SavePEM(fmt.Sprintf("%s/%s-key.pem", m.keyDir, clientName), "RSA PRIVATE KEY", x509.MarshalPKCS1PrivateKey(key)); err != nil {
-		return err
+	certBlock := pem.EncodeToMemory(&pem.Block{
+		Type:  "CERTIFICATE",
+		Bytes: certBytes,
+	})
+
+	keyBlock := pem.EncodeToMemory(&pem.Block{
+		Type:  "RSA PRIVATE KEY",
+		Bytes: x509.MarshalPKCS1PrivateKey(key),
+	})
+
+	return string(certBlock), string(keyBlock), nil
+}
+
+// SignCSR signs a PEM-encoded CSR and returns the signed certificate as a PEM string
+func (m *CertificateManager) SignCSR(csrPEM string) (certPEM string, err error) {
+	caCertPath := fmt.Sprintf("%s/ca.pem", m.keyDir)
+	caKeyPath := fmt.Sprintf("%s/ca-key.pem", m.keyDir)
+
+	caCert, caKey, err := m.LoadCA(caCertPath, caKeyPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to load CA: %w", err)
 	}
 
-	return nil
+	block, _ := pem.Decode([]byte(csrPEM))
+	if block == nil || block.Type != "CERTIFICATE REQUEST" {
+		return "", fmt.Errorf("invalid CSR PEM")
+	}
+
+	csr, err := x509.ParseCertificateRequest(block.Bytes)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse CSR: %w", err)
+	}
+
+	// Validate CSR signature
+	if err := csr.CheckSignature(); err != nil {
+		return "", fmt.Errorf("invalid CSR signature: %w", err)
+	}
+
+	// Create certificate template from CSR
+	template := &x509.Certificate{
+		SerialNumber: big.NewInt(time.Now().UnixNano()),
+		Subject:      csr.Subject,
+		NotBefore:    time.Now(),
+		NotAfter:     time.Now().AddDate(1, 0, 0), // 1 year validity
+		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
+		KeyUsage:     x509.KeyUsageDigitalSignature,
+	}
+
+	certBytes, err := x509.CreateCertificate(rand.Reader, template, caCert, csr.PublicKey, caKey)
+	if err != nil {
+		return "", fmt.Errorf("failed to sign certificate: %w", err)
+	}
+
+	certBlock := pem.EncodeToMemory(&pem.Block{
+		Type:  "CERTIFICATE",
+		Bytes: certBytes,
+	})
+
+	return string(certBlock), nil
 }

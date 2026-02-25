@@ -191,6 +191,7 @@ func SetupTestServer(t *testing.T) *TestServer {
 		map[string]ports.OAuthProvider{}, // empty OAuth providers for tests
 		jwtService,
 		webauthnUC,
+		nil, // m2mUC (not needed in most integration tests)
 		logger,
 		cfg.Server.AllowedOrigins,
 		cfg.Server.Environment,
