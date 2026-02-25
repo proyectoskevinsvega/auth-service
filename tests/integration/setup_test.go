@@ -119,6 +119,8 @@ func SetupTestServer(t *testing.T) *TestServer {
 		sessionRepo,
 		riskService,
 		tenantRepo,
+		postgresadapter.NewClientRepository(dbPool),
+		passwordHasher,
 		redisNotifier,
 		cfg,
 	)

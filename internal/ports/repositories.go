@@ -105,3 +105,10 @@ type TenantRepository interface {
 	Delete(ctx context.Context, id string) error
 	List(ctx context.Context) ([]*domain.Tenant, error)
 }
+
+type ClientRepository interface {
+	Create(ctx context.Context, client *domain.Client) error
+	GetByClientID(ctx context.Context, clientID string) (*domain.Client, error)
+	Update(ctx context.Context, client *domain.Client) error
+	Delete(ctx context.Context, clientID string) error
+}

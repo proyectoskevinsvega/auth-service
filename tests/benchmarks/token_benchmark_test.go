@@ -34,6 +34,9 @@ func BenchmarkTokenValidation_CacheHit(b *testing.B) {
 		},
 	}
 
+	clientRepo := new(mocks.MockClientRepository)
+	passwordHasher := new(mocks.MockPasswordHasher)
+
 	uc := usecase.NewTokenUseCase(
 		jwtService,
 		tokenCache,
@@ -43,6 +46,8 @@ func BenchmarkTokenValidation_CacheHit(b *testing.B) {
 		sessionRepo,
 		riskService,
 		tenantRepo,
+		clientRepo,
+		passwordHasher,
 		notifier,
 		cfg,
 	)
@@ -95,6 +100,9 @@ func BenchmarkTokenValidation_CacheMiss(b *testing.B) {
 		},
 	}
 
+	clientRepo := new(mocks.MockClientRepository)
+	passwordHasher := new(mocks.MockPasswordHasher)
+
 	uc := usecase.NewTokenUseCase(
 		jwtService,
 		tokenCache,
@@ -104,6 +112,8 @@ func BenchmarkTokenValidation_CacheMiss(b *testing.B) {
 		sessionRepo,
 		riskService,
 		tenantRepo,
+		clientRepo,
+		passwordHasher,
 		notifier,
 		cfg,
 	)
@@ -157,6 +167,9 @@ func BenchmarkTokenValidation_Blacklist(b *testing.B) {
 		},
 	}
 
+	clientRepo := new(mocks.MockClientRepository)
+	passwordHasher := new(mocks.MockPasswordHasher)
+
 	uc := usecase.NewTokenUseCase(
 		jwtService,
 		tokenCache,
@@ -166,6 +179,8 @@ func BenchmarkTokenValidation_Blacklist(b *testing.B) {
 		sessionRepo,
 		riskService,
 		tenantRepo,
+		clientRepo,
+		passwordHasher,
 		notifier,
 		cfg,
 	)
@@ -218,6 +233,9 @@ func BenchmarkTokenRevocation(b *testing.B) {
 		},
 	}
 
+	clientRepo := new(mocks.MockClientRepository)
+	passwordHasher := new(mocks.MockPasswordHasher)
+
 	uc := usecase.NewTokenUseCase(
 		jwtService,
 		tokenCache,
@@ -227,6 +245,8 @@ func BenchmarkTokenRevocation(b *testing.B) {
 		sessionRepo,
 		riskService,
 		tenantRepo,
+		clientRepo,
+		passwordHasher,
 		notifier,
 		cfg,
 	)

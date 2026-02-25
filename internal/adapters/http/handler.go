@@ -110,6 +110,7 @@ func (h *Handler) SetupRoutes(telemetryEnabled bool) http.Handler {
 		// Public routes
 		r.Post("/auth/register", h.Register)
 		r.Post("/auth/login", h.Login)
+		r.Post("/auth/token", h.IssueToken)
 		r.Post("/auth/refresh", h.RefreshToken)
 		r.Post("/auth/forgot-password", h.ForgotPassword)
 		r.Post("/auth/reset-password", h.ResetPassword)
@@ -1639,6 +1640,89 @@ func (h *Handler) WebAuthnLoginFinish(w http.ResponseWriter, r *http.Request) {
 			EmailVerified:    response.User.EmailVerified,
 			TwoFactorEnabled: response.User.TwoFactorEnabled,
 			CreatedAt:        response.User.CreatedAt.Format(time.RFC3339),
+		},
+	})
+}
+
+// IssueToken handles OAuth2-style token requests (Grant Types)
+// @Summary Issue an access token
+// @Description Issues an access token based on the provided grant type (e.g., client_credentials)
+// @Tags Authentication
+// @Accept  x-www-form-urlencoded
+// @Accept  json
+// @Produce  json
+// @Param   grant_type      formData   string   true  "Grant type (client_credentials)"
+// @Param   client_id       formData   string   false "Client ID"
+// @Param   client_secret    formData   string   false "Client Secret"
+// @Success 200 {object} LoginResponse
+// @Failure 401 {object} ErrorResponse
+// @Router /auth/token [post]
+func (h *Handler) IssueToken(w http.ResponseWriter, r *http.Request) {
+	var grantType, clientID, clientSecret string
+
+	// Try to get from form first (standard OAuth2)
+	if err := r.ParseForm(); err == nil {
+		grantType = r.FormValue("grant_type")
+		clientID = r.FormValue("client_id")
+		clientSecret = r.FormValue("client_secret")
+	}
+
+	// If client_id is missing, try Basic Auth (standard OAuth2)
+	if clientID == "" {
+		id, secret, ok := r.BasicAuth()
+		if ok {
+			clientID = id
+			clientSecret = secret
+		}
+	}
+
+	// If still empty, try JSON body
+	if grantType == "" || clientID == "" {
+		var req struct {
+			GrantType    string `json:"grant_type"`
+			ClientID     string `json:"client_id"`
+			ClientSecret string `json:"client_secret"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err == nil {
+			if grantType == "" {
+				grantType = req.GrantType
+			}
+			if clientID == "" {
+				clientID = req.ClientID
+			}
+			if clientSecret == "" {
+				clientSecret = req.ClientSecret
+			}
+		}
+	}
+
+	if grantType != "client_credentials" {
+		respondWithError(w, http.StatusBadRequest, "unsupported_grant_type", "Only client_credentials grant type is supported")
+		return
+	}
+
+	if clientID == "" || clientSecret == "" {
+		respondWithError(w, http.StatusBadRequest, "invalid_request", "client_id and client_secret are required")
+		return
+	}
+
+	response, err := h.tokenUC.IssueClientToken(r.Context(), clientID, clientSecret)
+	if err != nil {
+		if err == domain.ErrInvalidClient {
+			respondWithError(w, http.StatusUnauthorized, "invalid_client", "Invalid client credentials")
+			return
+		}
+		h.logger.Error().Err(err).Msg("failed to issue client token")
+		respondWithError(w, http.StatusInternalServerError, "server_error", "Internal server error")
+		return
+	}
+
+	respondWithJSON(w, http.StatusOK, LoginResponse{
+		AccessToken: response.AccessToken,
+		User: UserResponse{
+			ID:       response.User.ID,
+			Username: response.User.Username,
+			Active:   response.User.Active,
 		},
 	})
 }

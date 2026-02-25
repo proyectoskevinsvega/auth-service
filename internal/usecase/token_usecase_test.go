@@ -23,6 +23,8 @@ type TokenUseCaseMocks struct {
 	sessionRepo *mocks.MockSessionRepository
 	riskService *mocks.MockRiskService
 	tenantRepo  *mocks.MockTenantRepository
+	clientRepo  *mocks.MockClientRepository
+	hasher      *mocks.MockPasswordHasher
 	notifier    *mocks.MockNotificationPublisher
 }
 
@@ -35,6 +37,8 @@ func setupTokenUseCase(_ *testing.T) *TokenUseCaseMocks {
 	sessionRepo := new(mocks.MockSessionRepository)
 	riskService := new(mocks.MockRiskService)
 	tenantRepo := new(mocks.MockTenantRepository)
+	clientRepo := new(mocks.MockClientRepository)
+	hasher := new(mocks.MockPasswordHasher)
 	notifier := new(mocks.MockNotificationPublisher)
 
 	cfg := &config.Config{
@@ -53,6 +57,8 @@ func setupTokenUseCase(_ *testing.T) *TokenUseCaseMocks {
 		sessionRepo,
 		riskService,
 		tenantRepo,
+		clientRepo,
+		hasher,
 		notifier,
 		cfg,
 	)
@@ -67,6 +73,8 @@ func setupTokenUseCase(_ *testing.T) *TokenUseCaseMocks {
 		sessionRepo: sessionRepo,
 		riskService: riskService,
 		tenantRepo:  tenantRepo,
+		clientRepo:  clientRepo,
+		hasher:      hasher,
 		notifier:    notifier,
 	}
 }

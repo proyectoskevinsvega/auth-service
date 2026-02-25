@@ -174,6 +174,8 @@ func setupTestSuite(t *testing.T) *TestSuite {
 		sessionRepo,
 		riskService,
 		tenantRepo,
+		postgresadapter.NewClientRepository(dbPool),
+		passwordHasher,
 		&mockNotificationPublisher{},
 		cfg,
 	)

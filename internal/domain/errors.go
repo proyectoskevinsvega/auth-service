@@ -57,6 +57,10 @@ var (
 	ErrOAuthCodeInvalid      = errors.New("invalid OAuth code")
 	ErrOAuthUserInfo         = errors.New("failed to get OAuth user info")
 
+	// Client errors
+	ErrClientNotFound = errors.New("client not found")
+	ErrInvalidClient  = errors.New("invalid client or secret")
+
 	// General errors
 	ErrInternal     = errors.New("internal server error")
 	ErrInvalidInput = errors.New("invalid input")

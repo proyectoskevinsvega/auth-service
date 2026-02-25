@@ -29,14 +29,14 @@ Prioridades basadas en impacto de seguridad, demanda de funcionalidad y compleji
 
 ## 🟡 P2 — Media prioridad (Mejoras)
 
-| Feature                         | Estado        | Descripción                                                                                                         |
-| ------------------------------- | ------------- | ------------------------------------------------------------------------------------------------------------------- |
-| **User Self-Service Portal**    | ❌ Pendiente  | Portal para usuarios: gestión de MFA, sesiones activas, descarga de datos (GDPR) e historial de seguridad personal. |
-| **Enterprise Federation (SSO)** | ❌ Pendiente  | Integración vía SAML 2.0 y OIDC con Azure AD, Okta, Ping Identity y Google Workspace.                               |
-| **Multi-tenant isolation**      | ✅ Completado | Aislamiento lógico (User Pools) con configuración independiente por cliente.                                        |
-| **Client Credentials Flow**     | ❌ Pendiente  | Autenticación Machine-to-Machine para microservicios mediante Client ID / Client Secret.                            |
-| **Webhook Lifecycle Events**    | ❌ Pendiente  | Notificaciones en tiempo real hacia servicios externos sobre eventos críticos (ej: UserDeletion, RiskDetected).     |
-| **Developer SDKs & CLI**        | ❌ Pendiente  | SDKs oficiales (Go, TS, Python) y herramienta de comandos para automatización de la plataforma.                     |
+| Feature                         | Estado        | Descripción                                                                                                          |
+| ------------------------------- | ------------- | -------------------------------------------------------------------------------------------------------------------- |
+| **User Self-Service Portal**    | ❌ Pendiente  | Portal para usuarios: gestión de MFA, sesiones activas, descarga de datos (GDPR) e historial de seguridad personal.  |
+| **Enterprise Federation (SSO)** | ❌ Pendiente  | Integración vía SAML 2.0 y OIDC con Azure AD, Okta, Ping Identity y Google Workspace.                                |
+| **Multi-tenant isolation**      | ✅ Completado | Aislamiento lógico (User Pools) con configuración independiente por cliente.                                         |
+| **Client Credentials Flow**     | ✅ Completado | Autenticación Machine-to-Machine para microservicios mediante Client ID / Client Secret.                             |
+| **Webhook Lifecycle Events**    | ❌ Pendiente  | Notificaciones en tiempo real hacia servicios externos sobre eventos críticos (ej: UserDeletion, RiskDetected, etc). |
+| **Developer SDKs & CLI**        | ❌ Pendiente  | SDKs oficiales (Go, TS, Python) y herramienta de comandos para automatización de la plataforma.                      |
 
 ---
 
@@ -69,6 +69,7 @@ Prioridades basadas en impacto de seguridad, demanda de funcionalidad y compleji
 | Feature                                          | Versión |
 | ------------------------------------------------ | ------- |
 | Advanced Threat Intelligence                     | v1.5    |
+| Client Credentials Flow                          | v1.5    |
 | Session geofencing                               | v1.4    |
 | Multi-tenant isolation (User Pools)              | v1.3    |
 | Passwordless (FIDO2/WebAuthn)                    | v1.2    |

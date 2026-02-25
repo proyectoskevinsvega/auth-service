@@ -18,6 +18,8 @@ type TokenUseCase struct {
 	sessionRepo ports.SessionRepository
 	riskService ports.RiskService
 	tenantRepo  ports.TenantRepository
+	clientRepo  ports.ClientRepository
+	hasher      ports.PasswordHasher
 	notifier    ports.NotificationPublisher
 	config      *config.Config
 }
@@ -31,6 +33,8 @@ func NewTokenUseCase(
 	sessionRepo ports.SessionRepository,
 	riskService ports.RiskService,
 	tenantRepo ports.TenantRepository,
+	clientRepo ports.ClientRepository,
+	hasher ports.PasswordHasher,
 	notifier ports.NotificationPublisher,
 	cfg *config.Config,
 ) *TokenUseCase {
@@ -43,6 +47,8 @@ func NewTokenUseCase(
 		sessionRepo: sessionRepo,
 		riskService: riskService,
 		tenantRepo:  tenantRepo,
+		clientRepo:  clientRepo,
+		hasher:      hasher,
 		notifier:    notifier,
 		config:      cfg,
 	}
@@ -205,6 +211,46 @@ func (uc *TokenUseCase) RevokeToken(ctx context.Context, tokenString string) err
 	_ = uc.tokenCache.Delete(ctx, token.JTI)
 
 	return nil
+}
+
+func (uc *TokenUseCase) IssueClientToken(ctx context.Context, clientID, clientSecret string) (*LoginResponse, error) {
+	// Get client
+	client, err := uc.clientRepo.GetByClientID(ctx, clientID)
+	if err != nil {
+		return nil, domain.ErrInvalidClient
+	}
+
+	// Verify secret
+	isValid, err := uc.hasher.Verify(clientSecret, client.ClientSecretHash)
+	if err != nil || !isValid {
+		return nil, domain.ErrInvalidClient
+	}
+
+	if !client.Active {
+		return nil, domain.ErrInvalidClient
+	}
+
+	// Generate JWT for client
+	// For M2M, UserID is the ClientID, and we use a special email or just ClientID
+	token := domain.NewToken(client.TenantID, client.ClientID, client.ClientID+"@m2m.local", uc.config.JWT.AccessExpiry)
+	token.Scopes = client.Scopes
+
+	accessToken, err := uc.jwtService.Generate(ctx, token)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate client JWT: %w", err)
+	}
+
+	// For Client Credentials, we usually don't issue Refresh Tokens
+	// but we return the same response structure for consistency
+	return &LoginResponse{
+		AccessToken: accessToken,
+		User: &domain.User{
+			ID:       client.ClientID,
+			TenantID: client.TenantID,
+			Username: client.Name,
+			Active:   true,
+		},
+	}, nil
 }
 
 type SecureTokenGenerator struct{}
