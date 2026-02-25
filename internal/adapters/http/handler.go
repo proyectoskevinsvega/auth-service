@@ -138,6 +138,13 @@ func (h *Handler) SetupRoutes(telemetryEnabled bool) http.Handler {
 			// Email verification (resend)
 			r.Post("/auth/resend-verification", h.ResendVerificationEmail)
 		})
+
+		// Admin routes (Protected by AuthMiddleware for now, further RBAC can be added)
+		r.Group(func(r chi.Router) {
+			r.Use(h.authMiddleware.RequireAuth)
+			// TODO: Add AdminRoleMiddleware if implemented
+			r.Post("/admin/users/{id}/force-reset", h.AdminForcePasswordReset)
+		})
 	})
 
 	// Health check
@@ -1125,19 +1132,45 @@ func (h *Handler) GetJWKS(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// Health godoc
-// @Summary      Health check
-// @Description  Verifica el estado del servicio. Retorna 200 si el servicio está operativo.
-// @Tags         System
-// @Accept       json
-// @Produce      json
-// @Success      200 {object} HealthResponse
 // @Router       /health [get]
 func (h *Handler) Health(w http.ResponseWriter, r *http.Request) {
 	respondWithJSON(w, http.StatusOK, HealthResponse{
 		Status:  "healthy",
 		Service: "auth-service",
-		Version: "1.0.0",
+		Version: "1.1.0",
+	})
+}
+
+// AdminForcePasswordReset godoc
+// @Summary      Forzar reset de contraseña (Admin)
+// @Description  Marca la contraseña de un usuario como expirada y requiere reset. Invalida todas las sesiones activas. Solo para administradores.
+// @Tags         Admin
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path string true "ID del usuario"
+// @Success      200 {object} MessageResponse
+// @Failure      401 {object} ErrorResponse "No autenticado"
+// @Failure      403 {object} ErrorResponse "No autorizado"
+// @Failure      404 {object} ErrorResponse "Usuario no encontrado"
+// @Failure      500 {object} ErrorResponse
+// @Router       /admin/users/{id}/force-reset [post]
+func (h *Handler) AdminForcePasswordReset(w http.ResponseWriter, r *http.Request) {
+	// 1. Get user ID from URL
+	targetUserID := chi.URLParam(r, "id")
+	if targetUserID == "" {
+		respondWithError(w, http.StatusBadRequest, "user id is required", "BAD_REQUEST")
+		return
+	}
+
+	// 2. Call use case
+	if err := h.authUC.ForcePasswordReset(r.Context(), targetUserID); err != nil {
+		h.handleAuthError(w, err)
+		return
+	}
+
+	respondWithJSON(w, http.StatusOK, MessageResponse{
+		Message: "forced password reset successfully",
 	})
 }
 
@@ -1159,6 +1192,12 @@ func (h *Handler) handleAuthError(w http.ResponseWriter, err error) {
 	switch err {
 	case domain.ErrInvalidCredentials:
 		respondWithError(w, http.StatusUnauthorized, "invalid credentials", "INVALID_CREDENTIALS")
+	case domain.ErrAccountLocked:
+		respondWithError(w, http.StatusForbidden, "account is locked due to too many failed attempts", "ACCOUNT_LOCKED")
+	case domain.ErrPasswordExpired:
+		respondWithError(w, http.StatusForbidden, "password has expired", "PASSWORD_EXPIRED")
+	case domain.ErrPasswordResetRequired:
+		respondWithError(w, http.StatusForbidden, "password reset is required by admin", "PASSWORD_RESET_REQUIRED")
 	case domain.ErrUserNotFound:
 		respondWithError(w, http.StatusNotFound, "user not found", "USER_NOT_FOUND")
 	case domain.ErrEmailAlreadyExists:

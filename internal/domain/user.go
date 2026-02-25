@@ -13,26 +13,27 @@ var emailRegex = regexp.MustCompile(`^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-
 var usernameRegex = regexp.MustCompile(`^[a-zA-Z0-9_-]{3,30}$`)
 
 type User struct {
-	ID                  string
-	Username            string
-	Email               string
-	PasswordHash        string
-	Active              bool
-	EmailVerified       bool
-	TwoFactorEnabled    bool
-	TwoFactorSecret     string
-	OAuthProvider       string // "google", "github", or empty for email/password
-	OAuthProviderID     string
-	CreatedAt           time.Time
-	UpdatedAt           time.Time
-	LastLoginAt         *time.Time
-	LastLoginIP         string
-	LastLoginCountry    string
-	LastLoginLatitude   *float64
-	LastLoginLongitude  *float64
-	FailedLoginAttempts int
-	LockedUntil         *time.Time
-	PasswordChangedAt   time.Time
+	ID                    string
+	Username              string
+	Email                 string
+	PasswordHash          string
+	Active                bool
+	EmailVerified         bool
+	TwoFactorEnabled      bool
+	TwoFactorSecret       string
+	OAuthProvider         string // "google", "github", or empty for email/password
+	OAuthProviderID       string
+	CreatedAt             time.Time
+	UpdatedAt             time.Time
+	LastLoginAt           *time.Time
+	LastLoginIP           string
+	LastLoginCountry      string
+	LastLoginLatitude     *float64
+	LastLoginLongitude    *float64
+	FailedLoginAttempts   int
+	LockedUntil           *time.Time
+	PasswordChangedAt     time.Time
+	PasswordResetRequired bool // Added new field
 }
 
 type NewUserInput struct {

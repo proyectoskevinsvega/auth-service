@@ -23,8 +23,8 @@ func (r *UserRepository) Create(ctx context.Context, user *domain.User, password
 		INSERT INTO auth_users (
 			id, username, email, password_hash, active, email_verified,
 			two_factor_enabled, two_factor_secret, oauth_provider, oauth_provider_id,
-			created_at, updated_at, password_changed_at
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+			created_at, updated_at, password_changed_at, password_reset_required
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
 	`
 
 	// Convert empty strings to NULL for optional fields
@@ -51,7 +51,7 @@ func (r *UserRepository) Create(ctx context.Context, user *domain.User, password
 	_, err := r.db.Exec(ctx, query,
 		user.ID, user.Username, user.Email, passwordHash, user.Active, user.EmailVerified,
 		user.TwoFactorEnabled, twoFactorSecret, oauthProvider, oauthProviderID,
-		user.CreatedAt, user.UpdatedAt, user.CreatedAt, // password_changed_at starts at creation time
+		user.CreatedAt, user.UpdatedAt, user.CreatedAt, user.PasswordResetRequired,
 	)
 
 	if err != nil {
@@ -66,13 +66,14 @@ func (r *UserRepository) GetByID(ctx context.Context, id string) (*domain.User, 
 		SELECT id, username, email, password_hash, active, email_verified,
 			   two_factor_enabled, two_factor_secret, oauth_provider, oauth_provider_id,
 			   created_at, updated_at, last_login_at, last_login_ip, last_login_country,
-			   last_login_latitude, last_login_longitude, password_changed_at
+			   last_login_latitude, last_login_longitude, failed_login_attempts, locked_until,
+			   password_changed_at, password_reset_required
 		FROM auth_users
 		WHERE id = $1
 	`
 
 	user := &domain.User{}
-	var lastLoginAt *time.Time
+	var lastLoginAt, lockedUntil *time.Time
 	var twoFactorSecret, oauthProvider, oauthProviderID, lastLoginIP, lastLoginCountry *string
 	var lastLoginLatitude, lastLoginLongitude *float64
 
@@ -80,7 +81,8 @@ func (r *UserRepository) GetByID(ctx context.Context, id string) (*domain.User, 
 		&user.ID, &user.Username, &user.Email, &user.PasswordHash, &user.Active, &user.EmailVerified,
 		&user.TwoFactorEnabled, &twoFactorSecret, &oauthProvider, &oauthProviderID,
 		&user.CreatedAt, &user.UpdatedAt, &lastLoginAt, &lastLoginIP, &lastLoginCountry,
-		&lastLoginLatitude, &lastLoginLongitude, &user.PasswordChangedAt,
+		&lastLoginLatitude, &lastLoginLongitude, &user.FailedLoginAttempts, &lockedUntil,
+		&user.PasswordChangedAt, &user.PasswordResetRequired,
 	)
 
 	if err != nil {
@@ -92,6 +94,7 @@ func (r *UserRepository) GetByID(ctx context.Context, id string) (*domain.User, 
 
 	// Map optional fields
 	user.LastLoginAt = lastLoginAt
+	user.LockedUntil = lockedUntil
 	if twoFactorSecret != nil {
 		user.TwoFactorSecret = *twoFactorSecret
 	}
@@ -118,19 +121,20 @@ func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*domain.
 		SELECT id, username, email, password_hash, active, email_verified,
 			   two_factor_enabled, two_factor_secret, oauth_provider, oauth_provider_id,
 			   created_at, updated_at, last_login_at, last_login_ip, last_login_country,
-			   password_changed_at
+			   failed_login_attempts, locked_until, password_changed_at, password_reset_required
 		FROM auth_users
 		WHERE email = $1
 	`
 
 	user := &domain.User{}
-	var lastLoginAt *time.Time
+	var lastLoginAt, lockedUntil *time.Time
 	var twoFactorSecret, oauthProvider, oauthProviderID, lastLoginIP, lastLoginCountry *string
 
 	err := r.db.QueryRow(ctx, query, email).Scan(
 		&user.ID, &user.Username, &user.Email, &user.PasswordHash, &user.Active, &user.EmailVerified,
 		&user.TwoFactorEnabled, &twoFactorSecret, &oauthProvider, &oauthProviderID,
 		&user.CreatedAt, &user.UpdatedAt, &lastLoginAt, &lastLoginIP, &lastLoginCountry,
+		&user.FailedLoginAttempts, &lockedUntil, &user.PasswordChangedAt, &user.PasswordResetRequired,
 	)
 
 	if err != nil {
@@ -142,6 +146,7 @@ func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*domain.
 
 	// Map optional fields
 	user.LastLoginAt = lastLoginAt
+	user.LockedUntil = lockedUntil
 	if twoFactorSecret != nil {
 		user.TwoFactorSecret = *twoFactorSecret
 	}
@@ -166,19 +171,20 @@ func (r *UserRepository) GetByUsername(ctx context.Context, username string) (*d
 		SELECT id, username, email, password_hash, active, email_verified,
 			   two_factor_enabled, two_factor_secret, oauth_provider, oauth_provider_id,
 			   created_at, updated_at, last_login_at, last_login_ip, last_login_country,
-			   password_changed_at
+			   failed_login_attempts, locked_until, password_changed_at, password_reset_required
 		FROM auth_users
 		WHERE username = $1
 	`
 
 	user := &domain.User{}
-	var lastLoginAt *time.Time
+	var lastLoginAt, lockedUntil *time.Time
 	var twoFactorSecret, oauthProvider, oauthProviderID, lastLoginIP, lastLoginCountry *string
 
 	err := r.db.QueryRow(ctx, query, username).Scan(
 		&user.ID, &user.Username, &user.Email, &user.PasswordHash, &user.Active, &user.EmailVerified,
 		&user.TwoFactorEnabled, &twoFactorSecret, &oauthProvider, &oauthProviderID,
 		&user.CreatedAt, &user.UpdatedAt, &lastLoginAt, &lastLoginIP, &lastLoginCountry,
+		&user.FailedLoginAttempts, &lockedUntil, &user.PasswordChangedAt, &user.PasswordResetRequired,
 	)
 
 	if err != nil {
@@ -190,6 +196,7 @@ func (r *UserRepository) GetByUsername(ctx context.Context, username string) (*d
 
 	// Map optional fields
 	user.LastLoginAt = lastLoginAt
+	user.LockedUntil = lockedUntil
 	if twoFactorSecret != nil {
 		user.TwoFactorSecret = *twoFactorSecret
 	}
@@ -268,19 +275,20 @@ func (r *UserRepository) GetByOAuthProvider(ctx context.Context, provider, provi
 		SELECT id, username, email, password_hash, active, email_verified,
 			   two_factor_enabled, two_factor_secret, oauth_provider, oauth_provider_id,
 			   created_at, updated_at, last_login_at, last_login_ip, last_login_country,
-			   password_changed_at
+			   failed_login_attempts, locked_until, password_changed_at, password_reset_required
 		FROM auth_users
 		WHERE oauth_provider = $1 AND oauth_provider_id = $2
 	`
 
 	user := &domain.User{}
-	var lastLoginAt *time.Time
+	var lastLoginAt, lockedUntil *time.Time
 	var twoFactorSecret, oauthProvider, oauthProviderID, lastLoginIP, lastLoginCountry *string
 
 	err := r.db.QueryRow(ctx, query, provider, providerID).Scan(
 		&user.ID, &user.Username, &user.Email, &user.PasswordHash, &user.Active, &user.EmailVerified,
 		&user.TwoFactorEnabled, &twoFactorSecret, &oauthProvider, &oauthProviderID,
 		&user.CreatedAt, &user.UpdatedAt, &lastLoginAt, &lastLoginIP, &lastLoginCountry,
+		&user.FailedLoginAttempts, &lockedUntil, &user.PasswordChangedAt, &user.PasswordResetRequired,
 	)
 
 	if err != nil {
@@ -292,6 +300,7 @@ func (r *UserRepository) GetByOAuthProvider(ctx context.Context, provider, provi
 
 	// Map optional fields
 	user.LastLoginAt = lastLoginAt
+	user.LockedUntil = lockedUntil
 	if twoFactorSecret != nil {
 		user.TwoFactorSecret = *twoFactorSecret
 	}
@@ -318,7 +327,7 @@ func (r *UserRepository) Update(ctx context.Context, user *domain.User) error {
 			two_factor_enabled = $6, two_factor_secret = $7,
 			updated_at = $8, last_login_at = $9, last_login_ip = $10, last_login_country = $11,
 			last_login_latitude = $12, last_login_longitude = $13,
-			failed_login_attempts = $14, locked_until = $15
+			failed_login_attempts = $14, locked_until = $15, password_reset_required = $16
 		WHERE id = $1
 	`
 
@@ -348,7 +357,7 @@ func (r *UserRepository) Update(ctx context.Context, user *domain.User) error {
 		user.TwoFactorEnabled, twoFactorSecret,
 		user.UpdatedAt, user.LastLoginAt, lastLoginIP, lastLoginCountry,
 		user.LastLoginLatitude, user.LastLoginLongitude,
-		user.FailedLoginAttempts, user.LockedUntil,
+		user.FailedLoginAttempts, user.LockedUntil, user.PasswordResetRequired,
 	)
 
 	if err != nil {
@@ -361,7 +370,7 @@ func (r *UserRepository) Update(ctx context.Context, user *domain.User) error {
 func (r *UserRepository) UpdatePassword(ctx context.Context, userID, newPasswordHash string) error {
 	query := `
 		UPDATE auth_users
-		SET password_hash = $2, password_changed_at = NOW(), updated_at = NOW()
+		SET password_hash = $2, password_changed_at = NOW(), updated_at = NOW(), password_reset_required = FALSE
 		WHERE id = $1
 	`
 
@@ -380,7 +389,7 @@ func (r *UserRepository) GetExpiringPasswords(ctx context.Context, thresholdDays
 			   two_factor_enabled, two_factor_secret, oauth_provider, oauth_provider_id,
 			   created_at, updated_at, last_login_at, last_login_ip, last_login_country,
 			   last_login_latitude, last_login_longitude, failed_login_attempts, locked_until,
-			   password_changed_at
+			   password_changed_at, password_reset_required
 		FROM auth_users
 		WHERE oauth_provider IS NULL
 		  AND password_changed_at + ($1 * interval '1 day') <= NOW()
@@ -403,7 +412,8 @@ func (r *UserRepository) GetExpiringPasswords(ctx context.Context, thresholdDays
 			&user.ID, &user.Username, &user.Email, &user.PasswordHash, &user.Active, &user.EmailVerified,
 			&user.TwoFactorEnabled, &twoFactorSecret, &oauthProvider, &oauthProviderID,
 			&user.CreatedAt, &user.UpdatedAt, &lastLoginAt, &lastLoginIP, &lastLoginCountry,
-			&lastLoginLatitude, &lastLoginLongitude, &user.FailedLoginAttempts, &lockedUntil, &user.PasswordChangedAt,
+			&lastLoginLatitude, &lastLoginLongitude, &user.FailedLoginAttempts, &lockedUntil,
+			&user.PasswordChangedAt, &user.PasswordResetRequired,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan user: %w", err)

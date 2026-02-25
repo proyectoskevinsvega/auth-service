@@ -159,6 +159,12 @@ func (uc *AuthUseCase) Login(ctx context.Context, input LoginInput) (*LoginRespo
 		return nil, domain.ErrPasswordExpired
 	}
 
+	// Check if password reset is required by admin (P0)
+	if user.PasswordResetRequired {
+		_ = uc.auditRepo.Create(ctx, domain.NewAuditLogEntry(user.ID, "password_reset_required_by_admin", input.IPAddress, input.UserAgent, "", false, "admin forced password reset", nil))
+		return nil, domain.ErrPasswordResetRequired
+	}
+
 	// Check 2FA if enabled
 	if user.TwoFactorEnabled && input.TwoFACode == "" {
 		return nil, domain.Err2FARequired
@@ -470,10 +476,13 @@ func (uc *AuthUseCase) completePasswordReset(ctx context.Context, resetToken *do
 		return fmt.Errorf("failed to hash password: %w", err)
 	}
 
-	// Update password
-	if err := uc.userRepo.UpdatePassword(ctx, resetToken.UserID, passwordHash); err != nil {
+	// 3. Update password in repository
+	err = uc.userRepo.UpdatePassword(ctx, resetToken.UserID, passwordHash)
+	if err != nil {
 		return fmt.Errorf("failed to update password: %w", err)
 	}
+
+	// Flag password_reset_required is cleared automatically in UpdatePassword repo method
 
 	// Async operations (non-critical, fire-and-forget)
 	// Password has already been changed successfully, these operations don't block
@@ -551,6 +560,38 @@ func (uc *AuthUseCase) NotifyExpiringPasswords(ctx context.Context) (int, error)
 	}
 
 	return notifiedCount, nil
+}
+
+func (uc *AuthUseCase) ForcePasswordReset(ctx context.Context, userID string) error {
+	// 1. Get user
+	user, err := uc.userRepo.GetByID(ctx, userID)
+	if err != nil {
+		return err
+	}
+
+	// 2. Set flag
+	user.PasswordResetRequired = true
+	user.UpdatedAt = time.Now()
+
+	// 3. Update user
+	if err := uc.userRepo.Update(ctx, user); err != nil {
+		return fmt.Errorf("failed to force password reset: %w", err)
+	}
+
+	// 4. Revoke all sessions
+	if err := uc.sessionRepo.RevokeAllByUserID(ctx, userID, "system", "forced password reset by admin"); err != nil {
+		fmt.Printf("warning: failed to revoke sessions after forced reset: %v\n", err)
+	}
+
+	// 5. Revoke all refresh tokens
+	if err := uc.refreshRepo.RevokeByUserID(ctx, userID); err != nil {
+		fmt.Printf("warning: failed to revoke refresh tokens after forced reset: %v\n", err)
+	}
+
+	// 6. Audit log
+	_ = uc.auditRepo.Create(ctx, domain.NewAuditLogEntry(userID, "forced_password_reset", "", "", "", true, "admin forced password reset", nil))
+
+	return nil
 }
 
 func (uc *AuthUseCase) OAuthLogin(ctx context.Context, provider, code, state, ipAddress, userAgent, device string) (*LoginResponse, error) {
