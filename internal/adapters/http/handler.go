@@ -34,6 +34,8 @@ type Handler struct {
 	authMiddleware      *AuthMiddleware
 	allowedOrigins      []string
 	environment         string
+	jwtIssuer           string
+	baseDomain          string
 }
 
 func NewHandler(
@@ -49,6 +51,8 @@ func NewHandler(
 	logger zerolog.Logger,
 	allowedOrigins []string,
 	environment string,
+	jwtIssuer string,
+	baseDomain string,
 ) *Handler {
 	return &Handler{
 		authUC:              authUC,
@@ -64,6 +68,8 @@ func NewHandler(
 		authMiddleware:      NewAuthMiddleware(tokenUC),
 		allowedOrigins:      allowedOrigins,
 		environment:         environment,
+		jwtIssuer:           jwtIssuer,
+		baseDomain:          baseDomain,
 	}
 }
 
@@ -137,7 +143,13 @@ func (h *Handler) SetupRoutes(telemetryEnabled bool) http.Handler {
 
 			// Email verification (resend)
 			r.Post("/auth/resend-verification", h.ResendVerificationEmail)
+
+			// OIDC UserInfo
+			r.Get("/auth/userinfo", h.GetUserInfo)
 		})
+
+		// OIDC Discovery (.well-known)
+		r.Get("/.well-known/openid-configuration", h.GetOIDCConfiguration)
 
 		// Admin routes (Protected by AuthMiddleware for now, further RBAC can be added)
 		r.Group(func(r chi.Router) {
@@ -1171,6 +1183,70 @@ func (h *Handler) AdminForcePasswordReset(w http.ResponseWriter, r *http.Request
 
 	respondWithJSON(w, http.StatusOK, MessageResponse{
 		Message: "forced password reset successfully",
+	})
+}
+
+// GetOIDCConfiguration godoc
+// @Summary      OIDC Discovery
+// @Description  Retorna la configuración de OpenID Connect para el descubrimiento automático
+// @Tags         OIDC
+// @Accept       json
+// @Produce      json
+// @Success      200 {object} OIDCConfigurationResponse
+// @Router       /.well-known/openid-configuration [get]
+func (h *Handler) GetOIDCConfiguration(w http.ResponseWriter, r *http.Request) {
+	issuer := h.jwtIssuer
+	baseURL := "http://" + h.baseDomain
+	if h.environment == "production" {
+		baseURL = "https://" + h.baseDomain
+	}
+
+	config := OIDCConfigurationResponse{
+		Issuer:                           issuer,
+		AuthorizationEndpoint:            baseURL + "/auth/authorize",
+		TokenEndpoint:                    baseURL + "/auth/login",
+		UserinfoEndpoint:                 baseURL + "/auth/userinfo",
+		JWKSURI:                          baseURL + "/auth/.well-known/jwks.json",
+		ScopesSupported:                  []string{"openid", "profile", "email"},
+		ResponseTypesSupported:           []string{"code", "token", "id_token"},
+		SubjectTypesSupported:            []string{"public"},
+		IDTokenSigningAlgValuesSupported: []string{"RS256"},
+		ClaimsSupported:                  []string{"sub", "iss", "name", "email", "email_verified", "preferred_username"},
+	}
+
+	respondWithJSON(w, http.StatusOK, config)
+}
+
+// GetUserInfo godoc
+// @Summary      UserInfo (OIDC)
+// @Description  Retorna los claims del usuario autenticado siguiendo el estándar OIDC
+// @Tags         OIDC
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Success      200 {object} UserInfoResponse
+// @Failure      401 {object} ErrorResponse "No autenticado"
+// @Failure      500 {object} ErrorResponse
+// @Router       /auth/userinfo [get]
+func (h *Handler) GetUserInfo(w http.ResponseWriter, r *http.Request) {
+	userID, ok := GetUserIDFromContext(r.Context())
+	if !ok {
+		respondWithError(w, http.StatusUnauthorized, "unauthorized", "UNAUTHORIZED")
+		return
+	}
+
+	user, err := h.authUC.GetUserInfo(r.Context(), userID)
+	if err != nil {
+		h.handleAuthError(w, err)
+		return
+	}
+
+	respondWithJSON(w, http.StatusOK, UserInfoResponse{
+		Sub:               user.ID,
+		Name:              user.Username, // Mapping username to name as fallback
+		PreferredUsername: user.Username,
+		Email:             user.Email,
+		EmailVerified:     user.EmailVerified,
 	})
 }
 

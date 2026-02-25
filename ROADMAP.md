@@ -18,12 +18,12 @@ Prioridades basadas en impacto de seguridad, demanda de funcionalidad y compleji
 
 ## 🟠 P1 — Alta prioridad (Features core)
 
-| Feature                                | Estado       | Descripción                                                                                                          |
-| -------------------------------------- | ------------ | -------------------------------------------------------------------------------------------------------------------- |
-| **Admin Web Console & Management API** | ❌ Pendiente | Interfaz gráfica y API de administración para gestionar tenants, llaves RSA, y políticas de seguridad global.        |
-| **OIDC Discovery & UserInfo**          | ❌ Pendiente | Implementar endpoints `/.well-known/openid-configuration` y `/userinfo` para cumplimiento total con OIDC.            |
-| **Dynamic Scopes & RBAC/ABAC**         | ❌ Pendiente | Soporte para scopes dinámicos (OAuth2) y Modelos de Control de Acceso basado en Atributos (ABAC) para apps externas. |
-| **Passwordless (FIDO2/WebAuthn)**      | ❌ Pendiente | Autenticación biométrica (FaceID/TouchID) y hardware keys como factor primario o secundario.                         |
+| Feature                                | Estado        | Descripción                                                                                                          |
+| -------------------------------------- | ------------- | -------------------------------------------------------------------------------------------------------------------- |
+| **Admin Web Console & Management API** | ❌ Pendiente  | Interfaz gráfica y API de administración para gestionar tenants, llaves RSA, y políticas de seguridad global.        |
+| **OIDC Discovery & UserInfo**          | ✅ Completado | Implementar endpoints `/.well-known/openid-configuration` y `/userinfo` para cumplimiento total con OIDC.            |
+| **Dynamic Scopes & RBAC/ABAC**         | ❌ Pendiente  | Soporte para scopes dinámicos (OAuth2) y Modelos de Control de Acceso basado en Atributos (ABAC) para apps externas. |
+| **Passwordless (FIDO2/WebAuthn)**      | ❌ Pendiente  | Autenticación biométrica (FaceID/TouchID) y hardware keys como factor primario o secundario.                         |
 
 ---
 

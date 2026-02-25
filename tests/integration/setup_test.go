@@ -170,6 +170,8 @@ func SetupTestServer(t *testing.T) *TestServer {
 		logger,
 		cfg.Server.AllowedOrigins,
 		cfg.Server.Environment,
+		cfg.JWT.Issuer,
+		cfg.Server.BaseDomain,
 	)
 
 	// Create test server (disable telemetry for tests)

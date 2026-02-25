@@ -720,3 +720,12 @@ func hashToken(token string) string {
 	hash := sha256.Sum256([]byte(token))
 	return hex.EncodeToString(hash[:])
 }
+
+// GetUserInfo returns user information for OIDC UserInfo endpoint
+func (uc *AuthUseCase) GetUserInfo(ctx context.Context, userID string) (*domain.User, error) {
+	user, err := uc.userRepo.GetByID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	return user, nil
+}
