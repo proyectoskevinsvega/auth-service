@@ -170,9 +170,17 @@ make build
 
 El servicio expone:
 
-- HTTP REST: `http://localhost:8080`
-- gRPC: `localhost:9090`
-- Swagger UI: `http://localhost:8080/swagger/index.html`
+- HTTP REST: `http://localhost:8082`
+- gRPC: `localhost:9092`
+- Swagger UI: `http://localhost:8082/swagger/index.html`
+
+## Producción y Despliegue
+
+Para entornos de producción, se recomienda encarecidamente el uso de Nginx y Cloudflare:
+
+- [Guía de Despliegue con Nginx](docs/NGINX_DEPLOYMENT.md) - Paso a paso para VM/VPS.
+- [Optimización del Sistema (Alta Escala)](docs/SYSTEM_TUNING.md) - Tuning del Kernel de Linux.
+- [Configuraciones Nginx](nginx/) - Archivos `nginx.conf` y `cloudflare_ips.conf` listos para usar.
 
 ## Documentación API Interactiva (Swagger/OpenAPI)
 

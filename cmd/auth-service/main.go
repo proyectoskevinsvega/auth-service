@@ -45,6 +45,8 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"net"
 	"net/http"
@@ -72,6 +74,7 @@ import (
 	"github.com/vertercloud/auth-service/internal/usecase"
 	"github.com/vertercloud/auth-service/internal/worker"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 )
 
 func main() {
@@ -479,8 +482,42 @@ func startGRPCServer(cfg *config.Config, authServer *grpcadapter.AuthServer, log
 		logger.Fatal().Err(err).Msg("failed to listen for gRPC")
 	}
 
-	// Build gRPC server options with interceptor if telemetry is enabled
+	// Build gRPC server options
 	var serverOpts []grpc.ServerOption
+
+	// Setup mTLS if enabled
+	if cfg.GRPCTLS.Enabled {
+		logger.Info().Msg("gRPC mTLS enabled, loading certificates...")
+
+		// Load server's certificate and private key
+		serverCert, err := tls.LoadX509KeyPair(cfg.GRPCTLS.CertPath, cfg.GRPCTLS.KeyPath)
+		if err != nil {
+			logger.Fatal().Err(err).Msg("failed to load gRPC server certificate")
+		}
+
+		// Load CA certificate to verify clients
+		caCert, err := os.ReadFile(cfg.GRPCTLS.CACertPath)
+		if err != nil {
+			logger.Fatal().Err(err).Msg("failed to read gRPC CA certificate")
+		}
+
+		caCertPool := x509.NewCertPool()
+		if !caCertPool.AppendCertsFromPEM(caCert) {
+			logger.Fatal().Msg("failed to append gRPC CA certificate to pool")
+		}
+
+		// Create TLS configuration
+		tlsConfig := &tls.Config{
+			Certificates: []tls.Certificate{serverCert},
+			ClientAuth:   tls.RequireAndVerifyClientCert,
+			ClientCAs:    caCertPool,
+			MinVersion:   tls.VersionTLS12,
+		}
+
+		serverOpts = append(serverOpts, grpc.Creds(credentials.NewTLS(tlsConfig)))
+		logger.Info().Msg("gRPC mTLS configured successfully")
+	}
+
 	if telemetryConfig.Enabled && telemetryConfig.TraceGRPC {
 		serverOpts = append(serverOpts,
 			grpc.ChainUnaryInterceptor(telemetry.UnaryServerInterceptor()),

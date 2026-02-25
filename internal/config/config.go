@@ -26,6 +26,7 @@ type Config struct {
 	Telemetry    TelemetryConfig
 	WebAuthn     WebAuthnConfig
 	ThreatIntel  ThreatIntelConfig
+	GRPCTLS      GRPCTLSConfig
 }
 
 type ServerConfig struct {
@@ -138,6 +139,13 @@ type InternalConfig struct {
 type NotificationConfig struct {
 	Enabled    bool
 	RedisQueue string
+}
+
+type GRPCTLSConfig struct {
+	Enabled    bool
+	CACertPath string
+	CertPath   string
+	KeyPath    string
 }
 
 type TelemetryConfig struct {
@@ -281,6 +289,12 @@ func Load() (*Config, error) {
 			APIKey:            getEnv("THREAT_INTEL_API_KEY", ""),
 			BlockThreshold:    getEnvAsInt("THREAT_INTEL_BLOCK_THRESHOLD", 80),
 			MFAScoreThreshold: getEnvAsInt("THREAT_INTEL_MFA_THRESHOLD", 40),
+		},
+		GRPCTLS: GRPCTLSConfig{
+			Enabled:    getEnvAsBool("GRPC_TLS_ENABLED", false),
+			CACertPath: getEnv("GRPC_CA_CERT_PATH", "./keys/ca.pem"),
+			CertPath:   getEnv("GRPC_SERVER_CERT_PATH", "./keys/server.pem"),
+			KeyPath:    getEnv("GRPC_SERVER_KEY_PATH", "./keys/server-key.pem"),
 		},
 	}
 
