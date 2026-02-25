@@ -20,7 +20,7 @@ Prioridades basadas en impacto de seguridad, demanda de funcionalidad y compleji
 
 | Feature                                | Estado        | Descripción                                                                                                      |
 | -------------------------------------- | ------------- | ---------------------------------------------------------------------------------------------------------------- |
-| **Admin Web Console & Management API** | ❌ Pendiente  | Interfaz gráfica y API de administración para gestionar tenants, llaves RSA, y políticas de seguridad global.    |
+| **Admin Web Console & Management API** | ❌ Pendiente  | Interfaz gráfica y API de administración para gestionar tenants, llaves RSA, políticas de seguridad global, etc. |
 | **OIDC Discovery & UserInfo**          | ✅ Completado | Implementar endpoints `/.well-known/openid-configuration` y `/userinfo` para cumplimiento total con OIDC.        |
 | **Dynamic Scopes & RBAC/ABAC**         | ✅ Completado | Soporte para scopes dinámicos (OAuth2) y Modelos de Control de Acceso basado en Roles (RBAC) y Atributos (ABAC). |
 | **Passwordless (FIDO2/WebAuthn)**      | ✅ Completado | Autenticación biométrica (FaceID/TouchID) y hardware keys como factor primario o secundario.                     |
@@ -29,14 +29,14 @@ Prioridades basadas en impacto de seguridad, demanda de funcionalidad y compleji
 
 ## 🟡 P2 — Media prioridad (Mejoras)
 
-| Feature                         | Estado        | Descripción                                                                                                          |
-| ------------------------------- | ------------- | -------------------------------------------------------------------------------------------------------------------- |
-| **User Self-Service Portal**    | ❌ Pendiente  | Portal para usuarios: gestión de MFA, sesiones activas, descarga de datos (GDPR) e historial de seguridad personal.  |
-| **Enterprise Federation (SSO)** | ❌ Pendiente  | Integración vía SAML 2.0 y OIDC con Azure AD, Okta, Ping Identity y Google Workspace.                                |
-| **Multi-tenant isolation**      | ✅ Completado | Aislamiento lógico (User Pools) con configuración independiente por cliente.                                         |
-| **Client Credentials Flow**     | ✅ Completado | Autenticación Machine-to-Machine para microservicios mediante Client ID / Client Secret.                             |
-| **Webhook Lifecycle Events**    | ❌ Pendiente  | Notificaciones en tiempo real hacia servicios externos sobre eventos críticos (ej: UserDeletion, RiskDetected, etc). |
-| **Developer SDKs & CLI**        | ❌ Pendiente  | SDKs oficiales (Go, TS, Python) y herramienta de comandos para automatización de la plataforma.                      |
+| Feature                         | Estado        | Descripción                                                                                                           |
+| ------------------------------- | ------------- | --------------------------------------------------------------------------------------------------------------------- |
+| **User Self-Service Portal**    | ❌ Pendiente  | Portal para usuarios: gestión de MFA, sesiones activas, descarga de datos (GDPR) historial de seguridad personal, etc |
+| **Enterprise Federation (SSO)** | ❌ Pendiente  | Integración vía SAML 2.0 y OIDC con Azure AD, Okta, Ping Identity y Google Workspace.                                 |
+| **Multi-tenant isolation**      | ✅ Completado | Aislamiento lógico (User Pools) con configuración independiente por cliente.                                          |
+| **Client Credentials Flow**     | ✅ Completado | Autenticación Machine-to-Machine para microservicios mediante Client ID / Client Secret.                              |
+| **Webhook Lifecycle Events**    | ✅ Completado | Notificaciones HTTP firmadas (HMAC-SHA256) a servicios externos sobre eventos críticos del ciclo de vida.             |
+| **Developer SDKs & CLI**        | ❌ Pendiente  | SDKs oficiales (Go, TS, Python) y herramienta de comandos para automatización de la plataforma.                       |
 
 ---
 
@@ -68,6 +68,7 @@ Prioridades basadas en impacto de seguridad, demanda de funcionalidad y compleji
 
 | Feature                                          | Versión |
 | ------------------------------------------------ | ------- |
+| Webhook Lifecycle Events                         | v1.6    |
 | 2FA Backup Codes                                 | v1.5    |
 | Advanced Threat Intelligence                     | v1.5    |
 | Client Credentials Flow                          | v1.5    |

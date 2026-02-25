@@ -119,3 +119,12 @@ type BackupCodeRepository interface {
 	MarkAsUsed(ctx context.Context, id string) error
 	DeleteAllByUserID(ctx context.Context, tenantID, userID string) error
 }
+
+type WebhookRepository interface {
+	Create(ctx context.Context, subscription *domain.WebhookSubscription) error
+	GetByID(ctx context.Context, tenantID, id string) (*domain.WebhookSubscription, error)
+	GetByTenantID(ctx context.Context, tenantID string) ([]*domain.WebhookSubscription, error)
+	GetSubscriptionsForEvent(ctx context.Context, tenantID string, eventType domain.EventType) ([]*domain.WebhookSubscription, error)
+	Update(ctx context.Context, subscription *domain.WebhookSubscription) error
+	Delete(ctx context.Context, tenantID, id string) error
+}

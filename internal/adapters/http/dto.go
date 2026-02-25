@@ -1,5 +1,9 @@
 package http
 
+import (
+	"time"
+)
+
 // Request DTOs
 
 // RegisterRequest representa la solicitud de registro de un nuevo usuario
@@ -214,4 +218,24 @@ type WebAuthnLoginBeginRequest struct {
 type WebAuthnFinishRequest struct {
 	Challenge string      `json:"challenge" validate:"required"`
 	Response  interface{} `json:"response" validate:"required"` // El objeto retornado por el navegador (FIDO2)
+}
+
+// Webhook DTOs
+
+type CreateWebhookRequest struct {
+	URL        string   `json:"url" validate:"required,url"`
+	Secret     string   `json:"secret" validate:"required,min=16"`
+	EventTypes []string `json:"event_types" validate:"required,min=1"`
+}
+
+type WebhookResponse struct {
+	ID         string    `json:"id"`
+	URL        string    `json:"url"`
+	EventTypes []string  `json:"event_types"`
+	Active     bool      `json:"active"`
+	CreatedAt  time.Time `json:"created_at"`
+}
+
+type WebhookListResponse struct {
+	Webhooks []WebhookResponse `json:"webhooks"`
 }

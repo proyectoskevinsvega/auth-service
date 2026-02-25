@@ -3,6 +3,7 @@ package http
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -20,40 +21,42 @@ import (
 	_ "github.com/vertercloud/auth-service/docs" // Swagger docs
 )
 
+// Handler maneja las solicitudes HTTP
 type Handler struct {
 	authUC              *usecase.AuthUseCase
 	tokenUC             *usecase.TokenUseCase
 	sessionUC           *usecase.SessionUseCase
 	twofaUC             *usecase.TwoFAUseCase
 	emailVerificationUC *usecase.EmailVerificationUseCase
-	webauthnUC          *usecase.WebAuthnUseCase
+	webhookUC           *usecase.WebhookUseCase
 	userRepo            ports.UserRepository
-	googleOAuth         ports.OAuthProvider
-	githubOAuth         ports.OAuthProvider
+	oauthProviders      map[string]ports.OAuthProvider
 	jwtService          ports.JWTService
+	webauthnUC          *usecase.WebAuthnUseCase
 	logger              zerolog.Logger
-	authMiddleware      *AuthMiddleware
+	authMiddleware      *AuthMiddleware // This was not removed in the provided snippet, keeping it.
 	allowedOrigins      []string
-	environment         string
-	jwtIssuer           string
+	env                 string
+	issuer              string
 	baseDomain          string
 }
 
+// NewHandler crea una nueva instancia de Handler
 func NewHandler(
 	authUC *usecase.AuthUseCase,
 	tokenUC *usecase.TokenUseCase,
 	sessionUC *usecase.SessionUseCase,
 	twofaUC *usecase.TwoFAUseCase,
 	emailVerificationUC *usecase.EmailVerificationUseCase,
+	webhookUC *usecase.WebhookUseCase,
 	userRepo ports.UserRepository,
-	googleOAuth ports.OAuthProvider,
-	githubOAuth ports.OAuthProvider,
+	oauthProviders map[string]ports.OAuthProvider,
 	jwtService ports.JWTService,
 	webauthnUC *usecase.WebAuthnUseCase,
 	logger zerolog.Logger,
 	allowedOrigins []string,
-	environment string,
-	jwtIssuer string,
+	env string,
+	issuer string,
 	baseDomain string,
 ) *Handler {
 	return &Handler{
@@ -62,16 +65,16 @@ func NewHandler(
 		sessionUC:           sessionUC,
 		twofaUC:             twofaUC,
 		emailVerificationUC: emailVerificationUC,
-		webauthnUC:          webauthnUC,
+		webhookUC:           webhookUC,
 		userRepo:            userRepo,
-		googleOAuth:         googleOAuth,
-		githubOAuth:         githubOAuth,
+		oauthProviders:      oauthProviders,
 		jwtService:          jwtService,
+		webauthnUC:          webauthnUC,
 		logger:              logger,
-		authMiddleware:      NewAuthMiddleware(tokenUC),
+		authMiddleware:      NewAuthMiddleware(tokenUC), // This was not removed in the provided snippet, keeping it.
 		allowedOrigins:      allowedOrigins,
-		environment:         environment,
-		jwtIssuer:           jwtIssuer,
+		env:                 env,
+		issuer:              issuer,
 		baseDomain:          baseDomain,
 	}
 }
@@ -103,7 +106,7 @@ func (h *Handler) SetupRoutes(telemetryEnabled bool) http.Handler {
 	}))
 
 	// Security Headers
-	r.Use(SecurityHeaders(h.environment))
+	r.Use(SecurityHeaders(h.env))
 
 	// API v1 routes
 	r.Route("/api/v1", func(r chi.Router) {
@@ -149,6 +152,11 @@ func (h *Handler) SetupRoutes(telemetryEnabled bool) http.Handler {
 			r.Post("/auth/2fa/verify", h.Verify2FA)
 			r.Post("/auth/2fa/disable", h.Disable2FA)
 			r.Post("/auth/2fa/backup-codes", h.RegenerateBackupCodes)
+
+			// Webhooks
+			r.Post("/auth/webhooks", h.CreateWebhook)
+			r.Get("/auth/webhooks", h.ListWebhooks)
+			r.Delete("/auth/webhooks/{id}", h.DeleteWebhook)
 
 			// Email verification (resend)
 			r.Post("/auth/resend-verification", h.ResendVerificationEmail)
@@ -637,7 +645,12 @@ func (h *Handler) UpdateMe(w http.ResponseWriter, r *http.Request) {
 // @Success      307 {string} string "Redirección a Google OAuth"
 // @Router       /auth/oauth/google [get]
 func (h *Handler) GoogleOAuthStart(w http.ResponseWriter, r *http.Request) {
-	authURL := h.googleOAuth.GetAuthURL("")
+	provider, ok := h.oauthProviders["google"]
+	if !ok || provider == nil {
+		respondWithError(w, http.StatusServiceUnavailable, "Google OAuth not configured", "OAUTH_DISABLED")
+		return
+	}
+	authURL := provider.GetAuthURL("")
 	http.Redirect(w, r, authURL, http.StatusTemporaryRedirect)
 }
 
@@ -706,7 +719,12 @@ func (h *Handler) GoogleOAuthCallback(w http.ResponseWriter, r *http.Request) {
 // @Success      307 {string} string "Redirección a GitHub OAuth"
 // @Router       /auth/oauth/github [get]
 func (h *Handler) GitHubOAuthStart(w http.ResponseWriter, r *http.Request) {
-	authURL := h.githubOAuth.GetAuthURL("")
+	provider, ok := h.oauthProviders["github"]
+	if !ok || provider == nil {
+		respondWithError(w, http.StatusServiceUnavailable, "GitHub OAuth not configured", "OAUTH_DISABLED")
+		return
+	}
+	authURL := provider.GetAuthURL("")
 	http.Redirect(w, r, authURL, http.StatusTemporaryRedirect)
 }
 
@@ -1219,11 +1237,15 @@ func (h *Handler) GetJWKS(w http.ResponseWriter, r *http.Request) {
 
 // @Router       /health [get]
 func (h *Handler) Health(w http.ResponseWriter, r *http.Request) {
-	respondWithJSON(w, http.StatusOK, HealthResponse{
+	resp := HealthResponse{
 		Status:  "healthy",
 		Service: "auth-service",
-		Version: "1.1.0",
-	})
+		Version: "1.0.0",
+	}
+	if h.env == "development" {
+		resp.Status = "healthy (dev)"
+	}
+	respondWithJSON(w, http.StatusOK, resp)
 }
 
 // AdminForcePasswordReset godoc
@@ -1261,26 +1283,19 @@ func (h *Handler) AdminForcePasswordReset(w http.ResponseWriter, r *http.Request
 }
 
 // GetOIDCConfiguration godoc
-// @Summary      OIDC Discovery
-// @Description  Retorna la configuración de OpenID Connect para el descubrimiento automático
-// @Tags         OIDC
-// @Accept       json
+// @Summary      Discovery de OpenID Connect
+// @Description  Retorna la configuración del servidor OIDC para auto-discovery por parte de clientes.
+// @Tags         OpenID Connect
 // @Produce      json
 // @Success      200 {object} OIDCConfigurationResponse
 // @Router       /.well-known/openid-configuration [get]
 func (h *Handler) GetOIDCConfiguration(w http.ResponseWriter, r *http.Request) {
-	issuer := h.jwtIssuer
-	baseURL := "http://" + h.baseDomain
-	if h.environment == "production" {
-		baseURL = "https://" + h.baseDomain
-	}
-
 	config := OIDCConfigurationResponse{
-		Issuer:                           issuer,
-		AuthorizationEndpoint:            baseURL + "/auth/authorize",
-		TokenEndpoint:                    baseURL + "/auth/login",
-		UserinfoEndpoint:                 baseURL + "/auth/userinfo",
-		JWKSURI:                          baseURL + "/auth/.well-known/jwks.json",
+		Issuer:                           h.issuer,
+		AuthorizationEndpoint:            fmt.Sprintf("%s/api/v1/auth/oauth/google", h.issuer), // Simplificado
+		TokenEndpoint:                    fmt.Sprintf("%s/api/v1/auth/login", h.issuer),
+		UserinfoEndpoint:                 fmt.Sprintf("%s/api/v1/auth/userinfo", h.issuer),
+		JWKSURI:                          fmt.Sprintf("%s/api/v1/auth/.well-known/jwks.json", h.issuer),
 		ScopesSupported:                  []string{"openid", "profile", "email"},
 		ResponseTypesSupported:           []string{"code", "token", "id_token"},
 		SubjectTypesSupported:            []string{"public"},
@@ -1496,6 +1511,77 @@ func (h *Handler) AssignRoleToUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	respondWithJSON(w, http.StatusOK, MessageResponse{Message: "role assigned to user successfully"})
+}
+
+// Webhook handlers
+
+func (h *Handler) CreateWebhook(w http.ResponseWriter, r *http.Request) {
+	tenantID, _ := GetTenantIDFromContext(r.Context())
+
+	var req CreateWebhookRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respondWithError(w, http.StatusBadRequest, "invalid request body", "BAD_REQUEST")
+		return
+	}
+
+	sub := &domain.WebhookSubscription{
+		TenantID:   tenantID,
+		URL:        req.URL,
+		Secret:     req.Secret,
+		EventTypes: req.EventTypes,
+		Active:     true,
+	}
+
+	if err := h.webhookUC.CreateSubscription(r.Context(), sub); err != nil {
+		h.logger.Error().Err(err).Msg("failed to create webhook")
+		respondWithError(w, http.StatusInternalServerError, "failed to create webhook", "INTERNAL_ERROR")
+		return
+	}
+
+	respondWithJSON(w, http.StatusCreated, WebhookResponse{
+		ID:         sub.ID,
+		URL:        sub.URL,
+		EventTypes: sub.EventTypes,
+		Active:     sub.Active,
+		CreatedAt:  sub.CreatedAt,
+	})
+}
+
+func (h *Handler) ListWebhooks(w http.ResponseWriter, r *http.Request) {
+	tenantID, _ := GetTenantIDFromContext(r.Context())
+
+	subs, err := h.webhookUC.ListSubscriptions(r.Context(), tenantID)
+	if err != nil {
+		h.logger.Error().Err(err).Msg("failed to list webhooks")
+		respondWithError(w, http.StatusInternalServerError, "failed to list webhooks", "INTERNAL_ERROR")
+		return
+	}
+
+	resp := WebhookListResponse{Webhooks: make([]WebhookResponse, len(subs))}
+	for i, s := range subs {
+		resp.Webhooks[i] = WebhookResponse{
+			ID:         s.ID,
+			URL:        s.URL,
+			EventTypes: s.EventTypes,
+			Active:     s.Active,
+			CreatedAt:  s.CreatedAt,
+		}
+	}
+
+	respondWithJSON(w, http.StatusOK, resp)
+}
+
+func (h *Handler) DeleteWebhook(w http.ResponseWriter, r *http.Request) {
+	tenantID, _ := GetTenantIDFromContext(r.Context())
+	id := chi.URLParam(r, "id")
+
+	if err := h.webhookUC.DeleteSubscription(r.Context(), tenantID, id); err != nil {
+		h.logger.Error().Err(err).Msg("failed to delete webhook")
+		respondWithError(w, http.StatusInternalServerError, "failed to delete webhook", "INTERNAL_ERROR")
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // Mappers

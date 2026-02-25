@@ -186,9 +186,9 @@ func SetupTestServer(t *testing.T) *TestServer {
 		sessionUC,
 		twofaUC,
 		emailVerificationUC,
+		nil, // webhookUC (not needed in tests)
 		userRepo,
-		nil, // Google OAuth
-		nil, // GitHub OAuth
+		map[string]ports.OAuthProvider{}, // empty OAuth providers for tests
 		jwtService,
 		webauthnUC,
 		logger,

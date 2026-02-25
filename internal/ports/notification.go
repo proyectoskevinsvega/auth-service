@@ -30,3 +30,7 @@ type EmailService interface {
 	// SendPasswordExpiryWarning sends a warning email about password expiration
 	SendPasswordExpiryWarning(ctx context.Context, to, name string, daysRemaining int) error
 }
+
+type WebhookSender interface {
+	Send(ctx context.Context, sub *domain.WebhookSubscription, payload *domain.WebhookPayload) error
+}
