@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/vertercloud/auth-service/internal/domain"
@@ -70,9 +71,9 @@ func (r *UserRepository) GetByID(ctx context.Context, id string) (*domain.User, 
 	`
 
 	user := &domain.User{}
-	var lastLoginAt sql.NullTime
-	var twoFactorSecret, oauthProvider, oauthProviderID, lastLoginIP, lastLoginCountry sql.NullString
-	var lastLoginLatitude, lastLoginLongitude sql.NullFloat64
+	var lastLoginAt *time.Time
+	var twoFactorSecret, oauthProvider, oauthProviderID, lastLoginIP, lastLoginCountry *string
+	var lastLoginLatitude, lastLoginLongitude *float64
 
 	err := r.db.QueryRow(ctx, query, id).Scan(
 		&user.ID, &user.Username, &user.Email, &user.PasswordHash, &user.Active, &user.EmailVerified,
@@ -88,31 +89,25 @@ func (r *UserRepository) GetByID(ctx context.Context, id string) (*domain.User, 
 		return nil, fmt.Errorf("failed to get user by ID: %w", err)
 	}
 
-	// Handle NULL values
-	if lastLoginAt.Valid {
-		user.LastLoginAt = &lastLoginAt.Time
+	// Map optional fields
+	user.LastLoginAt = lastLoginAt
+	if twoFactorSecret != nil {
+		user.TwoFactorSecret = *twoFactorSecret
 	}
-	if twoFactorSecret.Valid {
-		user.TwoFactorSecret = twoFactorSecret.String
+	if oauthProvider != nil {
+		user.OAuthProvider = *oauthProvider
 	}
-	if oauthProvider.Valid {
-		user.OAuthProvider = oauthProvider.String
+	if oauthProviderID != nil {
+		user.OAuthProviderID = *oauthProviderID
 	}
-	if oauthProviderID.Valid {
-		user.OAuthProviderID = oauthProviderID.String
+	if lastLoginIP != nil {
+		user.LastLoginIP = *lastLoginIP
 	}
-	if lastLoginIP.Valid {
-		user.LastLoginIP = lastLoginIP.String
+	if lastLoginCountry != nil {
+		user.LastLoginCountry = *lastLoginCountry
 	}
-	if lastLoginCountry.Valid {
-		user.LastLoginCountry = lastLoginCountry.String
-	}
-	if lastLoginLatitude.Valid {
-		user.LastLoginLatitude = &lastLoginLatitude.Float64
-	}
-	if lastLoginLongitude.Valid {
-		user.LastLoginLongitude = &lastLoginLongitude.Float64
-	}
+	user.LastLoginLatitude = lastLoginLatitude
+	user.LastLoginLongitude = lastLoginLongitude
 
 	return user, nil
 }
@@ -127,8 +122,8 @@ func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*domain.
 	`
 
 	user := &domain.User{}
-	var lastLoginAt sql.NullTime
-	var twoFactorSecret, oauthProvider, oauthProviderID, lastLoginIP, lastLoginCountry sql.NullString
+	var lastLoginAt *time.Time
+	var twoFactorSecret, oauthProvider, oauthProviderID, lastLoginIP, lastLoginCountry *string
 
 	err := r.db.QueryRow(ctx, query, email).Scan(
 		&user.ID, &user.Username, &user.Email, &user.PasswordHash, &user.Active, &user.EmailVerified,
@@ -143,24 +138,22 @@ func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*domain.
 		return nil, fmt.Errorf("failed to get user by email: %w", err)
 	}
 
-	// Handle NULL values
-	if lastLoginAt.Valid {
-		user.LastLoginAt = &lastLoginAt.Time
+	// Map optional fields
+	user.LastLoginAt = lastLoginAt
+	if twoFactorSecret != nil {
+		user.TwoFactorSecret = *twoFactorSecret
 	}
-	if twoFactorSecret.Valid {
-		user.TwoFactorSecret = twoFactorSecret.String
+	if oauthProvider != nil {
+		user.OAuthProvider = *oauthProvider
 	}
-	if oauthProvider.Valid {
-		user.OAuthProvider = oauthProvider.String
+	if oauthProviderID != nil {
+		user.OAuthProviderID = *oauthProviderID
 	}
-	if oauthProviderID.Valid {
-		user.OAuthProviderID = oauthProviderID.String
+	if lastLoginIP != nil {
+		user.LastLoginIP = *lastLoginIP
 	}
-	if lastLoginIP.Valid {
-		user.LastLoginIP = lastLoginIP.String
-	}
-	if lastLoginCountry.Valid {
-		user.LastLoginCountry = lastLoginCountry.String
+	if lastLoginCountry != nil {
+		user.LastLoginCountry = *lastLoginCountry
 	}
 
 	return user, nil
@@ -176,8 +169,8 @@ func (r *UserRepository) GetByUsername(ctx context.Context, username string) (*d
 	`
 
 	user := &domain.User{}
-	var lastLoginAt sql.NullTime
-	var twoFactorSecret, oauthProvider, oauthProviderID, lastLoginIP, lastLoginCountry sql.NullString
+	var lastLoginAt *time.Time
+	var twoFactorSecret, oauthProvider, oauthProviderID, lastLoginIP, lastLoginCountry *string
 
 	err := r.db.QueryRow(ctx, query, username).Scan(
 		&user.ID, &user.Username, &user.Email, &user.PasswordHash, &user.Active, &user.EmailVerified,
@@ -192,24 +185,22 @@ func (r *UserRepository) GetByUsername(ctx context.Context, username string) (*d
 		return nil, fmt.Errorf("failed to get user by username: %w", err)
 	}
 
-	// Handle NULL values
-	if lastLoginAt.Valid {
-		user.LastLoginAt = &lastLoginAt.Time
+	// Map optional fields
+	user.LastLoginAt = lastLoginAt
+	if twoFactorSecret != nil {
+		user.TwoFactorSecret = *twoFactorSecret
 	}
-	if twoFactorSecret.Valid {
-		user.TwoFactorSecret = twoFactorSecret.String
+	if oauthProvider != nil {
+		user.OAuthProvider = *oauthProvider
 	}
-	if oauthProvider.Valid {
-		user.OAuthProvider = oauthProvider.String
+	if oauthProviderID != nil {
+		user.OAuthProviderID = *oauthProviderID
 	}
-	if oauthProviderID.Valid {
-		user.OAuthProviderID = oauthProviderID.String
+	if lastLoginIP != nil {
+		user.LastLoginIP = *lastLoginIP
 	}
-	if lastLoginIP.Valid {
-		user.LastLoginIP = lastLoginIP.String
-	}
-	if lastLoginCountry.Valid {
-		user.LastLoginCountry = lastLoginCountry.String
+	if lastLoginCountry != nil {
+		user.LastLoginCountry = *lastLoginCountry
 	}
 
 	return user, nil
@@ -218,20 +209,23 @@ func (r *UserRepository) GetByUsername(ctx context.Context, username string) (*d
 func (r *UserRepository) GetByEmailOrUsername(ctx context.Context, identifier string) (*domain.User, error) {
 	query := `
 		SELECT id, username, email, password_hash, active, email_verified,
-			   two_factor_enabled, two_factor_secret, oauth_provider, oauth_provider_id,
-			   created_at, updated_at, last_login_at, last_login_ip, last_login_country
+			two_factor_enabled, two_factor_secret, oauth_provider, oauth_provider_id,
+			created_at, updated_at, last_login_at, last_login_ip, last_login_country,
+			last_login_latitude, last_login_longitude, failed_login_attempts, locked_until
 		FROM auth_users
 		WHERE email = $1 OR username = $1
 	`
 
 	user := &domain.User{}
-	var lastLoginAt sql.NullTime
-	var twoFactorSecret, oauthProvider, oauthProviderID, lastLoginIP, lastLoginCountry sql.NullString
+	var lastLoginAt, lockedUntil *time.Time
+	var twoFactorSecret, oauthProvider, oauthProviderID, lastLoginIP, lastLoginCountry *string
+	var lastLoginLatitude, lastLoginLongitude *float64
 
 	err := r.db.QueryRow(ctx, query, identifier).Scan(
 		&user.ID, &user.Username, &user.Email, &user.PasswordHash, &user.Active, &user.EmailVerified,
 		&user.TwoFactorEnabled, &twoFactorSecret, &oauthProvider, &oauthProviderID,
 		&user.CreatedAt, &user.UpdatedAt, &lastLoginAt, &lastLoginIP, &lastLoginCountry,
+		&lastLoginLatitude, &lastLoginLongitude, &user.FailedLoginAttempts, &lockedUntil,
 	)
 
 	if err != nil {
@@ -241,25 +235,26 @@ func (r *UserRepository) GetByEmailOrUsername(ctx context.Context, identifier st
 		return nil, fmt.Errorf("failed to get user by email or username: %w", err)
 	}
 
-	// Handle NULL values
-	if lastLoginAt.Valid {
-		user.LastLoginAt = &lastLoginAt.Time
+	// Map optional fields
+	user.LastLoginAt = lastLoginAt
+	user.LockedUntil = lockedUntil
+	if twoFactorSecret != nil {
+		user.TwoFactorSecret = *twoFactorSecret
 	}
-	if twoFactorSecret.Valid {
-		user.TwoFactorSecret = twoFactorSecret.String
+	if oauthProvider != nil {
+		user.OAuthProvider = *oauthProvider
 	}
-	if oauthProvider.Valid {
-		user.OAuthProvider = oauthProvider.String
+	if oauthProviderID != nil {
+		user.OAuthProviderID = *oauthProviderID
 	}
-	if oauthProviderID.Valid {
-		user.OAuthProviderID = oauthProviderID.String
+	if lastLoginIP != nil {
+		user.LastLoginIP = *lastLoginIP
 	}
-	if lastLoginIP.Valid {
-		user.LastLoginIP = lastLoginIP.String
+	if lastLoginCountry != nil {
+		user.LastLoginCountry = *lastLoginCountry
 	}
-	if lastLoginCountry.Valid {
-		user.LastLoginCountry = lastLoginCountry.String
-	}
+	user.LastLoginLatitude = lastLoginLatitude
+	user.LastLoginLongitude = lastLoginLongitude
 
 	return user, nil
 }
@@ -274,8 +269,8 @@ func (r *UserRepository) GetByOAuthProvider(ctx context.Context, provider, provi
 	`
 
 	user := &domain.User{}
-	var lastLoginAt sql.NullTime
-	var twoFactorSecret, oauthProvider, oauthProviderID, lastLoginIP, lastLoginCountry sql.NullString
+	var lastLoginAt *time.Time
+	var twoFactorSecret, oauthProvider, oauthProviderID, lastLoginIP, lastLoginCountry *string
 
 	err := r.db.QueryRow(ctx, query, provider, providerID).Scan(
 		&user.ID, &user.Username, &user.Email, &user.PasswordHash, &user.Active, &user.EmailVerified,
@@ -290,24 +285,22 @@ func (r *UserRepository) GetByOAuthProvider(ctx context.Context, provider, provi
 		return nil, fmt.Errorf("failed to get user by OAuth provider: %w", err)
 	}
 
-	// Handle NULL values
-	if lastLoginAt.Valid {
-		user.LastLoginAt = &lastLoginAt.Time
+	// Map optional fields
+	user.LastLoginAt = lastLoginAt
+	if twoFactorSecret != nil {
+		user.TwoFactorSecret = *twoFactorSecret
 	}
-	if twoFactorSecret.Valid {
-		user.TwoFactorSecret = twoFactorSecret.String
+	if oauthProvider != nil {
+		user.OAuthProvider = *oauthProvider
 	}
-	if oauthProvider.Valid {
-		user.OAuthProvider = oauthProvider.String
+	if oauthProviderID != nil {
+		user.OAuthProviderID = *oauthProviderID
 	}
-	if oauthProviderID.Valid {
-		user.OAuthProviderID = oauthProviderID.String
+	if lastLoginIP != nil {
+		user.LastLoginIP = *lastLoginIP
 	}
-	if lastLoginIP.Valid {
-		user.LastLoginIP = lastLoginIP.String
-	}
-	if lastLoginCountry.Valid {
-		user.LastLoginCountry = lastLoginCountry.String
+	if lastLoginCountry != nil {
+		user.LastLoginCountry = *lastLoginCountry
 	}
 
 	return user, nil
@@ -319,7 +312,8 @@ func (r *UserRepository) Update(ctx context.Context, user *domain.User) error {
 		SET username = $2, email = $3, active = $4, email_verified = $5,
 			two_factor_enabled = $6, two_factor_secret = $7,
 			updated_at = $8, last_login_at = $9, last_login_ip = $10, last_login_country = $11,
-			last_login_latitude = $12, last_login_longitude = $13
+			last_login_latitude = $12, last_login_longitude = $13,
+			failed_login_attempts = $14, locked_until = $15
 		WHERE id = $1
 	`
 
@@ -349,6 +343,7 @@ func (r *UserRepository) Update(ctx context.Context, user *domain.User) error {
 		user.TwoFactorEnabled, twoFactorSecret,
 		user.UpdatedAt, user.LastLoginAt, lastLoginIP, lastLoginCountry,
 		user.LastLoginLatitude, user.LastLoginLongitude,
+		user.FailedLoginAttempts, user.LockedUntil,
 	)
 
 	if err != nil {

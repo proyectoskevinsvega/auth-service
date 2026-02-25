@@ -2,6 +2,7 @@ package domain
 
 import (
 	"fmt"
+	"math"
 	"regexp"
 	"time"
 
@@ -12,23 +13,25 @@ var emailRegex = regexp.MustCompile(`^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-
 var usernameRegex = regexp.MustCompile(`^[a-zA-Z0-9_-]{3,30}$`)
 
 type User struct {
-	ID                 string
-	Username           string
-	Email              string
-	PasswordHash       string
-	Active             bool
-	EmailVerified      bool
-	TwoFactorEnabled   bool
-	TwoFactorSecret    string
-	OAuthProvider      string // "google", "github", or empty for email/password
-	OAuthProviderID    string
-	CreatedAt          time.Time
-	UpdatedAt          time.Time
-	LastLoginAt        *time.Time
-	LastLoginIP        string
-	LastLoginCountry   string
-	LastLoginLatitude  *float64
-	LastLoginLongitude *float64
+	ID                  string
+	Username            string
+	Email               string
+	PasswordHash        string
+	Active              bool
+	EmailVerified       bool
+	TwoFactorEnabled    bool
+	TwoFactorSecret     string
+	OAuthProvider       string // "google", "github", or empty for email/password
+	OAuthProviderID     string
+	CreatedAt           time.Time
+	UpdatedAt           time.Time
+	LastLoginAt         *time.Time
+	LastLoginIP         string
+	LastLoginCountry    string
+	LastLoginLatitude   *float64
+	LastLoginLongitude  *float64
+	FailedLoginAttempts int
+	LockedUntil         *time.Time
 }
 
 type NewUserInput struct {
@@ -187,4 +190,38 @@ func (u *User) Deactivate() {
 func (u *User) Activate() {
 	u.Active = true
 	u.UpdatedAt = time.Now()
+}
+
+func (u *User) IncrementFailedAttempts(maxAttempts int, baseDuration time.Duration, factor float64, maxDuration time.Duration) {
+	u.FailedLoginAttempts++
+	if u.FailedLoginAttempts >= maxAttempts {
+		// Calculate progressive delay: base * factor ^ (attempts - max)
+		// e.g. 5m * 3^0 = 5m, 5m * 3^1 = 15m, 5m * 3^2 = 45m...
+		extraAttempts := float64(u.FailedLoginAttempts - maxAttempts)
+		durationSeconds := baseDuration.Seconds() * math.Pow(factor, extraAttempts)
+		duration := time.Duration(durationSeconds) * time.Second
+
+		if duration > maxDuration {
+			duration = maxDuration
+		}
+
+		lockout := time.Now().Add(duration)
+		u.LockedUntil = &lockout
+	}
+	u.UpdatedAt = time.Now()
+}
+
+func (u *User) ResetFailedAttempts() {
+	if u.FailedLoginAttempts > 0 || u.LockedUntil != nil {
+		u.FailedLoginAttempts = 0
+		u.LockedUntil = nil
+		u.UpdatedAt = time.Now()
+	}
+}
+
+func (u *User) IsLocked() bool {
+	if u.LockedUntil == nil {
+		return false
+	}
+	return time.Now().Before(*u.LockedUntil)
 }

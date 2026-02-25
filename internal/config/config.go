@@ -106,7 +106,15 @@ type GitHubOAuthConfig struct {
 }
 
 type SecurityConfig struct {
-	SessionInactivityDays int // Default session inactivity in days (default: 30)
+	SessionInactivityDays int           // Default session inactivity in days (default: 30)
+	Lockout               LockoutConfig // Account lockout configuration (P0)
+}
+
+type LockoutConfig struct {
+	MaxAttempts      int           // Maximum failed attempts before lockout
+	BaseDuration     time.Duration // Initial lockout duration
+	EscalationFactor float64       // Multiply duration by this for each subsequent failure
+	MaxDuration      time.Duration // Maximum possible lockout duration
 }
 
 type GeolocationConfig struct {
@@ -214,6 +222,12 @@ func Load() (*Config, error) {
 		},
 		Security: SecurityConfig{
 			SessionInactivityDays: getEnvAsInt("SESSION_INACTIVITY_DAYS", 30),
+			Lockout: LockoutConfig{
+				MaxAttempts:      getEnvAsInt("LOCKOUT_MAX_ATTEMPTS", 5),
+				BaseDuration:     time.Minute * time.Duration(getEnvAsInt("LOCKOUT_BASE_DURATION_MINS", 5)),
+				EscalationFactor: getEnvAsFloat("LOCKOUT_ESCALATION_FACTOR", 3.0),
+				MaxDuration:      time.Hour * 24 * time.Duration(getEnvAsInt("LOCKOUT_MAX_DURATION_DAYS", 1)),
+			},
 		},
 		Telemetry: TelemetryConfig{
 			Enabled:        getEnvAsBool("TELEMETRY_ENABLED", false),

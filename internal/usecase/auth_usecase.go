@@ -116,11 +116,41 @@ func (uc *AuthUseCase) Login(ctx context.Context, input LoginInput) (*LoginRespo
 		return nil, domain.ErrUserInactive
 	}
 
+	// Check if account is locked (P0)
+	if user.IsLocked() {
+		_ = uc.auditRepo.Create(ctx, domain.NewAuditLogEntry(user.ID, "login_attempt_locked", input.IPAddress, input.UserAgent, "", false, "login attempt on locked account", nil))
+		return nil, domain.ErrAccountLocked
+	}
+
 	// Verify password
 	valid, err := uc.passwordHasher.Verify(input.Password, user.PasswordHash)
 	if err != nil || !valid {
-		_ = uc.auditRepo.Create(ctx, domain.NewAuditLogEntry(user.ID, "login", input.IPAddress, input.UserAgent, "", false, "invalid credentials", nil))
+		// Increment failed attempts and potentially lock account
+		lockout := uc.config.Security.Lockout
+		user.IncrementFailedAttempts(
+			lockout.MaxAttempts,
+			lockout.BaseDuration,
+			lockout.EscalationFactor,
+			lockout.MaxDuration,
+		)
+		_ = uc.userRepo.Update(ctx, user)
+
+		_ = uc.auditRepo.Create(ctx, domain.NewAuditLogEntry(user.ID, "login_failed", input.IPAddress, input.UserAgent, "", false, "invalid credentials", map[string]interface{}{
+			"failed_attempts": user.FailedLoginAttempts,
+			"locked_until":    user.LockedUntil,
+		}))
+
+		if user.IsLocked() {
+			return nil, domain.ErrAccountLocked
+		}
 		return nil, domain.ErrInvalidCredentials
+	}
+
+	// Password valid - reset failed attempts
+	user.ResetFailedAttempts()
+	// Update user immediate or in the background? Better immediate for security sync.
+	if err := uc.userRepo.Update(ctx, user); err != nil {
+		fmt.Printf("warning: failed to reset failed login attempts: %v\n", err)
 	}
 
 	// Check 2FA if enabled
