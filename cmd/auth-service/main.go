@@ -520,9 +520,17 @@ func startGRPCServer(cfg *config.Config, authServer *grpcadapter.AuthServer, log
 
 	if telemetryConfig.Enabled && telemetryConfig.TraceGRPC {
 		serverOpts = append(serverOpts,
-			grpc.ChainUnaryInterceptor(telemetry.UnaryServerInterceptor()),
+			grpc.ChainUnaryInterceptor(
+				telemetry.UnaryServerInterceptor(),
+				grpcadapter.UnaryIdentityInterceptor(),
+			),
 		)
-		logger.Info().Msg("gRPC tracing enabled")
+		logger.Info().Msg("gRPC tracing and identity extraction enabled")
+	} else {
+		serverOpts = append(serverOpts,
+			grpc.UnaryInterceptor(grpcadapter.UnaryIdentityInterceptor()),
+		)
+		logger.Info().Msg("gRPC identity extraction enabled")
 	}
 
 	grpcServer := grpc.NewServer(serverOpts...)

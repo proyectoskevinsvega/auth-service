@@ -10,6 +10,8 @@ mkdir -p $KEY_DIR
 
 echo "--- Generating Root CA ---"
 # 1. Generate CA private key and self-signed certificate
+# IMPORTANT: The Common Name (CN) of the client certificate will be used 
+# as the platform's identity in the logs.
 openssl genrsa -out $KEY_DIR/ca-key.pem 4096
 openssl req -new -x509 -sha256 -key $KEY_DIR/ca-key.pem -out $KEY_DIR/ca.pem -days 3650 -subj "/CN=$CA_NAME"
 

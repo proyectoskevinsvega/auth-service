@@ -36,6 +36,9 @@ func NewAuthServer(
 
 // ValidateToken validates a JWT token and returns user info
 func (s *AuthServer) ValidateToken(ctx context.Context, req *pb.ValidateTokenRequest) (*pb.ValidateTokenResponse, error) {
+	clientIdentity := GetClientIdentity(ctx)
+	s.logger.Info().Str("client_identity", clientIdentity).Msg("gRPC ValidateToken request received")
+
 	if req.Token == "" {
 		return &pb.ValidateTokenResponse{
 			Valid:        false,

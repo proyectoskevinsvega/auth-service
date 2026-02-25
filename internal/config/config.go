@@ -133,7 +133,6 @@ type GeolocationConfig struct {
 }
 
 type InternalConfig struct {
-	GRPCAllowedIPs []string
 }
 
 type NotificationConfig struct {
@@ -243,9 +242,7 @@ func Load() (*Config, error) {
 			MaxMindLicenseKey: getEnv("MAXMIND_LICENSE_KEY", ""),
 			MaxMindDBPath:     getEnv("MAXMIND_DB_PATH", "./data/GeoLite2-Country.mmdb"),
 		},
-		Internal: InternalConfig{
-			GRPCAllowedIPs: strings.Split(getEnv("GRPC_ALLOWED_IPS", "127.0.0.1"), ","),
-		},
+		Internal: InternalConfig{},
 		Notification: NotificationConfig{
 			Enabled:    getEnvAsBool("NOTIFICATIONS_ENABLED", false),
 			RedisQueue: getEnv("NOTIFICATION_REDIS_QUEUE", "notify:queue"),

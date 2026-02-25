@@ -10,7 +10,19 @@ Para garantizar que solo plataformas y servicios autorizados puedan comunicarse 
 
 ---
 
-## 2. Generación de Certificados
+## 3. Identidad por Certificado (Scalability)
+
+A diferencia de otros sistemas que usan listas de IPs (allowlists), este servicio utiliza el **Common Name (CN)** del certificado para identificar al cliente.
+
+**Ventajas**:
+
+- No necesitas actualizar IPs cada vez que un cliente cambia de servidor.
+- Puedes revocar el acceso a un cliente específico simplemente revocando su certificado.
+- Logs automáticos con el nombre de la empresa/plataforma que realiza la llamada.
+
+---
+
+## 4. Generación de Certificados
 
 Hemos incluido un script para facilitar la creación de estos archivos en entornos de desarrollo o privados:
 
