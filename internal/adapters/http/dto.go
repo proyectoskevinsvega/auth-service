@@ -194,3 +194,14 @@ type PermissionResponse struct {
 	Name        string `json:"name"`
 	Description string `json:"description,omitempty"`
 }
+
+// WebAuthn DTOs
+
+type WebAuthnLoginBeginRequest struct {
+	Identifier string `json:"identifier" validate:"required"` // Email o username
+}
+
+type WebAuthnFinishRequest struct {
+	Challenge string      `json:"challenge" validate:"required"`
+	Response  interface{} `json:"response" validate:"required"` // El objeto retornado por el navegador (FIDO2)
+}

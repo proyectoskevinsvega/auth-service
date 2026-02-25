@@ -778,3 +778,110 @@ func (uc *AuthUseCase) AssignRoleToUser(ctx context.Context, userID, roleID stri
 func (uc *AuthUseCase) AddPermissionToRole(ctx context.Context, roleID, permID string) error {
 	return uc.roleRepo.AddPermissionToRole(ctx, roleID, permID)
 }
+
+type PasswordlessLoginInput struct {
+	IPAddress string
+	UserAgent string
+	Device    string
+}
+
+func (uc *AuthUseCase) PasswordlessLogin(ctx context.Context, user *domain.User, input PasswordlessLoginInput) (*LoginResponse, error) {
+	// Check if user is active
+	if !user.Active {
+		return nil, domain.ErrUserInactive
+	}
+
+	// Check if account is locked
+	if user.IsLocked() {
+		return nil, domain.ErrAccountLocked
+	}
+
+	// Risk Assessment
+	risk, currentLoc, err := uc.riskService.AssessLoginRisk(ctx, user, input.IPAddress)
+	if err != nil {
+		fmt.Printf("warning: risk assessment failed: %v\n", err)
+	}
+
+	if risk != nil && risk.IsBlocked {
+		_ = uc.auditRepo.Create(ctx, domain.NewAuditLogEntry(user.ID, "passwordless_login_blocked", input.IPAddress, input.UserAgent, "", false, "high risk login blocked", map[string]interface{}{"reasons": risk.Reasons}))
+		return nil, domain.ErrForbidden
+	}
+
+	country := "XX"
+	if currentLoc != nil {
+		country = currentLoc.Country
+	}
+
+	// Create session
+	inactivityTTL := time.Duration(uc.config.Security.SessionInactivityDays) * 24 * time.Hour
+	session := domain.NewSession(domain.NewSessionInput{
+		UserID:        user.ID,
+		IPAddress:     input.IPAddress,
+		Country:       country,
+		Device:        input.Device,
+		UserAgent:     input.UserAgent,
+		InactivityTTL: inactivityTTL,
+	})
+
+	if err := uc.sessionRepo.Create(ctx, session); err != nil {
+		return nil, fmt.Errorf("failed to create session: %w", err)
+	}
+
+	// Generate JWT
+	token := domain.NewToken(user.ID, user.Email, uc.config.JWT.AccessExpiry)
+
+	// Map roles and permissions to token
+	for _, role := range user.Roles {
+		token.Roles = append(token.Roles, role.Name)
+		for _, perm := range role.Permissions {
+			token.Permissions = append(token.Permissions, perm.Name)
+		}
+	}
+
+	accessToken, err := uc.jwtService.Generate(ctx, token)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate JWT: %w", err)
+	}
+
+	// Generate refresh token
+	refreshTokenStr, _ := uc.tokenGen.GenerateSecureToken(32)
+	refreshTokenHash := hashToken(refreshTokenStr)
+
+	refreshToken := domain.NewRefreshToken(user.ID, session.ID, refreshTokenHash, uc.config.JWT.RefreshExpiry)
+	if err := uc.refreshRepo.Create(ctx, refreshToken); err != nil {
+		return nil, fmt.Errorf("failed to create refresh token: %w", err)
+	}
+
+	// Save previous country
+	previousCountry := user.LastLoginCountry
+
+	// Prepare response
+	response := &LoginResponse{
+		AccessToken:  accessToken,
+		RefreshToken: refreshTokenStr,
+		User:         user,
+	}
+
+	// Async updates
+	go func() {
+		bgCtx := context.Background()
+		var lat, lon *float64
+		if currentLoc != nil {
+			lat = &currentLoc.Latitude
+			lon = &currentLoc.Longitude
+		}
+		user.UpdateLastLogin(input.IPAddress, country, lat, lon)
+		_ = uc.userRepo.Update(bgCtx, user)
+		_ = uc.auditRepo.Create(bgCtx, domain.NewAuditLogEntry(user.ID, "webauthn_login", input.IPAddress, input.UserAgent, country, true, "", nil))
+
+		if previousCountry != "" && country != previousCountry {
+			event := domain.NewEvent(domain.EventLoginNewCountry, user.ID, user.Email, map[string]interface{}{
+				"ip":      input.IPAddress,
+				"country": country,
+			})
+			_ = uc.notifier.Publish(bgCtx, event)
+		}
+	}()
+
+	return response, nil
+}

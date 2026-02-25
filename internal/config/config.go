@@ -24,6 +24,7 @@ type Config struct {
 	Internal     InternalConfig
 	Notification NotificationConfig
 	Telemetry    TelemetryConfig
+	WebAuthn     WebAuthnConfig
 }
 
 type ServerConfig struct {
@@ -154,6 +155,12 @@ type TelemetryConfig struct {
 	TraceRedis     bool
 }
 
+type WebAuthnConfig struct {
+	RPID          string
+	RPDisplayName string
+	RPOrigins     []string
+}
+
 func Load() (*Config, error) {
 	// Load RSA keys
 	privateKey, err := loadRSAPrivateKey(getEnv("RSA_PRIVATE_KEY_PATH", "./keys/private.pem"))
@@ -253,6 +260,11 @@ func Load() (*Config, error) {
 			TraceGRPC:      getEnvAsBool("TELEMETRY_TRACE_GRPC", true),
 			TraceDatabase:  getEnvAsBool("TELEMETRY_TRACE_DATABASE", true),
 			TraceRedis:     getEnvAsBool("TELEMETRY_TRACE_REDIS", true),
+		},
+		WebAuthn: WebAuthnConfig{
+			RPID:          getEnv("WEBAUTHN_RP_ID", "localhost"),
+			RPDisplayName: getEnv("WEBAUTHN_RP_DISPLAY_NAME", "VerterCloud"),
+			RPOrigins:     strings.Split(getEnv("WEBAUTHN_RP_ORIGINS", "http://localhost:8080,https://localhost:8080"), ","),
 		},
 	}
 

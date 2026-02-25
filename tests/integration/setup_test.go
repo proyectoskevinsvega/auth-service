@@ -84,6 +84,7 @@ func SetupTestServer(t *testing.T) *TestServer {
 	auditRepo := postgresadapter.NewAuditLogRepository(dbPool)
 	emailVerificationRepo := postgresadapter.NewEmailVerificationRepository(dbPool)
 	roleRepo := postgresadapter.NewRoleRepository(dbPool)
+	webauthnRepo := postgresadapter.NewWebAuthnRepository(dbPool)
 
 	// Initialize crypto adapters
 	jwtService := cryptoadapter.NewJWTService(
@@ -100,6 +101,7 @@ func SetupTestServer(t *testing.T) *TestServer {
 	blacklist := redisadapter.NewTokenBlacklist(redisClient)
 	rateLimiter := redisadapter.NewRateLimiter(redisClient)
 	sessionStore := redisadapter.NewSessionStore(redisClient)
+	webauthnSessionStore := redisadapter.NewWebAuthnSessionStore(redisClient)
 
 	// Mock notification services (don't send real emails in tests)
 	emailService := &mockEmailService{}
@@ -158,6 +160,14 @@ func SetupTestServer(t *testing.T) *TestServer {
 		cfg.Server.Environment,
 	)
 
+	webauthnUC, _ := usecase.NewWebAuthnUseCase(
+		userRepo,
+		webauthnRepo,
+		webauthnSessionStore,
+		authUC,
+		cfg,
+	)
+
 	// Initialize HTTP handler
 	httpHandler := httpadapter.NewHandler(
 		authUC,
@@ -169,6 +179,7 @@ func SetupTestServer(t *testing.T) *TestServer {
 		nil, // Google OAuth
 		nil, // GitHub OAuth
 		jwtService,
+		webauthnUC,
 		logger,
 		cfg.Server.AllowedOrigins,
 		cfg.Server.Environment,
@@ -272,6 +283,11 @@ func loadTestConfig() (*config.Config, error) {
 		},
 		Security: config.SecurityConfig{
 			SessionInactivityDays: 30,
+		},
+		WebAuthn: config.WebAuthnConfig{
+			RPID:          "localhost",
+			RPDisplayName: "Test",
+			RPOrigins:     []string{"http://localhost"},
 		},
 	}, nil
 }

@@ -36,6 +36,7 @@ type User struct {
 	PasswordResetRequired bool
 	Roles                 []Role                 // Added for RBAC
 	Attributes            map[string]interface{} // Added for ABAC
+	WebAuthnID            []byte                 // Added for WebAuthn identifier
 }
 
 type NewUserInput struct {

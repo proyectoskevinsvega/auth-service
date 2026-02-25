@@ -26,6 +26,7 @@ type Handler struct {
 	sessionUC           *usecase.SessionUseCase
 	twofaUC             *usecase.TwoFAUseCase
 	emailVerificationUC *usecase.EmailVerificationUseCase
+	webauthnUC          *usecase.WebAuthnUseCase
 	userRepo            ports.UserRepository
 	googleOAuth         ports.OAuthProvider
 	githubOAuth         ports.OAuthProvider
@@ -48,6 +49,7 @@ func NewHandler(
 	googleOAuth ports.OAuthProvider,
 	githubOAuth ports.OAuthProvider,
 	jwtService ports.JWTService,
+	webauthnUC *usecase.WebAuthnUseCase,
 	logger zerolog.Logger,
 	allowedOrigins []string,
 	environment string,
@@ -60,6 +62,7 @@ func NewHandler(
 		sessionUC:           sessionUC,
 		twofaUC:             twofaUC,
 		emailVerificationUC: emailVerificationUC,
+		webauthnUC:          webauthnUC,
 		userRepo:            userRepo,
 		googleOAuth:         googleOAuth,
 		githubOAuth:         githubOAuth,
@@ -114,6 +117,10 @@ func (h *Handler) SetupRoutes(telemetryEnabled bool) http.Handler {
 		r.Post("/auth/verify-email", h.VerifyEmail)
 		r.Get("/auth/verify-email", h.VerifyEmailGET) // Support GET for email links
 
+		// WebAuthn Public Routes (Login)
+		r.Post("/auth/webauthn/login/begin", h.WebAuthnLoginBegin)
+		r.Post("/auth/webauthn/login/finish", h.WebAuthnLoginFinish)
+
 		// OAuth routes
 		r.Get("/auth/oauth/google", h.GoogleOAuthStart)
 		r.Get("/auth/oauth/google/callback", h.GoogleOAuthCallback)
@@ -146,6 +153,10 @@ func (h *Handler) SetupRoutes(telemetryEnabled bool) http.Handler {
 
 			// OIDC UserInfo
 			r.Get("/auth/userinfo", h.GetUserInfo)
+
+			// WebAuthn Protected Routes (Registration)
+			r.Post("/auth/webauthn/register/begin", h.WebAuthnRegisterBegin)
+			r.Post("/auth/webauthn/register/finish", h.WebAuthnRegisterFinish)
 		})
 
 		// OIDC Discovery (.well-known)
@@ -1457,3 +1468,157 @@ func extractDevice(userAgent string) string {
 	}
 	return userAgent
 }
+
+// WebAuthn handlers
+
+// WebAuthnRegisterBegin godoc
+// @Summary      Iniciar registro de WebAuthn
+// @Description  Genera los desafíos y opciones necesarios para registrar una nueva llave de seguridad (FIDO2/WebAuthn)
+// @Tags         WebAuthn
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Success      200 {object} interface{} "Opciones de creación de credencial"
+// @Failure      401 {object} ErrorResponse "No autenticado"
+// @Router       /auth/webauthn/register/begin [post]
+func (h *Handler) WebAuthnRegisterBegin(w http.ResponseWriter, r *http.Request) {
+	userID, ok := GetUserIDFromContext(r.Context())
+	if !ok {
+		respondWithError(w, http.StatusUnauthorized, "unauthorized", "UNAUTHORIZED")
+		return
+	}
+
+	options, err := h.webauthnUC.BeginRegistration(r.Context(), userID)
+	if err != nil {
+		h.logger.Error().Err(err).Str("user_id", userID).Msg("failed to begin webauthn registration")
+		respondWithError(w, http.StatusInternalServerError, "failed to begin registration", "INTERNAL_ERROR")
+		return
+	}
+
+	respondWithJSON(w, http.StatusOK, options)
+}
+
+// WebAuthnRegisterFinish godoc
+// @Summary      Finalizar registro de WebAuthn
+// @Description  Verifica la respuesta del navegador y registra la nueva llave de seguridad para el usuario
+// @Tags         WebAuthn
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        request body WebAuthnFinishRequest true "Respuesta de FIDO2 y desafío"
+// @Success      200 {object} MessageResponse
+// @Router       /auth/webauthn/register/finish [post]
+func (h *Handler) WebAuthnRegisterFinish(w http.ResponseWriter, r *http.Request) {
+	userID, ok := GetUserIDFromContext(r.Context())
+	if !ok {
+		respondWithError(w, http.StatusUnauthorized, "unauthorized", "UNAUTHORIZED")
+		return
+	}
+
+	var req WebAuthnFinishRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respondWithError(w, http.StatusBadRequest, "invalid request body", "BAD_REQUEST")
+		return
+	}
+
+	// Re-inyectar body para la lib
+	bodyBytes, _ := json.Marshal(req.Response)
+	r.Body = http.MaxBytesReader(w, &readCloserWrapper{strings.NewReader(string(bodyBytes))}, 1024*1024)
+
+	if err := h.webauthnUC.FinishRegistration(r.Context(), userID, req.Challenge, r); err != nil {
+		h.logger.Error().Err(err).Str("user_id", userID).Msg("failed to finish webauthn registration")
+		respondWithError(w, http.StatusBadRequest, err.Error(), "BAD_REQUEST")
+		return
+	}
+
+	respondWithJSON(w, http.StatusOK, MessageResponse{Message: "security key registered successfully"})
+}
+
+// WebAuthnLoginBegin godoc
+// @Summary      Iniciar login de WebAuthn
+// @Description  Genera los desafíos necesarios para iniciar sesión usando una llave de seguridad registrada
+// @Tags         WebAuthn
+// @Accept       json
+// @Produce      json
+// @Param        request body WebAuthnLoginBeginRequest true "Identificador del usuario"
+// @Success      200 {object} interface{} "Opciones de aserción de credencial"
+// @Router       /auth/webauthn/login/begin [post]
+func (h *Handler) WebAuthnLoginBegin(w http.ResponseWriter, r *http.Request) {
+	var req WebAuthnLoginBeginRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respondWithError(w, http.StatusBadRequest, "invalid request body", "BAD_REQUEST")
+		return
+	}
+
+	options, err := h.webauthnUC.BeginLogin(r.Context(), req.Identifier)
+	if err != nil {
+		h.logger.Error().Err(err).Str("identifier", req.Identifier).Msg("failed to begin webauthn login")
+		h.handleAuthError(w, err)
+		return
+	}
+
+	respondWithJSON(w, http.StatusOK, options)
+}
+
+// WebAuthnLoginFinish godoc
+// @Summary      Finalizar login de WebAuthn
+// @Description  Verifica la firma de la llave de seguridad e inicia sesión al usuario si es válida
+// @Tags         WebAuthn
+// @Accept       json
+// @Produce      json
+// @Param        request body WebAuthnFinishRequest true "Respuesta de FIDO2, desafío e identificador"
+// @Param        identifier query string true "Email o username"
+// @Success      200 {object} LoginResponse
+// @Router       /auth/webauthn/login/finish [post]
+func (h *Handler) WebAuthnLoginFinish(w http.ResponseWriter, r *http.Request) {
+	identifier := r.URL.Query().Get("identifier")
+	if identifier == "" {
+		respondWithError(w, http.StatusBadRequest, "missing identifier", "BAD_REQUEST")
+		return
+	}
+
+	var req WebAuthnFinishRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respondWithError(w, http.StatusBadRequest, "invalid request body", "BAD_REQUEST")
+		return
+	}
+
+	userAgent := r.UserAgent()
+	loginInput := usecase.PasswordlessLoginInput{
+		IPAddress: r.RemoteAddr,
+		UserAgent: userAgent,
+		Device:    extractDevice(userAgent),
+	}
+
+	// Re-inyectar body para la lib
+	bodyBytes, _ := json.Marshal(req.Response)
+	r.Body = http.MaxBytesReader(w, &readCloserWrapper{strings.NewReader(string(bodyBytes))}, 1024*1024)
+
+	response, err := h.webauthnUC.FinishLogin(r.Context(), identifier, req.Challenge, r, loginInput)
+	if err != nil {
+		h.logger.Error().Err(err).Str("identifier", identifier).Msg("failed to finish webauthn login")
+		h.handleAuthError(w, err)
+		return
+	}
+
+	respondWithJSON(w, http.StatusOK, LoginResponse{
+		AccessToken:  response.AccessToken,
+		RefreshToken: response.RefreshToken,
+		User: UserResponse{
+			ID:               response.User.ID,
+			Username:         response.User.Username,
+			Email:            response.User.Email,
+			Active:           response.User.Active,
+			EmailVerified:    response.User.EmailVerified,
+			TwoFactorEnabled: response.User.TwoFactorEnabled,
+			CreatedAt:        response.User.CreatedAt.Format(time.RFC3339),
+		},
+	})
+}
+
+// readCloserWrapper es un helper para r.Body
+type readCloserWrapper struct {
+	*strings.Reader
+}
+
+func (w *readCloserWrapper) Close() error { return nil }

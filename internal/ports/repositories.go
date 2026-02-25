@@ -2,6 +2,7 @@ package ports
 
 import (
 	"context"
+	"time"
 
 	"github.com/vertercloud/auth-service/internal/domain"
 )
@@ -80,4 +81,18 @@ type RoleRepository interface {
 	CreatePermission(ctx context.Context, perm *domain.Permission) error
 	GetPermissionByName(ctx context.Context, name string) (*domain.Permission, error)
 	ListPermissions(ctx context.Context) ([]*domain.Permission, error)
+}
+
+type WebAuthnRepository interface {
+	GetCredentialByID(ctx context.Context, credentialID []byte) (*domain.WebAuthnCredential, error)
+	GetCredentialsByUserID(ctx context.Context, userID string) ([]*domain.WebAuthnCredential, error)
+	CreateCredential(ctx context.Context, cred *domain.WebAuthnCredential) error
+	UpdateCredential(ctx context.Context, cred *domain.WebAuthnCredential) error
+	DeleteCredential(ctx context.Context, credentialID []byte) error
+}
+
+type WebAuthnSessionStore interface {
+	SaveWebAuthnSession(ctx context.Context, key string, session *domain.WebAuthnSessionData, ttl time.Duration) error
+	GetWebAuthnSession(ctx context.Context, key string) (*domain.WebAuthnSessionData, error)
+	DeleteWebAuthnSession(ctx context.Context, key string) error
 }

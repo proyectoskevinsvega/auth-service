@@ -23,7 +23,7 @@ Prioridades basadas en impacto de seguridad, demanda de funcionalidad y compleji
 | **Admin Web Console & Management API** | ❌ Pendiente  | Interfaz gráfica y API de administración para gestionar tenants, llaves RSA, y políticas de seguridad global.    |
 | **OIDC Discovery & UserInfo**          | ✅ Completado | Implementar endpoints `/.well-known/openid-configuration` y `/userinfo` para cumplimiento total con OIDC.        |
 | **Dynamic Scopes & RBAC/ABAC**         | ✅ Completado | Soporte para scopes dinámicos (OAuth2) y Modelos de Control de Acceso basado en Roles (RBAC) y Atributos (ABAC). |
-| **Passwordless (FIDO2/WebAuthn)**      | ❌ Pendiente  | Autenticación biométrica (FaceID/TouchID) y hardware keys como factor primario o secundario.                     |
+| **Passwordless (FIDO2/WebAuthn)**      | ✅ Completado | Autenticación biométrica (FaceID/TouchID) y hardware keys como factor primario o secundario.                     |
 
 ---
 
@@ -68,6 +68,7 @@ Prioridades basadas en impacto de seguridad, demanda de funcionalidad y compleji
 
 | Feature                                          | Versión |
 | ------------------------------------------------ | ------- |
+| Passwordless (FIDO2/WebAuthn)                    | v1.2    |
 | Account lockout configurable                     | v1.1    |
 | Adaptive Authentication (Impossible Travel)      | v1.1    |
 | Password expiration policies                     | v1.1    |
