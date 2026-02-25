@@ -22,23 +22,13 @@ A diferencia de otros sistemas que usan listas de IPs (allowlists), este servici
 
 ---
 
-## 4. Generación de Certificados
+---
 
-Hemos incluido un script para facilitar la creación de estos archivos en entornos de desarrollo o privados:
+## 2. Generación Automática
 
-```bash
-# Otorgar permisos
-chmod +x scripts/generate_mtls_certs.sh
+¡Buenas noticias! No necesitas correr scripts manuales. El **Auth Service** generará automáticamente la CA y sus propios certificados de servidor al iniciar si `GRPC_TLS_ENABLED=true` y los archivos no existen en la carpeta `./keys`.
 
-# Ejecutar el script
-./scripts/generate_mtls_certs.sh
-```
-
-Esto generará en la carpeta `keys/`:
-
-- `ca.pem`: El certificado de la CA (necesario para todos).
-- `server.pem` y `server-key.pem`: Para el Auth Service.
-- `client.pem` y `client-key.pem`: Para un cliente de ejemplo.
+Solo asegúrate de que la carpeta `./keys` existe y el servicio tiene permisos de escritura.
 
 ---
 

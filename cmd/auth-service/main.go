@@ -430,6 +430,17 @@ func initializeDependencies(cfg *config.Config, logger zerolog.Logger, telemetry
 		logger,
 	)
 
+	// mTLS Certificate Management (Bootstrap)
+	if cfg.GRPCTLS.Enabled {
+		certManager := cryptoadapter.NewCertificateManager("./keys")
+		if err := certManager.GenerateMtlsSetup(cfg.Server.BaseDomain); err != nil {
+			logger.Error().Err(err).Msg("failed to boostrap mTLS certificates")
+			// We continue anyway, the startGRPCServer will fail later if files are missing
+		} else {
+			logger.Info().Msg("mTLS certificates verified/generated successfully")
+		}
+	}
+
 	cleanup := func() {
 		logger.Info().Msg("cleaning up resources...")
 
