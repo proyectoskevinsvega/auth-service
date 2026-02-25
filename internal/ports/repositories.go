@@ -53,6 +53,7 @@ type PasswordResetRepository interface {
 type AuditLogRepository interface {
 	Create(ctx context.Context, entry *domain.AuditLogEntry) error
 	GetByUserID(ctx context.Context, tenantID, userID string, limit, offset int) ([]*domain.AuditLogEntry, error)
+	Search(ctx context.Context, filter domain.AuditSearchFilter) ([]*domain.AuditLogEntry, int, error)
 }
 
 type BlockedIPRepository interface {

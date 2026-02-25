@@ -404,6 +404,14 @@ func initializeDependencies(cfg *config.Config, logger zerolog.Logger, telemetry
 	m2mUC := usecase.NewM2MUseCase(certManager, logger)
 	logger.Info().Msg("M2M use case initialized")
 
+	complianceUC := usecase.NewComplianceUseCase(
+		userRepo,
+		auditRepo,
+		sessionRepo,
+		logger,
+	)
+	logger.Info().Msg("Compliance use case initialized")
+
 	// Initialize HTTP handler
 	httpHandler := httpadapter.NewHandler(
 		authUC,
@@ -417,6 +425,7 @@ func initializeDependencies(cfg *config.Config, logger zerolog.Logger, telemetry
 		jwtService,
 		webauthnUC,
 		m2mUC,
+		complianceUC,
 		logger,
 		cfg.Server.AllowedOrigins,
 		cfg.Server.Environment,

@@ -24,3 +24,11 @@ func (m *MockAuditLogRepository) GetByUserID(ctx context.Context, tenantID, user
 	}
 	return args.Get(0).([]*domain.AuditLogEntry), args.Error(1)
 }
+
+func (m *MockAuditLogRepository) Search(ctx context.Context, filter domain.AuditSearchFilter) ([]*domain.AuditLogEntry, int, error) {
+	args := m.Called(ctx, filter)
+	if args.Get(0) == nil {
+		return nil, args.Int(1), args.Error(2)
+	}
+	return args.Get(0).([]*domain.AuditLogEntry), args.Int(1), args.Error(2)
+}

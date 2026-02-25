@@ -23,6 +23,7 @@ Microservicio central de autenticación para la plataforma Vertercloud. Gestiona
 - **Client Credentials Flow (M2M)**: Secure machine-to-machine authentication with OAuth2.
 - **2FA Backup Codes**: Secure recovery system for account access when device is lost.
 - **Webhook Lifecycle Events**: HTTP webhooks with HMAC-SHA256 signatures for real-time event notifications to external services.
+- **Compliance & Audit Reporting**: Automated reporting for GDPR, SOC2, and HIPAA regulations.
 - **Multi-tenant Isolation**: Strong isolation for multi-tenant SaaS architectures.
 - **gRPC Mutual TLS (mTLS)**: Autenticación robusta inter-servicios con certificados y **emisión Élite (Zero-Knowledge) vía CSR**.
 - **Optimizado** para miles de req/s
@@ -181,6 +182,7 @@ Para entornos de producción, se recomienda encarecidamente el uso de Nginx y Cl
 
 - [Guía de Despliegue con Nginx](docs/NGINX_DEPLOYMENT.md) - Paso a paso para VM/VPS.
 - [Optimización del Sistema (Alta Escala)](docs/SYSTEM_TUNING.md) - Tuning del Kernel de Linux.
+- [Reportes de Cumplimiento (Compliance)](docs/COMPLIANCE.md) - Guía sobre GDPR, SOC2 e HIPAA.
 - [Configuraciones Nginx](nginx/) - Archivos `nginx.conf` y `cloudflare_ips.conf` listos para usar.
 
 ## Documentación API Interactiva (Swagger/OpenAPI)
@@ -365,6 +367,12 @@ Swagger documenta **20+ endpoints** completos:
 - `POST /api/v1/admin/permissions` - Crear nuevo permiso
 - `POST /api/v1/admin/roles/{roleID}/permissions` - Asignar permiso a rol
 - `POST /api/v1/admin/users/{userID}/roles` - Asignar rol a usuario
+
+#### Compliance Reports (3 endpoints)
+
+- `GET /api/v1/admin/compliance/gdpr/{userID}` - Reporte de portabilidad GDPR
+- `GET /api/v1/admin/compliance/soc2` - Reporte de seguridad SOC2
+- `GET /api/v1/admin/compliance/hipaa` - Reporte de integridad HIPAA
 
 ### Exportar Especificación OpenAPI
 

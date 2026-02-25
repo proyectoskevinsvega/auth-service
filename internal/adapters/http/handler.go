@@ -34,6 +34,7 @@ type Handler struct {
 	jwtService          ports.JWTService
 	webauthnUC          *usecase.WebAuthnUseCase
 	m2mUC               *usecase.M2MUseCase
+	complianceUC        *usecase.ComplianceUseCase
 	logger              zerolog.Logger
 	authMiddleware      *AuthMiddleware // This was not removed in the provided snippet, keeping it.
 	allowedOrigins      []string
@@ -55,6 +56,7 @@ func NewHandler(
 	jwtService ports.JWTService,
 	webauthnUC *usecase.WebAuthnUseCase,
 	m2mUC *usecase.M2MUseCase,
+	complianceUC *usecase.ComplianceUseCase,
 	logger zerolog.Logger,
 	allowedOrigins []string,
 	env string,
@@ -73,6 +75,7 @@ func NewHandler(
 		jwtService:          jwtService,
 		webauthnUC:          webauthnUC,
 		m2mUC:               m2mUC,
+		complianceUC:        complianceUC,
 		logger:              logger,
 		authMiddleware:      NewAuthMiddleware(tokenUC), // This was not removed in the provided snippet, keeping it.
 		allowedOrigins:      allowedOrigins,
@@ -180,8 +183,6 @@ func (h *Handler) SetupRoutes(telemetryEnabled bool) http.Handler {
 			r.Use(h.authMiddleware.RequireAuth)
 			r.Use(h.authMiddleware.RequireRole("admin"))
 
-			r.Post("/admin/users/{id}/force-reset", h.AdminForcePasswordReset)
-
 			// RBAC Management
 			r.Get("/admin/roles", h.ListRoles)
 			r.Post("/admin/roles", h.CreateRole)
@@ -191,8 +192,15 @@ func (h *Handler) SetupRoutes(telemetryEnabled bool) http.Handler {
 			r.Post("/admin/users/{userID}/roles", h.AssignRoleToUser)
 
 			// Machine-to-Machine (mTLS) Management
-			r.Post("/m2m/certificates", h.IssueClientCertificate)
-			r.Post("/m2m/certificates/sign", h.SignClientCSR)
+			r.Post("/admin/m2m/certificates", h.IssueClientCertificate)
+			r.Post("/admin/m2m/certificates/sign", h.SignClientCSR)
+
+			// Compliance Reports
+			r.Get("/admin/compliance/gdpr/{userID}", h.GenerateGDPRReport)
+			r.Get("/admin/compliance/soc2", h.GenerateSOC2Report)
+			r.Get("/admin/compliance/hipaa", h.GenerateHIPAAReport)
+
+			r.Post("/admin/users/{id}/force-reset", h.AdminForcePasswordReset)
 		})
 	})
 
