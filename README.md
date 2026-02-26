@@ -611,11 +611,42 @@ Headers: Authorization: Bearer <jwt>
 
 **Cabeceras de seguridad:**
 
-| Header                    | Description                            |
-| ------------------------- | -------------------------------------- |
-| `X-Vertercloud-Signature` | HMAC-SHA256 del body usando tu secreto |
-| `X-Vertercloud-Event`     | Tipo de evento                         |
-| `X-Vertercloud-Delivery`  | ID único del evento                    |
+| Header             | Description                                       |
+| ------------------ | ------------------------------------------------- |
+| `X-Auth-Signature` | `sha256=<HMAC-SHA256>` del body usando tu secreto |
+| `X-Auth-Event`     | Tipo de evento (ej. `auth_session_revoked`)       |
+| `X-Auth-Delivery`  | ID único del evento (UUID)                        |
+
+**Mecanismo de Entrega (Enterprise-Grade con Asynq):**
+
+Los Webhooks no se envían de forma síncrona. El sistema utiliza **Asynq** (cola de tareas persistida en Redis) para garantizar la entrega:
+
+1. El evento se encola en Redis instantáneamente (latencia < 1ms)
+2. Un pool de Workers concurrentes procesa las colas de Webhooks
+3. Si tu servidor devuelve `4xx/5xx` o da Timeout, el sistema **reintenta automáticamente** hasta 10 veces con **Exponential Backoff** (1s → 10s → 1m → ...)
+4. Garantía de entrega **At-Least-Once**
+
+**Verificación de Firma HMAC en tu servidor:**
+
+```go
+// Go
+func VerifyWebhookSignature(body []byte, secret, header string) bool {
+    mac := hmac.New(sha256.New, []byte(secret))
+    mac.Write(body)
+    expected := "sha256=" + hex.EncodeToString(mac.Sum(nil))
+    return hmac.Equal([]byte(expected), []byte(header))
+}
+```
+
+```javascript
+// Node.js
+const crypto = require("crypto");
+function verify(body, secret, header) {
+  const expected =
+    "sha256=" + crypto.createHmac("sha256", secret).update(body).digest("hex");
+  return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(header));
+}
+```
 
 **Event Types disponibles:**
 
@@ -642,6 +673,25 @@ Headers: Authorization: Bearer <jwt>
 # Obtener clave pública en formato JWKS
 GET /api/v1/auth/.well-known/jwks.json
 ```
+
+## Métricas B2B (Prometheus)
+
+El Auth-Service expone métricas Prometheus en `/metrics` con observabilidad de grano fino para clientes B2B:
+
+| Métrica                                | Tipo      | Descripción                                                  |
+| -------------------------------------- | --------- | ------------------------------------------------------------ |
+| `auth_service_tokens_jwks_hits_total`  | Counter   | Accesos al endpoint JWKS (Validación Local Descentralizada)  |
+| `auth_service_grpc_requests_total`     | Counter   | Solicitudes gRPC totales, etiquetado por `method` y `status` |
+| `auth_service_grpc_latency_seconds`    | Histogram | Distribución de latencia gRPC por `method` y `status`        |
+| `auth_service_token_revocations_total` | Counter   | Revocaciones de token etiquetadas por `tenant_id` y `reason` |
+
+Estas métricas permiten a los operadores medir:
+
+- **% de validaciones JWKS vs gRPC** por tenant
+- **Latencia promedio gRPC** en percentiles P50/P95/P99
+- **Revocaciones por tenant** para detectar comportamientos anómalos
+
+---
 
 ## Estrategia Dual de Validación JWT (Arquitectura B2B)
 
