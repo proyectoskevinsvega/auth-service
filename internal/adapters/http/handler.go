@@ -14,6 +14,7 @@ import (
 	"github.com/rs/zerolog"
 	httpSwagger "github.com/swaggo/http-swagger/v2"
 	"github.com/vertercloud/auth-service/internal/domain"
+	"github.com/vertercloud/auth-service/internal/observability"
 	"github.com/vertercloud/auth-service/internal/observability/telemetry"
 	"github.com/vertercloud/auth-service/internal/ports"
 	"github.com/vertercloud/auth-service/internal/usecase"
@@ -36,6 +37,7 @@ type Handler struct {
 	m2mUC               *usecase.M2MUseCase
 	complianceUC        *usecase.ComplianceUseCase
 	logger              zerolog.Logger
+	metrics             *observability.Metrics
 	authMiddleware      *AuthMiddleware // This was not removed in the provided snippet, keeping it.
 	allowedOrigins      []string
 	env                 string
@@ -58,6 +60,7 @@ func NewHandler(
 	m2mUC *usecase.M2MUseCase,
 	complianceUC *usecase.ComplianceUseCase,
 	logger zerolog.Logger,
+	metrics *observability.Metrics,
 	allowedOrigins []string,
 	env string,
 	issuer string,
@@ -77,6 +80,7 @@ func NewHandler(
 		m2mUC:               m2mUC,
 		complianceUC:        complianceUC,
 		logger:              logger,
+		metrics:             metrics,
 		authMiddleware:      NewAuthMiddleware(tokenUC), // This was not removed in the provided snippet, keeping it.
 		allowedOrigins:      allowedOrigins,
 		env:                 env,
@@ -159,11 +163,6 @@ func (h *Handler) SetupRoutes(telemetryEnabled bool) http.Handler {
 			r.Post("/auth/2fa/disable", h.Disable2FA)
 			r.Post("/auth/2fa/backup-codes", h.RegenerateBackupCodes)
 
-			// Webhooks
-			r.Post("/auth/webhooks", h.CreateWebhook)
-			r.Get("/auth/webhooks", h.ListWebhooks)
-			r.Delete("/auth/webhooks/{id}", h.DeleteWebhook)
-
 			// Email verification (resend)
 			r.Post("/auth/resend-verification", h.ResendVerificationEmail)
 
@@ -194,6 +193,11 @@ func (h *Handler) SetupRoutes(telemetryEnabled bool) http.Handler {
 			// Machine-to-Machine (mTLS) Management
 			r.Post("/admin/m2m/certificates", h.IssueClientCertificate)
 			r.Post("/admin/m2m/certificates/sign", h.SignClientCSR)
+
+			// Webhooks (Tenant Admin)
+			r.Post("/admin/webhooks", h.CreateWebhook)
+			r.Get("/admin/webhooks", h.ListWebhooks)
+			r.Delete("/admin/webhooks/{id}", h.DeleteWebhook)
 
 			// Compliance Reports
 			r.Get("/admin/compliance/gdpr/{userID}", h.GenerateGDPRReport)
@@ -1236,6 +1240,9 @@ func (h *Handler) GetJWKS(w http.ResponseWriter, r *http.Request) {
 		respondWithError(w, http.StatusInternalServerError, "failed to get JWKS", "INTERNAL_ERROR")
 		return
 	}
+
+	// Record B2B Telemetry
+	h.metrics.RecordJWKSHit()
 
 	respondWithJSON(w, http.StatusOK, JWKSResponse{
 		Keys: []JWKResponse{

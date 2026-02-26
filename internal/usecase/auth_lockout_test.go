@@ -53,31 +53,32 @@ func TestAuthUseCase_Login_Lockout(t *testing.T) {
 		m.rateLimiter.On("Increment", ctx, mock.Anything, mock.Anything).Return(1, nil)
 		m.passwordHasher.On("Verify", "wrong", passwordHash).Return(false, nil)
 		m.auditRepo.On("Create", ctx, mock.Anything).Return(nil)
+		m.redisNotifier.On("Publish", mock.Anything, mock.AnythingOfType("*domain.Event")).Return(nil)
 
 		// 1st failure
-		m.userRepo.On("GetByEmailOrUsername", ctx, userEmail).Return(user, nil).Once()
+		m.userRepo.On("GetByEmailOrUsername", ctx, input.TenantID, userEmail).Return(user, nil).Once()
 		m.userRepo.On("Update", ctx, user).Return(nil).Once()
-		_, err := m.uc.Login(ctx, LoginInput{Identifier: userEmail, Password: "wrong"})
+		_, err := m.uc.Login(ctx, LoginInput{TenantID: input.TenantID, Identifier: userEmail, Password: "wrong"})
 		assert.Equal(t, domain.ErrInvalidCredentials, err)
 		assert.Equal(t, 1, user.FailedLoginAttempts)
 
 		// 2nd failure
-		m.userRepo.On("GetByEmailOrUsername", ctx, userEmail).Return(user, nil).Once()
+		m.userRepo.On("GetByEmailOrUsername", ctx, input.TenantID, userEmail).Return(user, nil).Once()
 		m.userRepo.On("Update", ctx, user).Return(nil).Once()
-		_, err = m.uc.Login(ctx, LoginInput{Identifier: userEmail, Password: "wrong"})
+		_, err = m.uc.Login(ctx, LoginInput{TenantID: input.TenantID, Identifier: userEmail, Password: "wrong"})
 		assert.Equal(t, domain.ErrInvalidCredentials, err)
 		assert.Equal(t, 2, user.FailedLoginAttempts)
 
 		// 3rd failure - SHOULD LOCK
-		m.userRepo.On("GetByEmailOrUsername", ctx, userEmail).Return(user, nil).Once()
+		m.userRepo.On("GetByEmailOrUsername", ctx, input.TenantID, userEmail).Return(user, nil).Once()
 		m.userRepo.On("Update", ctx, user).Return(nil).Once()
-		_, err = m.uc.Login(ctx, LoginInput{Identifier: userEmail, Password: "wrong"})
+		_, err = m.uc.Login(ctx, LoginInput{TenantID: input.TenantID, Identifier: userEmail, Password: "wrong"})
 		assert.Equal(t, domain.ErrAccountLocked, err)
 		assert.True(t, user.IsLocked())
 
 		// Verify further attempts are blocked immediately
-		m.userRepo.On("GetByEmailOrUsername", ctx, userEmail).Return(user, nil).Once()
-		_, err = m.uc.Login(ctx, LoginInput{Identifier: userEmail, Password: "any"})
+		m.userRepo.On("GetByEmailOrUsername", ctx, input.TenantID, userEmail).Return(user, nil).Once()
+		_, err = m.uc.Login(ctx, LoginInput{TenantID: input.TenantID, Identifier: userEmail, Password: "any"})
 		assert.Equal(t, domain.ErrAccountLocked, err)
 
 		m.userRepo.AssertExpectations(t)
@@ -96,7 +97,7 @@ func TestAuthUseCase_Login_Lockout(t *testing.T) {
 
 		m.rateLimiter.On("CheckLimit", ctx, mock.Anything, mock.Anything, mock.Anything).Return(false, nil)
 		m.rateLimiter.On("Increment", ctx, mock.Anything, mock.Anything).Return(1, nil)
-		m.userRepo.On("GetByEmailOrUsername", ctx, userEmail).Return(user, nil)
+		m.userRepo.On("GetByEmailOrUsername", ctx, input.TenantID, userEmail).Return(user, nil)
 		m.passwordHasher.On("Verify", password, passwordHash).Return(true, nil)
 
 		// Expected reset update

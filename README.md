@@ -643,6 +643,28 @@ Headers: Authorization: Bearer <jwt>
 GET /api/v1/auth/.well-known/jwks.json
 ```
 
+## Estrategia Dual de Validación JWT (Arquitectura B2B)
+
+Este Auth-Service está diseñado bajo una arquitectura de **Identity-as-a-Service (IDaaS)** lista para integraciones multitenant escalables. Para validar la autenticidad de los tokens de sesión, ofrecemos a las empresas cliente dos estrategias complementarias:
+
+### 1. Validación Local Descentralizada (Recomendada para escalabilidad masiva)
+
+- **El Flujo:** El backend cliente descarga las llaves públicas RSA-256 desde nuestro endpoint `/api/v1/auth/.well-known/jwks.json` y las guarda en memoria (caché).
+- **Proceso:** Cada petición entrante que recibe la empresa cliente se valida _matemáticamente de forma local_ comprobando la firma y fecha de expiración (`exp`), sin realizar llamadas HTTP al Auth-Service.
+- **Ventajas:** Cero cuellos de botella. Escalabilidad horizontal ilimitada. Tolerancia a fallos de red total.
+- **Caso de uso:** Aplicaciones estándar con alto volumen de tráfico (Ej: e-Commerce, redes sociales, foros).
+
+> **Nota de Seguridad - Zero-Downtime Key Rotation:** Nuestros tokens JWT y el endpoint JWKS incluyen el soporte nativo para el claim `kid` (_Key ID_). Esto garantiza que si el administrador del Auth-Service rota las llaves asimétricas maestras del servidor por seguridad, tus clientes nunca experimentarán caídas de validación. La librería de las empresas clientes usará el `kid` del token para contrastarlo dinámicamente con la versión actual de tus llaves públicas.
+
+### 2. Validación Estricta Centralizada vía gRPC (Recomendada para alta seguridad)
+
+- **El Flujo:** El backend cliente establece una conexión persistente **gRPC** HTTP/2 hacia el puerto `50051`.
+- **Proceso:** En cada petición (o peticiones críticas), la empresa cliente consulta al Auth-Service mediante la llamada rápida `ValidateToken`.
+- **Ventajas:** Validación en tiempo real (Stateful). Detecta si un administrador ejecutó el comando de _Forzar Reseteo_, si la sesión se revocó individualmente, o si la cuenta está temporalmente bloqueada por ataques.
+- **Caso de uso:** Aplicaciones hiper-sensibles como pasarelas de pago, paneles de control bancario, o normativas de cumplimiento estrictas (HIPAA, SOC2).
+
+---
+
 ## gRPC API (Comunicación Interna)
 
 **Package**: `auth.v1`

@@ -41,6 +41,12 @@ type Metrics struct {
 	TokensCacheMissTotal       prometheus.Counter
 	TokensBlacklistedTotal     prometheus.Counter
 	TokensGeneratedTotal       *prometheus.CounterVec
+	JWKSHitsTotal              prometheus.Counter
+
+	// B2B & gRPC Metrics
+	GRPCRequestsTotal *prometheus.CounterVec
+	GRPCLatency       *prometheus.HistogramVec
+	RevocationsTotal  *prometheus.CounterVec
 
 	// Rate Limiting Metrics
 	RateLimitExceededTotal     *prometheus.CounterVec
@@ -302,6 +308,47 @@ func NewMetrics(namespace string) *Metrics {
 			[]string{"type"}, // type: access, refresh
 		),
 
+		JWKSHitsTotal: promauto.NewCounter(
+			prometheus.CounterOpts{
+				Namespace: namespace,
+				Subsystem: "tokens",
+				Name:      "jwks_hits_total",
+				Help:      "Total access counts exactly to the public JWKS endpoint (Local Validation)",
+			},
+		),
+
+		// ---- B2B & gRPC Metrics ----
+		GRPCRequestsTotal: promauto.NewCounterVec(
+			prometheus.CounterOpts{
+				Namespace: namespace,
+				Subsystem: "grpc",
+				Name:      "requests_total",
+				Help:      "Total number of incoming gRPC requests (e.g. ValidateToken)",
+			},
+			[]string{"method", "status"},
+		),
+
+		GRPCLatency: promauto.NewHistogramVec(
+			prometheus.HistogramOpts{
+				Namespace: namespace,
+				Subsystem: "grpc",
+				Name:      "request_duration_seconds",
+				Help:      "Latency of gRPC requests in seconds",
+				Buckets:   []float64{0.001, 0.005, 0.01, 0.02, 0.05, 0.1, 0.5, 1.0},
+			},
+			[]string{"method", "status"},
+		),
+
+		RevocationsTotal: promauto.NewCounterVec(
+			prometheus.CounterOpts{
+				Namespace: namespace,
+				Subsystem: "tokens",
+				Name:      "b2b_revocations_total",
+				Help:      "Total token revocations executed, labeled by tenant",
+			},
+			[]string{"tenant_id", "reason"},
+		),
+
 		// Rate Limiting Metrics
 		RateLimitExceededTotal: promauto.NewCounterVec(
 			prometheus.CounterOpts{
@@ -502,4 +549,23 @@ func (m *Metrics) IncrementInFlightRequests() {
 // DecrementInFlightRequests decrements the in-flight requests counter
 func (m *Metrics) DecrementInFlightRequests() {
 	m.HTTPRequestsInFlight.Dec()
+}
+
+// RecordJWKSHit increments public key retrieval (offline validation) indicator
+func (m *Metrics) RecordJWKSHit() {
+	m.JWKSHitsTotal.Inc()
+}
+
+// RecordGRPCRequest logs gRPC throughput and latency
+func (m *Metrics) RecordGRPCRequest(method, status string, duration time.Duration) {
+	m.GRPCRequestsTotal.WithLabelValues(method, status).Inc()
+	m.GRPCLatency.WithLabelValues(method, status).Observe(duration.Seconds())
+}
+
+// RecordTokenRevocation counts how many tokens each B2B tenant is revoking
+func (m *Metrics) RecordTokenRevocation(tenantID, reason string) {
+	if tenantID == "" {
+		tenantID = "unknown_tenant"
+	}
+	m.RevocationsTotal.WithLabelValues(tenantID, reason).Inc()
 }

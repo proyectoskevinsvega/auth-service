@@ -69,6 +69,7 @@ import (
 	redisadapter "github.com/vertercloud/auth-service/internal/adapters/redis"
 	threatinteladapter "github.com/vertercloud/auth-service/internal/adapters/threatintel"
 	"github.com/vertercloud/auth-service/internal/config"
+	"github.com/vertercloud/auth-service/internal/observability"
 	"github.com/vertercloud/auth-service/internal/observability/telemetry"
 	"github.com/vertercloud/auth-service/internal/ports"
 	"github.com/vertercloud/auth-service/internal/usecase"
@@ -398,6 +399,8 @@ func initializeDependencies(cfg *config.Config, logger zerolog.Logger, telemetry
 	}
 	logger.Info().Msg("WebAuthn use case initialized")
 
+	metrics := observability.NewMetrics("auth_service")
+
 	// Initialize CertificateManager for mTLS and M2M
 	certManager := cryptoadapter.NewCertificateManager("./keys")
 
@@ -427,6 +430,7 @@ func initializeDependencies(cfg *config.Config, logger zerolog.Logger, telemetry
 		m2mUC,
 		complianceUC,
 		logger,
+		metrics,
 		cfg.Server.AllowedOrigins,
 		cfg.Server.Environment,
 		cfg.JWT.Issuer,
@@ -445,6 +449,7 @@ func initializeDependencies(cfg *config.Config, logger zerolog.Logger, telemetry
 		tokenUC,
 		userRepo,
 		logger,
+		metrics,
 	)
 
 	// mTLS Certificate Management (Bootstrap)

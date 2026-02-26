@@ -74,3 +74,13 @@ docs/TELEMETRY.md
 docs/CICD.md
 .claude
 bin/auth-service
+frontend/admin/node_modules
+frontend/admin/dist
+frontend/admin/.env
+frontend/admin/.env.local
+frontend/admin/curl.md
+frontend/client/node_modules
+frontend/client/dist
+frontend/client/.env
+frontend/client/.env.local
+frontend/client/curl.md

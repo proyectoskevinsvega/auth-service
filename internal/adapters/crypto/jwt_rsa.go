@@ -17,13 +17,23 @@ type JWTService struct {
 	privateKey *rsa.PrivateKey
 	publicKey  *rsa.PublicKey
 	issuer     string
+	kid        string // Key ID for key rotation
 }
 
 func NewJWTService(privateKey *rsa.PrivateKey, publicKey *rsa.PublicKey, issuer string) *JWTService {
+	// Generate a deterministic Key ID (KID) based on the public key
+	// Usually done by hashing the public key modulus or public exponent
+	// For simplicity and standard compliance, we'll hash the DER encoded public key
+	// Since we don't want to add x509 dependency here if avoiding it,
+	// we use a simple SHA-1 (or base64) of the Modulus bytes.
+	kidBytes := publicKey.N.Bytes()
+	kid := base64.RawURLEncoding.EncodeToString(kidBytes)[:16] // truncated for brevity
+
 	return &JWTService{
 		privateKey: privateKey,
 		publicKey:  publicKey,
 		issuer:     issuer,
+		kid:        kid,
 	}
 }
 
@@ -51,6 +61,9 @@ func (s *JWTService) Generate(ctx context.Context, token *domain.Token) (string,
 	}
 
 	jwtToken := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
+	
+	// Inyectamos el KID en los Headers del JWT
+	jwtToken.Header["kid"] = s.kid
 
 	tokenString, err := jwtToken.SignedString(s.privateKey)
 	if err != nil {
@@ -103,6 +116,7 @@ func (s *JWTService) GetPublicKeyJWKS() (map[string]interface{}, error) {
 	jwks := map[string]interface{}{
 		"keys": []map[string]interface{}{
 			{
+				"kid": s.kid,
 				"kty": "RSA",
 				"use": "sig",
 				"alg": "RS256",

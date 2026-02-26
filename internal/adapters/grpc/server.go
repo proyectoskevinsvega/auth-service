@@ -7,6 +7,7 @@ import (
 	"github.com/rs/zerolog"
 	pb "github.com/vertercloud/auth-service/internal/adapters/grpc/proto"
 	"github.com/vertercloud/auth-service/internal/domain"
+	"github.com/vertercloud/auth-service/internal/observability"
 	"github.com/vertercloud/auth-service/internal/ports"
 	"github.com/vertercloud/auth-service/internal/usecase"
 	"google.golang.org/grpc/codes"
@@ -19,6 +20,7 @@ type AuthServer struct {
 	tokenUC  *usecase.TokenUseCase
 	userRepo ports.UserRepository
 	logger   zerolog.Logger
+	metrics  *observability.Metrics
 }
 
 // NewAuthServer creates a new gRPC auth server
@@ -26,20 +28,24 @@ func NewAuthServer(
 	tokenUC *usecase.TokenUseCase,
 	userRepo ports.UserRepository,
 	logger zerolog.Logger,
+	metrics *observability.Metrics,
 ) *AuthServer {
 	return &AuthServer{
 		tokenUC:  tokenUC,
 		userRepo: userRepo,
 		logger:   logger,
+		metrics:  metrics,
 	}
 }
 
 // ValidateToken validates a JWT token and returns user info
 func (s *AuthServer) ValidateToken(ctx context.Context, req *pb.ValidateTokenRequest) (*pb.ValidateTokenResponse, error) {
+	startTime := time.Now()
 	clientIdentity := GetClientIdentity(ctx)
 	s.logger.Info().Str("client_identity", clientIdentity).Msg("gRPC ValidateToken request received")
 
 	if req.Token == "" {
+		s.metrics.RecordGRPCRequest("ValidateToken", "invalid_argument", time.Since(startTime))
 		return &pb.ValidateTokenResponse{
 			Valid:        false,
 			ErrorCode:    "INVALID_TOKEN",
@@ -63,6 +69,7 @@ func (s *AuthServer) ValidateToken(ctx context.Context, req *pb.ValidateTokenReq
 			errorMessage = "token revoked"
 		}
 
+		s.metrics.RecordGRPCRequest("ValidateToken", "invalid_token", time.Since(startTime))
 		return &pb.ValidateTokenResponse{
 			Valid:        false,
 			ErrorCode:    errorCode,
@@ -74,6 +81,7 @@ func (s *AuthServer) ValidateToken(ctx context.Context, req *pb.ValidateTokenReq
 	user, err := s.userRepo.GetByID(ctx, token.TenantID, token.UserID)
 	if err != nil {
 		s.logger.Error().Err(err).Str("user_id", token.UserID).Msg("failed to get user")
+		s.metrics.RecordGRPCRequest("ValidateToken", "user_not_found", time.Since(startTime))
 		return &pb.ValidateTokenResponse{
 			Valid:        false,
 			ErrorCode:    "USER_NOT_FOUND",
@@ -81,6 +89,7 @@ func (s *AuthServer) ValidateToken(ctx context.Context, req *pb.ValidateTokenReq
 		}, nil
 	}
 
+	s.metrics.RecordGRPCRequest("ValidateToken", "success", time.Since(startTime))
 	return &pb.ValidateTokenResponse{
 		Valid:            true,
 		UserId:           user.ID,
@@ -97,17 +106,29 @@ func (s *AuthServer) ValidateToken(ctx context.Context, req *pb.ValidateTokenReq
 
 // RevokeToken revokes a token
 func (s *AuthServer) RevokeToken(ctx context.Context, req *pb.RevokeTokenRequest) (*pb.RevokeTokenResponse, error) {
+	startTime := time.Now()
+	
 	if req.Token == "" {
+		s.metrics.RecordGRPCRequest("RevokeToken", "invalid_argument", time.Since(startTime))
 		return nil, status.Error(codes.InvalidArgument, "token is required")
 	}
 
 	if err := s.tokenUC.RevokeToken(ctx, req.Token); err != nil {
 		s.logger.Error().Err(err).Msg("failed to revoke token")
+		s.metrics.RecordGRPCRequest("RevokeToken", "internal_error", time.Since(startTime))
 		return &pb.RevokeTokenResponse{
 			Success: false,
 			Message: "failed to revoke token",
 		}, nil
 	}
+
+	// Register the B2B Analytics
+	tenantID := req.TenantId
+	if tenantID == "" {
+		tenantID = "unknown"
+	}
+	s.metrics.RecordTokenRevocation(tenantID, "grpc_request")
+	s.metrics.RecordGRPCRequest("RevokeToken", "success", time.Since(startTime))
 
 	return &pb.RevokeTokenResponse{
 		Success: true,
@@ -117,18 +138,24 @@ func (s *AuthServer) RevokeToken(ctx context.Context, req *pb.RevokeTokenRequest
 
 // GetUserByID retrieves user information by ID
 func (s *AuthServer) GetUserByID(ctx context.Context, req *pb.GetUserByIDRequest) (*pb.GetUserByIDResponse, error) {
+	startTime := time.Now()
 	if req.UserId == "" {
+		s.metrics.RecordGRPCRequest("GetUserByID", "invalid_argument", time.Since(startTime))
 		return nil, status.Error(codes.InvalidArgument, "user_id is required")
 	}
 
 	user, err := s.userRepo.GetByID(ctx, req.TenantId, req.UserId)
 	if err != nil {
 		if err == domain.ErrUserNotFound {
+			s.metrics.RecordGRPCRequest("GetUserByID", "not_found", time.Since(startTime))
 			return nil, status.Error(codes.NotFound, "user not found")
 		}
 		s.logger.Error().Err(err).Str("user_id", req.UserId).Msg("failed to get user")
+		s.metrics.RecordGRPCRequest("GetUserByID", "internal_error", time.Since(startTime))
 		return nil, status.Error(codes.Internal, "failed to get user")
 	}
+
+	s.metrics.RecordGRPCRequest("GetUserByID", "success", time.Since(startTime))
 
 	return &pb.GetUserByIDResponse{
 		Id:               user.ID,
