@@ -254,6 +254,43 @@ Estos endpoints están diseñados para ser abiertos directamente desde el navega
 
 ---
 
-## 7. Integración gRPC (Backend to Backend)
+## 7. Consumo de Eventos B2B (Redis Streams/Lists)
+
+El Auth-Service emite notificaciones asíncronas en tiempo real cuando ocurren eventos de seguridad importantes (ej. Inicio de sesión desde otro país, cuenta bloqueada, tokens revocados forzosamente).
+
+Para consumir estos eventos, tu backend debe conectarse al servidor **Redis** y hacer un **POP** de tu **cola aislada por Tenant**.
+
+La clave de la cola (queue) tiene el formato:
+`auth_events:{tu_tenant_id}`
+
+### Ejemplo en Go (go-redis)
+
+```go
+func ListenForAuthEvents(ctx context.Context, rdb *redis.Client, tenantID string) {
+	queueName := fmt.Sprintf("auth_events:%s", tenantID)
+
+	for {
+		// Bloquea el worker hasta que haya un elemento nuevo en la cola (BLPOP)
+		// 0 = esperar indefinidamente
+		result, err := rdb.BLPop(ctx, 0, queueName).Result()
+		if err != nil {
+			log.Printf("Error leyendo eventos: %v", err)
+			time.Sleep(2 * time.Second)
+			continue
+		}
+
+		// result[0] es el nombre de la cola, result[1] es el payload JSON
+		payload := result[1]
+		fmt.Printf("Nuevo evento de seguridad recibido: %s\n", payload)
+		// ... Parsear el JSON y accionar (cerrar websockets, mandar alerta local, etc.)
+	}
+}
+```
+
+El payload es un JSON estándar que contiene `id`, `type`, `user_id`, `timestamp` y `data`. Un tipo de evento vital al que debes reaccionar es `auth_session_revoked`, para invalidar cualquier sesión activa de forma remota en milisegundos.
+
+---
+
+## 8. Integración gRPC (Backend to Backend)
 
 Para validación de alta velocidad de los tokens JWT desde servidores de aplicaciones (Sistemas B2B), consulta la **[Guía de Integración gRPC](./grpc-integration.md)**. No utilices HTTP/REST para comunicación inter-microservicios si tienes acceso a la red interna.
