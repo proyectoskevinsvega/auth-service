@@ -55,6 +55,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/hibiken/asynq"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog"
@@ -73,7 +74,7 @@ import (
 	"github.com/vertercloud/auth-service/internal/observability/telemetry"
 	"github.com/vertercloud/auth-service/internal/ports"
 	"github.com/vertercloud/auth-service/internal/usecase"
-	"github.com/vertercloud/auth-service/internal/worker"
+	worker "github.com/vertercloud/auth-service/internal/worker/asynq"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 )
@@ -140,14 +141,17 @@ func main() {
 	grpcServer := startGRPCServer(cfg, deps.grpcServer, logger, telemetryConfig)
 
 	// Wait for shutdown signal
-	waitForShutdown(httpServer, grpcServer, logger)
+	waitForShutdown(httpServer, grpcServer, deps.asynqClient, deps.asynqServer, deps.webhookProcessor, logger)
 
 	logger.Info().Msg("auth service stopped gracefully")
 }
 
 type dependencies struct {
-	httpHandler *httpadapter.Handler
-	grpcServer  *grpcadapter.AuthServer
+	httpHandler      *httpadapter.Handler
+	grpcServer       *grpcadapter.AuthServer
+	asynqClient      *asynq.Client
+	asynqServer      *asynq.Server
+	webhookProcessor worker.TaskProcessor
 }
 
 func initializeDependencies(cfg *config.Config, logger zerolog.Logger, telemetryConfig telemetry.Config) (*dependencies, func(), error) {
@@ -240,7 +244,31 @@ func initializeDependencies(cfg *config.Config, logger zerolog.Logger, telemetry
 	passwordHasher := cryptoadapter.NewArgon2Hasher()
 	totpService := cryptoadapter.NewTOTPService(cfg.JWT.Issuer)
 	tokenGenerator := cryptoadapter.NewSecureTokenGenerator()
-	webhookClient := httpadapter.NewWebhookClient(logger)
+
+	// Initialize Asynq Client and Server
+	redisOpt := asynq.RedisClientOpt{
+		Addr:     cfg.Redis.Addrs[0],
+		Password: cfg.Redis.Password,
+		DB:       cfg.Redis.DB,
+	}
+	asynqClient := asynq.NewClient(redisOpt)
+	// Make sure to cleanly close the client during shutdown mapping
+
+	asynqServer := asynq.NewServer(
+		redisOpt,
+		asynq.Config{
+			Concurrency: 10,
+			Queues: map[string]int{
+				"default": 10,
+			},
+		},
+	)
+
+	// Initialize new Webhook Task infrastructure
+	webhookDistributor := worker.NewRedisTaskDistributor(asynqClient, logger)
+	webhookProcessor := worker.NewRedisTaskProcessor(asynqServer, logger)
+
+	// Note: We'll start Asynq worker server after HTTP and GRPC so the system is fully configured.
 
 	// Initialize Redis adapters
 	tokenCache := redisadapter.NewTokenCache(redisClient)
@@ -382,10 +410,10 @@ func initializeDependencies(cfg *config.Config, logger zerolog.Logger, telemetry
 
 	webhookUC := usecase.NewWebhookUseCase(
 		webhookRepo,
-		webhookClient,
+		webhookDistributor, // Pushing Webhooks tasks using Asynq Redis mechanism.
 		logger,
 	)
-	logger.Info().Msg("Webhook use case initialized")
+	logger.Info().Msg("Webhook use case initialized (Asynq Powered)")
 
 	webauthnUC, err := usecase.NewWebAuthnUseCase(
 		userRepo,
@@ -437,12 +465,8 @@ func initializeDependencies(cfg *config.Config, logger zerolog.Logger, telemetry
 		cfg.Server.BaseDomain,
 	)
 
-	// Start event worker if notifications are enabled
-	if cfg.Notification.Enabled {
-		eventWorker := worker.NewEventWorker(redisClient, cfg.Notification.RedisQueue, webhookUC, logger)
-		go eventWorker.Start(ctx)
-		logger.Info().Msg("Event worker started")
-	}
+	// NOTE: Event dispatching is now handled by the Asynq Background Worker (started in waitForShutdown).
+	// The old Redis-polling EventWorker has been superseded.
 
 	// Initialize gRPC server
 	grpcServer := grpcadapter.NewAuthServer(
@@ -482,8 +506,11 @@ func initializeDependencies(cfg *config.Config, logger zerolog.Logger, telemetry
 	}
 
 	return &dependencies{
-		httpHandler: httpHandler,
-		grpcServer:  grpcServer,
+		httpHandler:      httpHandler,
+		grpcServer:       grpcServer,
+		asynqClient:      asynqClient,
+		asynqServer:      asynqServer,
+		webhookProcessor: webhookProcessor,
 	}, cleanup, nil
 }
 
@@ -578,12 +605,25 @@ func startGRPCServer(cfg *config.Config, authServer *grpcadapter.AuthServer, log
 	return grpcServer
 }
 
-func waitForShutdown(httpServer *http.Server, grpcServer *grpc.Server, logger zerolog.Logger) {
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+func waitForShutdown(httpServer *http.Server, grpcServer *grpc.Server, asynqClient *asynq.Client, asynqServer *asynq.Server, processor worker.TaskProcessor, logger zerolog.Logger) {
+	// Start all Asynq Webhook Background Workers
+	go func() {
+		logger.Info().Msg("starting Asynq webhook background workers...")
+		if err := processor.Start(); err != nil {
+			logger.Fatal().Err(err).Msg("failed to start Asynq workers")
+		}
+	}()
 
-	<-sigChan
-	logger.Info().Msg("shutdown signal received, starting graceful shutdown...")
+	// Watch for shutdown signal
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+
+	// Graceful shutdown procedure
+	logger.Info().Msg("shutting down servers and workers...")
+
+	asynqServer.Stop() // Prevents new tasks and awaits executing tasks
+	asynqClient.Close()
 
 	// Graceful HTTP shutdown
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)

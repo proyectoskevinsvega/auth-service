@@ -11,17 +11,17 @@ import (
 
 // WebhookUseCase manages webhook subscriptions and processes auth events
 type WebhookUseCase struct {
-	repo   ports.WebhookRepository
-	sender ports.WebhookSender
-	logger zerolog.Logger
+	repo        ports.WebhookRepository
+	distributor ports.TaskDistributor
+	logger      zerolog.Logger
 }
 
 // NewWebhookUseCase creates a new WebhookUseCase
-func NewWebhookUseCase(repo ports.WebhookRepository, sender ports.WebhookSender, logger zerolog.Logger) *WebhookUseCase {
+func NewWebhookUseCase(repo ports.WebhookRepository, distributor ports.TaskDistributor, logger zerolog.Logger) *WebhookUseCase {
 	return &WebhookUseCase{
-		repo:   repo,
-		sender: sender,
-		logger: logger,
+		repo:        repo,
+		distributor: distributor,
+		logger:      logger,
 	}
 }
 
@@ -65,15 +65,13 @@ func (uc *WebhookUseCase) ProcessEvent(ctx context.Context, event *domain.Event)
 	}
 
 	for _, sub := range subs {
-		go func(s *domain.WebhookSubscription) {
-			if err := uc.sender.Send(context.Background(), s, payload); err != nil {
-				uc.logger.Error().
-					Err(err).
-					Str("url", s.URL).
-					Str("event", string(event.Type)).
-					Msg("failed to send webhook")
-			}
-		}(sub)
+		if err := uc.distributor.DistributeTaskDeliverWebhook(context.Background(), sub, payload); err != nil {
+			uc.logger.Error().
+				Err(err).
+				Str("url", sub.URL).
+				Str("event", string(event.Type)).
+				Msg("failed to enqueue webhook delivery task via asynq")
+		}
 	}
 
 	return nil

@@ -3,6 +3,7 @@ package ports
 import (
 	"context"
 
+	"github.com/hibiken/asynq"
 	"github.com/vertercloud/auth-service/internal/domain"
 )
 
@@ -33,4 +34,10 @@ type EmailService interface {
 
 type WebhookSender interface {
 	Send(ctx context.Context, sub *domain.WebhookSubscription, payload *domain.WebhookPayload) error
+}
+
+// TaskDistributor is the interface for enqueuing background tasks.
+// Defined here (in ports) to avoid circular imports between usecase and worker packages.
+type TaskDistributor interface {
+	DistributeTaskDeliverWebhook(ctx context.Context, sub *domain.WebhookSubscription, payload *domain.WebhookPayload, opts ...asynq.Option) error
 }
