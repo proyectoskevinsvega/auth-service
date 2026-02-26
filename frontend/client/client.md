@@ -254,40 +254,64 @@ Estos endpoints están diseñados para ser abiertos directamente desde el navega
 
 ---
 
-## 7. Consumo de Eventos B2B (Redis Streams/Lists)
+## 7. Consumo de Eventos B2B (Webhooks)
 
-El Auth-Service emite notificaciones asíncronas en tiempo real cuando ocurren eventos de seguridad importantes (ej. Inicio de sesión desde otro país, cuenta bloqueada, tokens revocados forzosamente).
+El Auth-Service entrega notificaciones asíncronas en tiempo real a tu servidor externo mediante **HTTP POST Webhooks** firmados con **HMAC-SHA256**.
 
-Para consumir estos eventos, tu backend debe conectarse al servidor **Redis** y hacer un **POP** de tu **cola aislada por Tenant**.
+> **Como funciona internamente:** Cuando ocurre un evento de seguridad (login, revocación, etc.), el Auth-Service lo encola en Redis vía `asynq`. Un pool de workers de alto rendimiento procesa las colas y hace el HTTP POST a tu endpoint. El sistema reintenta automáticamente con **Exponential Backoff** si tu servidor no está disponible (hasta 10 reintentos).
 
-La clave de la cola (queue) tiene el formato:
-`auth_events:{tu_tenant_id}`
+### Paso 1: Registra tu Webhook Endpoint
 
-### Ejemplo en Go (go-redis)
+Crea una suscripción de Webhook desde el Panel Administrativo o la API:
 
-```go
-func ListenForAuthEvents(ctx context.Context, rdb *redis.Client, tenantID string) {
-	queueName := fmt.Sprintf("auth_events:%s", tenantID)
-
-	for {
-		// Bloquea el worker hasta que haya un elemento nuevo en la cola (BLPOP)
-		// 0 = esperar indefinidamente
-		result, err := rdb.BLPop(ctx, 0, queueName).Result()
-		if err != nil {
-			log.Printf("Error leyendo eventos: %v", err)
-			time.Sleep(2 * time.Second)
-			continue
-		}
-
-		// result[0] es el nombre de la cola, result[1] es el payload JSON
-		payload := result[1]
-		fmt.Printf("Nuevo evento de seguridad recibido: %s\n", payload)
-		// ... Parsear el JSON y accionar (cerrar websockets, mandar alerta local, etc.)
-	}
+```json
+POST /api/v1/webhooks
+{
+  "url": "https://tu-servidor.com/webhooks/auth",
+  "events": ["auth_session_revoked", "auth_account_locked", "auth_login_failed"],
+  "secret": "tu-webhook-secret-aleatorio"
 }
 ```
 
-El payload es un JSON estándar que contiene `id`, `type`, `user_id`, `timestamp` y `data`. Un tipo de evento vital al que debes reaccionar es `auth_session_revoked`, para invalidar cualquier sesión activa de forma remota en milisegundos.
+### Paso 2: Verifica la Firma HMAC en tu Servidor
+
+Cada POST incluye el header `X-Auth-Signature: sha256=<hex_hash>`. **Debes validarlo** antes de procesar el evento:
+
+```go
+// Go: Verificación en tu servidor receptor
+func VerifyWebhookSignature(body []byte, secret, signatureHeader string) bool {
+    mac := hmac.New(sha256.New, []byte(secret))
+    mac.Write(body)
+    expected := "sha256=" + hex.EncodeToString(mac.Sum(nil))
+    return hmac.Equal([]byte(expected), []byte(signatureHeader))
+}
+```
+
+```javascript
+// Node.js: Verificación equivalente
+const crypto = require("crypto");
+function verifySignature(body, secret, signatureHeader) {
+  const expected =
+    "sha256=" + crypto.createHmac("sha256", secret).update(body).digest("hex");
+  return crypto.timingSafeEqual(
+    Buffer.from(expected),
+    Buffer.from(signatureHeader),
+  );
+}
+```
+
+### Payload de Evento
+
+```json
+{
+  "id": "evt_abc123",
+  "type": "auth_session_revoked",
+  "tenant_id": "t-your-tenant-id",
+  "user_id": "usr_xyz",
+  "timestamp": "2026-02-26T14:00:00Z",
+  "data": { "reason": "forced_logout", "ip": "192.168.1.1" }
+}
+```
 
 ---
 
