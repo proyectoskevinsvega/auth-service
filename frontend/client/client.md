@@ -247,7 +247,10 @@ Estos endpoints están diseñados para ser abiertos directamente desde el navega
   ```
 - **Discovery Endpoint (Público):** `GET /api/v1/.well-known/openid-configuration`
 - **Public JSON Web Keys (JWKS):** `GET /api/v1/auth/.well-known/jwks.json`
+
   > _Nota B2B:_ Nuestro endpoint JWKS devuelve un `kid` (Key ID) único asociado a la llave pública actual. Tus JWT también incluyen este `kid` en los Headers. Utilízalo en tu backend para implementar validación robusta y **Zero-Downtime Key Rotation**. Si rotamos nuestras llaves, tu sistema automáticamente descargará y cacheará la nueva llave basándose en el nuevo `kid`, sin cerrar la sesión de usuarios legítimos.
+
+  > _Telemetría:_ Cada servidor (Tenant ID) que consulta este endpoint genera un incremento en la métrica expuesta de Prometheus `auth_service_tokens_jwks_hits_total`. Para mayor escalabilidad interna, confía más en la validación por firma matemática offline y no abuses de la red interna consultando en masa la ruta HTTP JWKS.
 
 ---
 

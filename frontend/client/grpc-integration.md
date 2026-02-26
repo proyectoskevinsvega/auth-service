@@ -177,10 +177,10 @@ La mejor práctica B2B es implementar una **Caché en Memoria de Vida Corta (Sho
 3. Las peticiones comunes (ej. `GET /perfil`) leerán la RAM (0ms de latencia) y evitarán el viaje por red al Auth-Service.
 4. **Bypass de Seguridad (Validación en vivo):** Para operaciones críticas como "Transferir Dinero" o "Borrar Cuenta", omites condicionalmente el caché para forzar al gRPC a responder con el estado real del usuario en ese milisegundo.
 
-### Ejemplo Wrapper Avanzado en Go (con `go-cache`)
+### Ejemplo Wrapper Inteligente en Go (con `go-cache`)
 
 ```go
-package authclient
+package grpc
 
 import (
 	"context"
@@ -190,31 +190,34 @@ import (
 	"time"
 
 	"github.com/patrickmn/go-cache"
-	pb "mi-empresa/proto/auth/v1"
+	pb "github.com/your-org/auth-service/proto"
 )
 
+// CachedAuthClient acts as a proxy to validate JWT tokens.
 type CachedAuthClient struct {
-	grpcClient pb.AuthServiceClient
-	tokenCache *cache.Cache
+	grpcClient   pb.AuthServiceClient
+	tokenCache   *cache.Cache
+	serverSecret string // 🛡️ Used for Enterprise Hardening (HMAC-like)
 }
 
-func NewCachedAuthClient(client pb.AuthServiceClient) *CachedAuthClient {
+func NewCachedAuthClient(client pb.AuthServiceClient, secret string) *CachedAuthClient {
 	// Caché que expira en 15 segundos, se limpia cada minuto
 	return &CachedAuthClient{
-		grpcClient: client,
-		tokenCache: cache.New(15*time.Second, 1*time.Minute),
+		grpcClient:   client,
+		tokenCache:   cache.New(15*time.Second, 1*time.Minute),
+		serverSecret: secret,
 	}
 }
 
-// computeCacheKey previene colisiones y reduce el consumo de memoria RAM
-func computeCacheKey(token, tenantID string) string {
-	hash := sha256.Sum256([]byte(token))
+// computeCacheKey previene colisiones, ataques de diccionario si hay dump de memoria RAM, y ahorra RAM
+func (c *CachedAuthClient) computeCacheKey(token, tenantID string) string {
+	hash := sha256.Sum256([]byte(token + c.serverSecret))
 	return fmt.Sprintf("%s:%s", tenantID, hex.EncodeToString(hash[:]))
 }
 
 // ValidateJWT envuelve la llamada gRPC. Configura forceLiveCheck = true SÓLO para operaciones sensibles.
 func (c *CachedAuthClient) ValidateJWT(ctx context.Context, tokenString, tenantID string, forceLiveCheck bool) (*pb.ValidateTokenResponse, error) {
-	cacheKey := computeCacheKey(tokenString, tenantID)
+	cacheKey := c.computeCacheKey(tokenString, tenantID)
 
 	// 1. Bypass check - Intentar leer de caché local si NO es una ruta crítica
 	if !forceLiveCheck {
@@ -252,6 +255,7 @@ import java.util.concurrent.TimeUnit;
 
 public class CachedAuthClient {
     private final AuthServiceGrpc.AuthServiceBlockingStub grpcStub;
+    private final String serverSecret; // 🛡️ Used for Enterprise Hardening (HMAC-like)
 
     // Caché LRU que expira entradas 15 segundos después de escribirse.
     private final Cache<String, ValidateTokenResponse> tokenCache = Caffeine.newBuilder()
@@ -259,14 +263,17 @@ public class CachedAuthClient {
         .maximumSize(50_000)
         .build();
 
-    public CachedAuthClient(AuthServiceGrpc.AuthServiceBlockingStub grpcStub) {
+    public CachedAuthClient(AuthServiceGrpc.AuthServiceBlockingStub grpcStub, String serverSecret) {
         this.grpcStub = grpcStub;
+        this.serverSecret = serverSecret;
     }
 
     private String computeCacheKey(String token, String tenantId) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] hash = digest.digest(token.getBytes(StandardCharsets.UTF_8));
+            // Appending ServerSecret prevents dictionary attacks during heap dumps
+            String hardenedPayload = token + serverSecret;
+            byte[] hash = digest.digest(hardenedPayload.getBytes(StandardCharsets.UTF_8));
             return tenantId + ":" + HexFormat.of().formatHex(hash);
         } catch (NoSuchAlgorithmException e) {
             throw new RuntimeException("SHA-256 no disponible", e);
@@ -300,3 +307,21 @@ public class CachedAuthClient {
 
 1. Estas comunicaciones inter-nodos (gRPC) siempre deberían ocurrir dentro de una **VPC privada** de red, o en su defecto, enrutadas vía Internet acompañadas siempre por **certificados mTLS** provistos por el comando de Sistema (Tenant Owner): `POST /api/v1/admin/m2m/certificates`.
 2. Todo token debe considerarse revocado si el parámetro `res.Valid` retorna `false`. No dependas únicamente de la validación matemática local.
+
+---
+
+## Observabilidad y Telemetría B2B (Prometheus)
+
+El Auth-Service expone de manera interna (usualmente en el puerto `9090` de monitoreo, path `/metrics`) métricas robustas compatibles con **Prometheus**. Si administras dashboards en Grafana, te interesará trackear los siguientes KPI originados desde tu client gRPC:
+
+- **Volume / Throughput de Validaciones:**  
+  `auth_service_grpc_requests_total{method="ValidateToken", status="success|invalid_token|user_not_found"}`  
+  _Mide la cantidad de validaciones gRPC en vivo. Esto te permite alertar sobre posibles ciclos infinitos o mal uso de la caché inteligente (demasiados cache misses generarán un spike en esta métrica)._
+
+- **Latencia Total de Validación en Servidor:**  
+  `auth_service_grpc_request_duration_seconds{method="ValidateToken"}` (Histogram)  
+  _Conoce en promedio cuánto se está demorando internamente el Auth-Service al resolver tus peticiones B2B para que puedas ajustar los Timeouts (Deadline) de tus stubs/clientes gRPC._
+
+- **Conteo de Revocaciones Activas por Tenant:**  
+  `auth_service_tokens_b2b_revocations_total{tenant_id="your_tenant_id", reason="grpc_request"}`  
+  _Mide con qué frecuencia tu Tenant está forzando eliminaciones e invalidaciones de tokens (logout, password resets) de forma remota, ayudando a detectar anomalías._
