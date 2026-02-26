@@ -1,6 +1,15 @@
 -- Add webauthn_id to auth_users for WebAuthn User Handle
 ALTER TABLE auth_users ADD COLUMN IF NOT EXISTS webauthn_id BYTEA UNIQUE;
 
+-- Function for automatic updated_at trigger
+CREATE OR REPLACE FUNCTION update_modified_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = NOW();
+    RETURN NEW;
+END;
+$$ language 'plpgsql';
+
 -- WebAuthn Credentials Table
 CREATE TABLE IF NOT EXISTS auth_webauthn_credentials (
     id BYTEA PRIMARY KEY,
