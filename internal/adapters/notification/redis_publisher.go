@@ -26,8 +26,12 @@ func (p *RedisPublisher) Publish(ctx context.Context, event *domain.Event) error
 		return fmt.Errorf("failed to serialize event: %w", err)
 	}
 
-	if err := p.client.RPush(ctx, p.queue, data).Err(); err != nil {
-		return fmt.Errorf("failed to publish event: %w", err)
+	// Aislamiento Multi-Tenant: Cada Tenant (microservicio cliente) lee de su propia cola
+	// Ej: "auth_events:t-1234abcd"
+	tenantQueue := fmt.Sprintf("%s:%s", p.queue, event.TenantID)
+
+	if err := p.client.RPush(ctx, tenantQueue, data).Err(); err != nil {
+		return fmt.Errorf("failed to publish event for tenant %s: %w", event.TenantID, err)
 	}
 
 	return nil
