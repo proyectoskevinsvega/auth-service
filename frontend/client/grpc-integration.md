@@ -233,9 +233,11 @@ func (c *CachedAuthClient) ValidateJWT(ctx context.Context, tokenString, tenantI
 		return nil, err
 	}
 
-	// 3. Guardar en caché SÓLO si el token es válido
+	// 3. Guardar en caché SÓLO si el token es válido (renueva TTL). Si fue revocado/inválido, eliminar (evicción).
 	if resp.Valid {
 		c.tokenCache.Set(cacheKey, resp, cache.DefaultExpiration)
+	} else {
+		c.tokenCache.Delete(cacheKey)
 	}
 
 	return resp, nil
@@ -283,14 +285,25 @@ public class CachedAuthClient {
     public ValidateTokenResponse validateJwt(String tokenString, String tenantId, boolean forceLiveCheck) {
         String cacheKey = computeCacheKey(tokenString, tenantId);
 
-        if (forceLiveCheck) {
-            // Bypass de seguridad para operaciones transaccionales (fuerza gRPC real)
-            tokenCache.invalidate(cacheKey);
-            return callGrpc(tokenString, tenantId);
+        // 1. Intentar leer de caché si no es una comprobación forzada
+        if (!forceLiveCheck) {
+            ValidateTokenResponse cached = tokenCache.getIfPresent(cacheKey);
+            if (cached != null) {
+                return cached;
+            }
         }
 
-        // Busca en caché, si no existe o expiró, llama a nuestro gRPC.
-        return tokenCache.get(cacheKey, key -> callGrpc(tokenString, tenantId));
+        // 2. Consultar el estado real vía gRPC
+        ValidateTokenResponse resp = callGrpc(tokenString, tenantId);
+
+        // 3. Si el token es válido, cachear (renovando el TTL). Si está revocado, invalidar clave explícitamente.
+        if (resp.getValid()) {
+            tokenCache.put(cacheKey, resp);
+        } else {
+            tokenCache.invalidate(cacheKey);
+        }
+
+        return resp;
     }
 
     private ValidateTokenResponse callGrpc(String token, String tenantId) {
