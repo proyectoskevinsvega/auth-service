@@ -38,25 +38,27 @@ func NewJWTService(privateKey *rsa.PrivateKey, publicKey *rsa.PublicKey, issuer 
 }
 
 type CustomClaims struct {
-	Email string   `json:"email"`
-	Roles []string `json:"roles,omitempty"`
-	Scope string   `json:"scp,omitempty"`
-	Perms []string `json:"perms,omitempty"`
+	TenantID string   `json:"tenant_id"`
+	Email    string   `json:"email"`
+	Roles    []string `json:"roles,omitempty"`
+	Scope    string   `json:"scp,omitempty"`
+	Perms    []string `json:"perms,omitempty"`
 	jwt.RegisteredClaims
 }
 
 func (s *JWTService) Generate(ctx context.Context, token *domain.Token) (string, error) {
 	claims := CustomClaims{
-		Email: token.Email,
-		Roles: token.Roles,
-		Scope: strings.Join(token.Scopes, " "),
-		Perms: token.Permissions,
+		TenantID: token.TenantID,
+		Email:    token.Email,
+		Roles:    token.Roles,
+		Scope:    strings.Join(token.Scopes, " "),
+		Perms:    token.Permissions,
 		RegisteredClaims: jwt.RegisteredClaims{
 			Subject:   token.UserID,
+			ID:        token.JTI,
 			IssuedAt:  jwt.NewNumericDate(time.Unix(token.IssuedAt, 0)),
 			ExpiresAt: jwt.NewNumericDate(time.Unix(token.ExpiresAt, 0)),
 			Issuer:    s.issuer,
-			ID:        token.JTI,
 		},
 	}
 
@@ -83,11 +85,13 @@ func (s *JWTService) Verify(ctx context.Context, tokenString string) (*domain.To
 	})
 
 	if err != nil {
+		fmt.Printf("debug: token parse error: %v\n", err)
 		return nil, fmt.Errorf("failed to parse token: %w", err)
 	}
 
 	claims, ok := jwtToken.Claims.(*CustomClaims)
 	if !ok || !jwtToken.Valid {
+		fmt.Printf("debug: token invalid. ok=%v, valid=%v\n", ok, jwtToken.Valid)
 		return nil, domain.ErrInvalidToken
 	}
 
@@ -98,6 +102,7 @@ func (s *JWTService) Verify(ctx context.Context, tokenString string) (*domain.To
 
 	return &domain.Token{
 		JTI:         claims.ID,
+		TenantID:    claims.TenantID,
 		UserID:      claims.Subject,
 		Email:       claims.Email,
 		Roles:       claims.Roles,

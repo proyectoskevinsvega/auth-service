@@ -99,7 +99,8 @@ type LoginResponse struct {
 
 func (uc *AuthUseCase) Login(ctx context.Context, input LoginInput) (*LoginResponse, error) {
 	// Rate limiting
-	rateLimitKey := "login:" + input.IPAddress
+	// Rate limit check (consolidated)
+	rateLimitKey := fmt.Sprintf("login:%s:%s", input.TenantID, input.Identifier)
 	exceeded, err := uc.rateLimiter.CheckLimit(ctx, rateLimitKey, uc.config.RateLimit.LoginAttempts, uc.config.RateLimit.LoginWindow)
 	if err != nil {
 		return nil, fmt.Errorf("rate limit check failed: %w", err)
@@ -269,6 +270,7 @@ func (uc *AuthUseCase) Login(ctx context.Context, input LoginInput) (*LoginRespo
 	// Create session
 	inactivityTTL := time.Duration(uc.config.Security.SessionInactivityDays) * 24 * time.Hour
 	session := domain.NewSession(domain.NewSessionInput{
+		TenantID:      user.TenantID,
 		UserID:        user.ID,
 		IPAddress:     input.IPAddress,
 		Country:       country,
@@ -283,6 +285,7 @@ func (uc *AuthUseCase) Login(ctx context.Context, input LoginInput) (*LoginRespo
 
 	// Generate JWT
 	token := domain.NewToken(user.TenantID, user.ID, user.Email, uc.config.JWT.AccessExpiry)
+	token.JTI = session.ID // Correlate token with session
 
 	// Map roles and permissions to token
 	for _, role := range user.Roles {
@@ -435,7 +438,10 @@ func (uc *AuthUseCase) Register(ctx context.Context, input RegisterInput) (*doma
 		}
 
 		// Get location for audit log
-		currentLoc, _ := uc.geoService.GetLocation(bgCtx, input.IPAddress)
+		var currentLoc *domain.Geolocation
+		if uc.geoService != nil {
+			currentLoc, _ = uc.geoService.GetLocation(bgCtx, input.IPAddress)
+		}
 		country := "XX"
 		if currentLoc != nil {
 			country = currentLoc.Country
@@ -575,18 +581,17 @@ func (uc *AuthUseCase) completePasswordReset(ctx context.Context, resetToken *do
 
 	// Flag password_reset_required is cleared automatically in UpdatePassword repo method
 
+	// 4. Mark token as used
+	_ = uc.resetRepo.MarkAsUsed(ctx, resetToken.TenantID, resetToken.ID)
+
+	// 5. Revoke all sessions (security measure)
+	_ = uc.sessionRepo.RevokeAllByUserID(ctx, resetToken.TenantID, resetToken.UserID, "system", "password_reset")
+	_ = uc.refreshRepo.RevokeByUserID(ctx, resetToken.TenantID, resetToken.UserID)
+
 	// Async operations (non-critical, fire-and-forget)
-	// Password has already been changed successfully, these operations don't block
 	go func() {
 		// Use background context to avoid cancellation when request ends
 		bgCtx := context.Background()
-
-		// Mark token as used
-		_ = uc.resetRepo.MarkAsUsed(bgCtx, resetToken.TenantID, resetToken.ID)
-
-		// Revoke all sessions (security measure, but password is already changed)
-		_ = uc.sessionRepo.RevokeAllByUserID(bgCtx, resetToken.TenantID, resetToken.UserID, "system", "password_reset")
-		_ = uc.refreshRepo.RevokeByUserID(bgCtx, resetToken.TenantID, resetToken.UserID)
 
 		// Get user for event
 		user, _ := uc.userRepo.GetByID(bgCtx, resetToken.TenantID, resetToken.UserID)
@@ -758,6 +763,7 @@ func (uc *AuthUseCase) OAuthLogin(ctx context.Context, tenantID, provider, code,
 	}
 
 	token := domain.NewToken(user.TenantID, user.ID, user.Email, uc.config.JWT.AccessExpiry)
+	token.JTI = session.ID // Correlate token with session
 
 	// Map roles and permissions to token
 	for _, role := range user.Roles {
@@ -911,6 +917,7 @@ func (uc *AuthUseCase) PasswordlessLogin(ctx context.Context, user *domain.User,
 
 	// Generate JWT
 	token := domain.NewToken(user.TenantID, user.ID, user.Email, uc.config.JWT.AccessExpiry)
+	token.JTI = session.ID // Correlate token with session
 
 	// Map roles and permissions to token
 	for _, role := range user.Roles {

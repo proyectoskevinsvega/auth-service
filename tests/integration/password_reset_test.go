@@ -21,6 +21,7 @@ func TestPasswordResetFlow(t *testing.T) {
 
 	// Step 1: Register a user
 	registerPayload := map[string]interface{}{
+		"tenant_id": ts.TenantID,
 		"email":    "reset@example.com",
 		"password": "OldPassword123!",
 		"username": "resetuser",
@@ -33,6 +34,7 @@ func TestPasswordResetFlow(t *testing.T) {
 	var resetToken string
 	t.Run("RequestPasswordReset", func(t *testing.T) {
 		resetPayload := map[string]interface{}{
+			"tenant_id": ts.TenantID,
 			"email": "reset@example.com",
 		}
 
@@ -45,9 +47,9 @@ func TestPasswordResetFlow(t *testing.T) {
 		err := ts.DB.QueryRow(ctx, `
 			SELECT pr.token FROM auth_password_resets pr
 			JOIN auth_users u ON pr.user_id = u.id
-			WHERE u.email = $1 AND pr.used = false AND pr.expires_at > NOW()
+			WHERE u.tenant_id = $1 AND u.email = $2 AND pr.used = false AND pr.expires_at > NOW()
 			ORDER BY pr.created_at DESC LIMIT 1
-		`, "reset@example.com").Scan(&resetToken)
+		`, ts.TenantID, "reset@example.com").Scan(&resetToken)
 		require.NoError(t, err, "should find reset token in database")
 		assert.NotEmpty(t, resetToken)
 	})
@@ -55,8 +57,9 @@ func TestPasswordResetFlow(t *testing.T) {
 	// Step 3: Reset password with token
 	t.Run("ResetPassword", func(t *testing.T) {
 		resetPayload := map[string]interface{}{
+			"tenant_id": ts.TenantID,
 			"token":    resetToken,
-			"password": "NewPassword123!",
+			"new_password": "NewPassword123!",
 		}
 
 		resp := makeRequest(t, ts.Server, "POST", "/api/v1/auth/reset-password", resetPayload, nil)
@@ -68,8 +71,9 @@ func TestPasswordResetFlow(t *testing.T) {
 	// Step 4: Try to login with old password (should fail)
 	t.Run("LoginWithOldPassword", func(t *testing.T) {
 		loginPayload := map[string]interface{}{
-			"email":    "reset@example.com",
-			"password": "OldPassword123!",
+			"tenant_id":  ts.TenantID,
+			"identifier": "reset@example.com",
+			"password":   "OldPassword123!",
 		}
 
 		resp := makeRequest(t, ts.Server, "POST", "/api/v1/auth/login", loginPayload, nil)
@@ -81,8 +85,9 @@ func TestPasswordResetFlow(t *testing.T) {
 	// Step 5: Login with new password (should succeed)
 	t.Run("LoginWithNewPassword", func(t *testing.T) {
 		loginPayload := map[string]interface{}{
-			"email":    "reset@example.com",
-			"password": "NewPassword123!",
+			"tenant_id":  ts.TenantID,
+			"identifier": "reset@example.com",
+			"password":   "NewPassword123!",
 		}
 
 		resp := makeRequest(t, ts.Server, "POST", "/api/v1/auth/login", loginPayload, nil)
@@ -101,8 +106,9 @@ func TestPasswordResetFlow(t *testing.T) {
 	// Step 6: Try to use the same reset token again (should fail)
 	t.Run("ReuseResetToken", func(t *testing.T) {
 		resetPayload := map[string]interface{}{
+			"tenant_id": ts.TenantID,
 			"token":    resetToken,
-			"password": "AnotherPassword123!",
+			"new_password": "AnotherPassword123!",
 		}
 
 		resp := makeRequest(t, ts.Server, "POST", "/api/v1/auth/reset-password", resetPayload, nil)
@@ -137,6 +143,7 @@ func TestPasswordResetInvalidEmail(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			resetPayload := map[string]interface{}{
+				"tenant_id": ts.TenantID,
 				"email": tt.email,
 			}
 
@@ -176,8 +183,9 @@ func TestPasswordResetInvalidToken(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			resetPayload := map[string]interface{}{
-				"token":    tt.token,
-				"password": tt.password,
+				"tenant_id":    ts.TenantID,
+				"token":       tt.token,
+				"new_password": tt.password,
 			}
 
 			resp := makeRequest(t, ts.Server, "POST", "/api/v1/auth/reset-password", resetPayload, nil)
@@ -197,6 +205,7 @@ func TestPasswordResetRevokesExistingSessions(t *testing.T) {
 
 	// Register a user
 	registerPayload := map[string]interface{}{
+		"tenant_id": ts.TenantID,
 		"email":    "revoke@example.com",
 		"password": "OldPassword123!",
 		"username": "revokeuser",
@@ -207,8 +216,9 @@ func TestPasswordResetRevokesExistingSessions(t *testing.T) {
 
 	// Login to get a token
 	loginPayload := map[string]interface{}{
-		"email":    "revoke@example.com",
-		"password": "OldPassword123!",
+		"tenant_id":  ts.TenantID,
+		"identifier": "revoke@example.com",
+		"password":   "OldPassword123!",
 	}
 	resp = makeRequest(t, ts.Server, "POST", "/api/v1/auth/login", loginPayload, nil)
 	body, _ := io.ReadAll(resp.Body)
@@ -229,6 +239,7 @@ func TestPasswordResetRevokesExistingSessions(t *testing.T) {
 
 	// Request and perform password reset
 	resetRequestPayload := map[string]interface{}{
+		"tenant_id": ts.TenantID,
 		"email": "revoke@example.com",
 	}
 	resp = makeRequest(t, ts.Server, "POST", "/api/v1/auth/forgot-password", resetRequestPayload, nil)
@@ -239,15 +250,16 @@ func TestPasswordResetRevokesExistingSessions(t *testing.T) {
 	err := ts.DB.QueryRow(ctx, `
 		SELECT pr.token FROM auth_password_resets pr
 		JOIN auth_users u ON pr.user_id = u.id
-		WHERE u.email = $1 AND pr.used = false
+		WHERE u.tenant_id = $1 AND u.email = $2 AND pr.used = false
 		ORDER BY pr.created_at DESC LIMIT 1
-	`, "revoke@example.com").Scan(&resetToken)
+	`, ts.TenantID, "revoke@example.com").Scan(&resetToken)
 	require.NoError(t, err)
 
 	// Reset password
 	resetPayload := map[string]interface{}{
+		"tenant_id": ts.TenantID,
 		"token":    resetToken,
-		"password": "NewPassword123!",
+		"new_password": "NewPassword123!",
 	}
 	resp = makeRequest(t, ts.Server, "POST", "/api/v1/auth/reset-password", resetPayload, nil)
 	resp.Body.Close()
@@ -264,8 +276,9 @@ func TestPasswordResetRevokesExistingSessions(t *testing.T) {
 	// Should be able to login with new password
 	t.Run("LoginWithNewPasswordAfterReset", func(t *testing.T) {
 		loginPayload := map[string]interface{}{
-			"email":    "revoke@example.com",
-			"password": "NewPassword123!",
+			"tenant_id":  ts.TenantID,
+			"identifier": "revoke@example.com",
+			"password":   "NewPassword123!",
 		}
 
 		resp := makeRequest(t, ts.Server, "POST", "/api/v1/auth/login", loginPayload, nil)

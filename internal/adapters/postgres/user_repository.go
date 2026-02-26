@@ -364,7 +364,7 @@ func (r *UserRepository) Update(ctx context.Context, user *domain.User) error {
 			updated_at = $8, last_login_at = $9, last_login_ip = $10, last_login_country = $11,
 			last_login_latitude = $12, last_login_longitude = $13,
 			failed_login_attempts = $14, locked_until = $15, password_reset_required = $16, attributes = $17, webauthn_id = $18
-		WHERE id = $1
+		WHERE id = $1 AND tenant_id = $19
 	`
 
 	// Convert empty strings to NULL for optional fields
@@ -394,7 +394,7 @@ func (r *UserRepository) Update(ctx context.Context, user *domain.User) error {
 		user.UpdatedAt, user.LastLoginAt, lastLoginIP, lastLoginCountry,
 		user.LastLoginLatitude, user.LastLoginLongitude,
 		user.FailedLoginAttempts, user.LockedUntil, user.PasswordResetRequired, user.Attributes, user.WebAuthnID,
-		user.ID, user.TenantID,
+		user.TenantID,
 	)
 
 	if err != nil {

@@ -16,6 +16,7 @@ type RegisterRequest struct {
 
 // LoginRequest representa la solicitud de inicio de sesión
 type LoginRequest struct {
+	TenantID   string `json:"tenant_id" example:"customer1" validate:"required"`           // ID del tenant
 	Identifier string `json:"identifier" example:"johndoe" validate:"required"`      // Email o nombre de usuario
 	Password   string `json:"password" example:"SecurePass123!" validate:"required"` // Contraseña
 	TwoFACode  string `json:"two_fa_code,omitempty" example:"123456"`                // Código 2FA (opcional, solo si está habilitado)
@@ -23,6 +24,7 @@ type LoginRequest struct {
 
 // RefreshTokenRequest representa la solicitud para renovar un token de acceso
 type RefreshTokenRequest struct {
+	TenantID     string `json:"tenant_id" example:"customer1" validate:"required"`           // ID del tenant
 	RefreshToken string `json:"refresh_token" example:"eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9..." validate:"required"` // Token de actualización
 }
 

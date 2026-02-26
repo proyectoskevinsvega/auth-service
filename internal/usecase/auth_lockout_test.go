@@ -53,7 +53,7 @@ func TestAuthUseCase_Login_Lockout(t *testing.T) {
 		m.rateLimiter.On("Increment", ctx, mock.Anything, mock.Anything).Return(1, nil)
 		m.passwordHasher.On("Verify", "wrong", passwordHash).Return(false, nil)
 		m.auditRepo.On("Create", ctx, mock.Anything).Return(nil)
-		m.redisNotifier.On("Publish", mock.Anything, mock.AnythingOfType("*domain.Event")).Return(nil)
+		m.notifier.On("Publish", mock.Anything, mock.AnythingOfType("*domain.Event")).Return(nil)
 
 		// 1st failure
 		m.userRepo.On("GetByEmailOrUsername", ctx, input.TenantID, userEmail).Return(user, nil).Once()
@@ -105,6 +105,7 @@ func TestAuthUseCase_Login_Lockout(t *testing.T) {
 
 		// Mock others for successful flow
 		m.riskService.On("AssessLoginRisk", ctx, user, input.IPAddress).Return(domain.NewRiskAssessment(), &domain.Geolocation{Country: "US"}, nil)
+		m.riskService.On("VerifyGeofencing", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 		m.sessionRepo.On("Create", ctx, mock.Anything).Return(nil)
 		m.tokenGen.On("GenerateSecureToken", mock.Anything).Return("refresh", nil)
 		m.refreshRepo.On("Create", ctx, mock.Anything).Return(nil)

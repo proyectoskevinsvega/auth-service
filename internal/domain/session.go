@@ -26,6 +26,7 @@ type Session struct {
 }
 
 type NewSessionInput struct {
+	TenantID      string
 	UserID        string
 	IPAddress     string
 	Country       string
@@ -38,7 +39,7 @@ func NewSession(input NewSessionInput) *Session {
 	now := time.Now().UTC()
 	return &Session{
 		ID:         uuid.New().String(),
-		TenantID:   "", // Should be set by caller or during initialization
+		TenantID:   input.TenantID,
 		UserID:     input.UserID,
 		IPAddress:  input.IPAddress,
 		Country:    input.Country,

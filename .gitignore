@@ -84,3 +84,4 @@ frontend/client/dist
 frontend/client/.env
 frontend/client/.env.local
 frontend/client/curl.md
+.env.test

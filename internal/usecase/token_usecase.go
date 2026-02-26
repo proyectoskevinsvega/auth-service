@@ -70,25 +70,38 @@ func (uc *TokenUseCase) ValidateToken(ctx context.Context, tokenString string) (
 	// Check cache (hot path - <2ms)
 	cachedToken, err := uc.tokenCache.Get(ctx, token.JTI)
 	if err == nil && cachedToken != nil {
-		return cachedToken, nil
-	}
+		token = cachedToken
+	} else {
+		// Cold path: verify cryptographically
+		token, err = uc.jwtService.Verify(ctx, tokenString)
+		if err != nil {
+			return nil, err
+		}
 
-	// Cold path: verify cryptographically
-	token, err = uc.jwtService.Verify(ctx, tokenString)
-	if err != nil {
-		return nil, err
-	}
-
-	// Check expiration
-	if token.IsExpired() {
-		return nil, domain.ErrTokenExpired
+		// Check expiration
+		if token.IsExpired() {
+			return nil, domain.ErrTokenExpired
+		}
 	}
 
 	// Session Geofencing Check (P2)
 	// We need the country associated with the current request.
 	// In a real production scenario, the country would be passed in the context
-	// or determined here via GeoIP if the IP is available in the context.
-	// For this implementation, we'll try to get it if possible.
+	// Check session (full validation)
+	session, err := uc.sessionRepo.GetByID(ctx, token.TenantID, token.JTI)
+	if err != nil {
+		if err == domain.ErrSessionNotFound {
+			return nil, domain.ErrTokenRevoked // Session gone = token invalid
+		}
+		// Log but maybe continue if it's just a DB error? No, safer to fail.
+		return nil, fmt.Errorf("failed to verify session: %w", err)
+	}
+
+	if session.Revoked {
+		return nil, domain.ErrTokenRevoked
+	}
+
+	// Geofencing check (optional)
 	ip, _ := ctx.Value("client_ip").(string)
 	if ip != "" {
 		tenant, err := uc.tenantRepo.GetByID(ctx, token.TenantID)
@@ -100,14 +113,10 @@ func (uc *TokenUseCase) ValidateToken(ctx context.Context, tokenString string) (
 			}, ip)
 
 			if err == nil && loc != nil {
-				// Get session to compare country
-				session, err := uc.sessionRepo.GetByID(ctx, token.TenantID, token.JTI)
-				if err == nil && session != nil {
-					if session.Country != "" && loc.Country != session.Country {
-						// Significant geographic shift in active session
-						_ = uc.sessionRepo.Revoke(ctx, token.TenantID, session.ID, "security", "session_hijacking_suspected_geofence")
-						return nil, domain.ErrSessionHijackingSuspected
-					}
+				if session.Country != "" && loc.Country != session.Country {
+					// Significant geographic shift in active session
+					_ = uc.sessionRepo.Revoke(ctx, token.TenantID, session.ID, "security", "session_hijacking_suspected_geofence")
+					return nil, domain.ErrSessionHijackingSuspected
 				}
 			}
 		}
@@ -170,6 +179,7 @@ func (uc *TokenUseCase) RefreshToken(ctx context.Context, tenantID, refreshToken
 
 	// Generate new JWT
 	token := domain.NewToken(user.TenantID, user.ID, user.Email, uc.config.JWT.AccessExpiry)
+	token.JTI = refreshToken.SessionID // Link to existing session
 
 	accessToken, err := uc.jwtService.Generate(ctx, token)
 	if err != nil {
@@ -209,6 +219,9 @@ func (uc *TokenUseCase) RevokeToken(ctx context.Context, tokenString string) err
 
 	// Remove from cache
 	_ = uc.tokenCache.Delete(ctx, token.JTI)
+
+	// Also revoke session in DB (full revocation)
+	_ = uc.sessionRepo.Revoke(ctx, token.TenantID, token.JTI, "user", "logout")
 
 	return nil
 }

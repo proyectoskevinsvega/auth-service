@@ -35,8 +35,13 @@ func (s *RiskService) AssessLoginRisk(ctx context.Context, user *domain.User, cu
 	risk := domain.NewRiskAssessment()
 
 	// Get current location
-	currentLoc, err := s.geoService.GetLocation(ctx, currentIP)
-	if err != nil {
+	var currentLoc *domain.Geolocation
+	var err error
+	if s.geoService != nil {
+		currentLoc, err = s.geoService.GetLocation(ctx, currentIP)
+	}
+
+	if s.geoService == nil || err != nil {
 		// Log error but don't fail login, maybe add a small risk score for unknown location
 		risk.AddReason("Could not determine current location", 10)
 		return risk, nil, nil

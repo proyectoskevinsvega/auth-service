@@ -222,6 +222,7 @@ func TestVerifyEmail_Success(t *testing.T) {
 	m.userRepo.On("GetByID", ctx, tenantID, userID).Return(user, nil)
 	m.verificationRepo.On("MarkAsVerified", ctx, tenantID, mock.AnythingOfType("string")).Return(nil)
 	m.userRepo.On("Update", ctx, mock.AnythingOfType("*domain.User")).Return(nil)
+	m.notifier.On("Publish", mock.Anything, mock.Anything).Return(nil).Maybe()
 
 	// Execute
 	err := m.uc.VerifyEmail(ctx, tenantID, token)

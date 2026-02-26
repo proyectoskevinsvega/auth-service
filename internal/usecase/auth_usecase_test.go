@@ -90,6 +90,12 @@ func setupAuthUseCase(_ *testing.T) *AuthUseCaseMocks {
 		new(mocks.MockTOTPService),
 	)
 
+	// Baseline .Maybe() mocks for async goroutines in Login/Register that run
+	// in the background and may execute while the NEXT test's mocks are active.
+	geoService.On("GetLocation", mock.Anything, mock.Anything).Return(&domain.Geolocation{Country: "US"}, nil).Maybe()
+	notifier.On("Publish", mock.Anything, mock.Anything).Return(nil).Maybe()
+	riskService.On("VerifyGeofencing", mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
+
 	return &AuthUseCaseMocks{
 		uc:             uc,
 		userRepo:       userRepo,
@@ -124,8 +130,8 @@ func TestAuthUseCase_Register_Success(t *testing.T) {
 
 	// Mock expectations (only critical path, async operations are fire-and-forget)
 	m.rateLimiter.On("CheckLimit", ctx, "register:192.168.1.1", 3, time.Hour).Return(false, nil)
-	m.userRepo.On("GetByUsername", ctx, input.Username).Return(nil, domain.ErrUserNotFound)
-	m.userRepo.On("GetByEmail", ctx, input.Email).Return(nil, domain.ErrUserNotFound)
+	m.userRepo.On("GetByUsername", ctx, mock.Anything, input.Username).Return(nil, domain.ErrUserNotFound)
+	m.userRepo.On("GetByEmail", ctx, mock.Anything, input.Email).Return(nil, domain.ErrUserNotFound)
 	m.passwordHasher.On("Hash", input.Password).Return("$argon2id$hashed_password", nil)
 	m.userRepo.On("Create", ctx, mock.AnythingOfType("*domain.User"), "$argon2id$hashed_password").Return(nil)
 
@@ -178,7 +184,7 @@ func TestAuthUseCase_Login_Success(t *testing.T) {
 	// Mock expectations (only critical path, async operations are fire-and-forget)
 	m.rateLimiter.On("CheckLimit", ctx, "login:192.168.1.1", 5, time.Minute).Return(false, nil)
 	m.rateLimiter.On("Increment", ctx, "login:192.168.1.1", time.Minute).Return(1, nil)
-	m.userRepo.On("GetByEmailOrUsername", ctx, input.Identifier).Return(existingUser, nil)
+	m.userRepo.On("GetByEmailOrUsername", ctx, mock.Anything, input.Identifier).Return(existingUser, nil)
 	m.passwordHasher.On("Verify", input.Password, existingUser.PasswordHash).Return(true, nil)
 	m.tokenGen.On("GenerateSecureToken", 32).Return("secure_refresh_token_value", nil)
 	m.sessionRepo.On("Create", ctx, mock.AnythingOfType("*domain.Session")).Return(nil)
@@ -187,9 +193,12 @@ func TestAuthUseCase_Login_Success(t *testing.T) {
 
 	// Risk Assessment and Geo
 	m.riskService.On("AssessLoginRisk", ctx, existingUser, input.IPAddress).Return(domain.NewRiskAssessment(), &domain.Geolocation{Country: "US"}, nil)
+	m.riskService.On("VerifyGeofencing", mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
+	m.geoService.On("GetLocation", mock.Anything, mock.Anything).Return(&domain.Geolocation{Country: "US"}, nil).Maybe()
 	m.userRepo.On("Update", ctx, existingUser).Return(nil).Once()                                   // Reset attempts call
 	m.userRepo.On("Update", mock.Anything, mock.AnythingOfType("*domain.User")).Return(nil).Maybe() // Async update call
 	m.auditRepo.On("Create", mock.Anything, mock.AnythingOfType("*domain.AuditLogEntry")).Return(nil).Maybe()
+	m.notifier.On("Publish", mock.Anything, mock.AnythingOfType("*domain.Event")).Return(nil).Maybe()
 
 	// Execute
 	response, err := m.uc.Login(ctx, input)
@@ -261,7 +270,7 @@ func TestAuthUseCase_Login_InvalidPassword(t *testing.T) {
 	// Mock expectations
 	m.rateLimiter.On("CheckLimit", ctx, "login:192.168.1.1", 5, time.Minute).Return(false, nil)
 	m.rateLimiter.On("Increment", ctx, "login:192.168.1.1", time.Minute).Return(1, nil)
-	m.userRepo.On("GetByEmailOrUsername", ctx, input.Identifier).Return(existingUser, nil)
+	m.userRepo.On("GetByEmailOrUsername", ctx, mock.Anything, input.Identifier).Return(existingUser, nil)
 	m.passwordHasher.On("Verify", input.Password, existingUser.PasswordHash).Return(false, nil)
 	m.userRepo.On("Update", ctx, existingUser).Return(nil).Once() // Increment attempts call
 	m.auditRepo.On("Create", ctx, mock.AnythingOfType("*domain.AuditLogEntry")).Return(nil)
@@ -305,7 +314,7 @@ func TestAuthUseCase_Login_UserInactive(t *testing.T) {
 	// Mock expectations
 	m.rateLimiter.On("CheckLimit", ctx, "login:192.168.1.1", 5, time.Minute).Return(false, nil)
 	m.rateLimiter.On("Increment", ctx, "login:192.168.1.1", time.Minute).Return(1, nil)
-	m.userRepo.On("GetByEmailOrUsername", ctx, input.Identifier).Return(existingUser, nil)
+	m.userRepo.On("GetByEmailOrUsername", ctx, mock.Anything, input.Identifier).Return(existingUser, nil)
 
 	// Execute
 	response, err := m.uc.Login(ctx, input)
@@ -346,8 +355,9 @@ func TestAuthUseCase_Login_2FARequired(t *testing.T) {
 	// Mock expectations
 	m.rateLimiter.On("CheckLimit", ctx, "login:192.168.1.1", 5, time.Minute).Return(false, nil)
 	m.rateLimiter.On("Increment", ctx, "login:192.168.1.1", time.Minute).Return(1, nil)
-	m.userRepo.On("GetByEmailOrUsername", ctx, input.Identifier).Return(existingUser, nil)
+	m.userRepo.On("GetByEmailOrUsername", ctx, mock.Anything, input.Identifier).Return(existingUser, nil)
 	m.passwordHasher.On("Verify", input.Password, existingUser.PasswordHash).Return(true, nil)
+	m.userRepo.On("Update", mock.Anything, mock.Anything).Return(nil).Maybe()
 
 	// Execute
 	response, err := m.uc.Login(ctx, input)
@@ -413,9 +423,10 @@ func TestAuthUseCase_Login_SessionCreationFailure(t *testing.T) {
 	// Mock expectations
 	m.rateLimiter.On("CheckLimit", ctx, "login:192.168.1.1", 5, time.Minute).Return(false, nil)
 	m.rateLimiter.On("Increment", ctx, "login:192.168.1.1", time.Minute).Return(1, nil)
-	m.userRepo.On("GetByEmailOrUsername", ctx, input.Identifier).Return(existingUser, nil)
+	m.userRepo.On("GetByEmailOrUsername", ctx, mock.Anything, input.Identifier).Return(existingUser, nil)
 	m.passwordHasher.On("Verify", input.Password, existingUser.PasswordHash).Return(true, nil)
 	m.riskService.On("AssessLoginRisk", ctx, existingUser, input.IPAddress).Return(domain.NewRiskAssessment(), &domain.Geolocation{Country: "US"}, nil)
+	m.userRepo.On("Update", mock.Anything, mock.Anything).Return(nil).Maybe()
 	m.sessionRepo.On("Create", ctx, mock.AnythingOfType("*domain.Session")).Return(assert.AnError)
 
 	// Execute
@@ -458,9 +469,10 @@ func TestAuthUseCase_Login_JWTGenerationFailure(t *testing.T) {
 	// Mock expectations
 	m.rateLimiter.On("CheckLimit", ctx, "login:192.168.1.1", 5, time.Minute).Return(false, nil)
 	m.rateLimiter.On("Increment", ctx, "login:192.168.1.1", time.Minute).Return(1, nil)
-	m.userRepo.On("GetByEmailOrUsername", ctx, input.Identifier).Return(existingUser, nil)
+	m.userRepo.On("GetByEmailOrUsername", ctx, mock.Anything, input.Identifier).Return(existingUser, nil)
 	m.passwordHasher.On("Verify", input.Password, existingUser.PasswordHash).Return(true, nil)
 	m.riskService.On("AssessLoginRisk", ctx, existingUser, input.IPAddress).Return(domain.NewRiskAssessment(), &domain.Geolocation{Country: "US"}, nil)
+	m.userRepo.On("Update", mock.Anything, mock.Anything).Return(nil).Maybe()
 	m.sessionRepo.On("Create", ctx, mock.AnythingOfType("*domain.Session")).Return(nil)
 	m.jwtService.On("Generate", ctx, mock.AnythingOfType("*domain.Token")).Return("", assert.AnError)
 
@@ -505,9 +517,10 @@ func TestAuthUseCase_Login_RefreshTokenCreationFailure(t *testing.T) {
 	// Mock expectations
 	m.rateLimiter.On("CheckLimit", ctx, "login:192.168.1.1", 5, time.Minute).Return(false, nil)
 	m.rateLimiter.On("Increment", ctx, "login:192.168.1.1", time.Minute).Return(1, nil)
-	m.userRepo.On("GetByEmailOrUsername", ctx, input.Identifier).Return(existingUser, nil)
+	m.userRepo.On("GetByEmailOrUsername", ctx, mock.Anything, input.Identifier).Return(existingUser, nil)
 	m.passwordHasher.On("Verify", input.Password, existingUser.PasswordHash).Return(true, nil)
 	m.riskService.On("AssessLoginRisk", ctx, existingUser, input.IPAddress).Return(domain.NewRiskAssessment(), &domain.Geolocation{Country: "US"}, nil)
+	m.userRepo.On("Update", mock.Anything, mock.Anything).Return(nil).Maybe()
 	m.sessionRepo.On("Create", ctx, mock.AnythingOfType("*domain.Session")).Return(nil)
 	m.jwtService.On("Generate", ctx, mock.AnythingOfType("*domain.Token")).Return("jwt_token", nil)
 	m.tokenGen.On("GenerateSecureToken", 32).Return("refresh_token", nil)
@@ -557,7 +570,7 @@ func TestAuthUseCase_Login_NewCountryDetection(t *testing.T) {
 	// Mock expectations
 	m.rateLimiter.On("CheckLimit", ctx, "login:192.168.1.1", 5, time.Minute).Return(false, nil)
 	m.rateLimiter.On("Increment", ctx, "login:192.168.1.1", time.Minute).Return(1, nil)
-	m.userRepo.On("GetByEmailOrUsername", ctx, input.Identifier).Return(existingUser, nil)
+	m.userRepo.On("GetByEmailOrUsername", ctx, mock.Anything, input.Identifier).Return(existingUser, nil)
 	m.passwordHasher.On("Verify", input.Password, existingUser.PasswordHash).Return(true, nil)
 	m.riskService.On("AssessLoginRisk", ctx, existingUser, input.IPAddress).Return(domain.NewRiskAssessment(), &domain.Geolocation{Country: "US"}, nil)
 	m.sessionRepo.On("Create", ctx, mock.AnythingOfType("*domain.Session")).Return(nil)
@@ -621,7 +634,7 @@ func TestAuthUseCase_Register_UsernameExists(t *testing.T) {
 
 	// Mock expectations
 	m.rateLimiter.On("CheckLimit", ctx, "register:192.168.1.1", 3, time.Hour).Return(false, nil)
-	m.userRepo.On("GetByUsername", ctx, input.Username).Return(existingUser, nil) // Username existe
+	m.userRepo.On("GetByUsername", ctx, mock.Anything, input.Username).Return(existingUser, nil) // Username existe
 
 	// Execute
 	user, err := m.uc.Register(ctx, input)
@@ -656,8 +669,8 @@ func TestAuthUseCase_Register_EmailExists(t *testing.T) {
 
 	// Mock expectations
 	m.rateLimiter.On("CheckLimit", ctx, "register:192.168.1.1", 3, time.Hour).Return(false, nil)
-	m.userRepo.On("GetByUsername", ctx, input.Username).Return(nil, domain.ErrUserNotFound)
-	m.userRepo.On("GetByEmail", ctx, input.Email).Return(existingUser, nil) // Email existe
+	m.userRepo.On("GetByUsername", ctx, mock.Anything, input.Username).Return(nil, domain.ErrUserNotFound)
+	m.userRepo.On("GetByEmail", ctx, mock.Anything, input.Email).Return(existingUser, nil) // Email existe
 
 	// Execute
 	user, err := m.uc.Register(ctx, input)
@@ -790,8 +803,8 @@ func TestAuthUseCase_Register_PasswordHashingFailure(t *testing.T) {
 
 	// Mock expectations
 	m.rateLimiter.On("CheckLimit", ctx, "register:192.168.1.1", 3, time.Hour).Return(false, nil)
-	m.userRepo.On("GetByUsername", ctx, "testuser").Return(nil, domain.ErrUserNotFound)
-	m.userRepo.On("GetByEmail", ctx, "test@example.com").Return(nil, domain.ErrUserNotFound)
+	m.userRepo.On("GetByUsername", ctx, mock.Anything, "testuser").Return(nil, domain.ErrUserNotFound)
+	m.userRepo.On("GetByEmail", ctx, mock.Anything, "test@example.com").Return(nil, domain.ErrUserNotFound)
 	m.passwordHasher.On("Hash", "SecurePass123!").Return("", assert.AnError)
 
 	// Execute
@@ -821,8 +834,8 @@ func TestAuthUseCase_Register_UserCreationFailure(t *testing.T) {
 
 	// Mock expectations
 	m.rateLimiter.On("CheckLimit", ctx, "register:192.168.1.1", 3, time.Hour).Return(false, nil)
-	m.userRepo.On("GetByUsername", ctx, "testuser").Return(nil, domain.ErrUserNotFound)
-	m.userRepo.On("GetByEmail", ctx, "test@example.com").Return(nil, domain.ErrUserNotFound)
+	m.userRepo.On("GetByUsername", ctx, mock.Anything, "testuser").Return(nil, domain.ErrUserNotFound)
+	m.userRepo.On("GetByEmail", ctx, mock.Anything, "test@example.com").Return(nil, domain.ErrUserNotFound)
 	m.passwordHasher.On("Hash", "SecurePass123!").Return("hashed_password", nil)
 	m.userRepo.On("Create", ctx, mock.AnythingOfType("*domain.User"), "hashed_password").Return(assert.AnError)
 
@@ -963,13 +976,13 @@ func TestResetPasswordWithToken_Success(t *testing.T) {
 	// Mock expectations (only critical path, async operations are fire-and-forget)
 	m.resetRepo.On("GetByToken", ctx, tenantID, token).Return(resetToken, nil)
 	m.passwordHasher.On("Hash", newPassword).Return("$argon2id$new_hash", nil)
-	m.userRepo.On("UpdatePassword", ctx, userID, "$argon2id$new_hash").Return(nil)
+	m.userRepo.On("UpdatePassword", ctx, mock.Anything, userID, "$argon2id$new_hash").Return(nil)
 
 	// Async operations use background context
-	m.resetRepo.On("MarkAsUsed", mock.Anything, resetToken.ID).Return(nil).Maybe()
-	m.sessionRepo.On("RevokeAllByUserID", mock.Anything, userID, "system", "password_reset").Return(nil).Maybe()
-	m.refreshRepo.On("RevokeByUserID", mock.Anything, userID).Return(nil).Maybe()
-	m.userRepo.On("GetByID", mock.Anything, userID).Return(user, nil).Maybe()
+	m.resetRepo.On("MarkAsUsed", mock.Anything, mock.Anything, resetToken.ID).Return(nil).Maybe()
+	m.sessionRepo.On("RevokeAllByUserID", mock.Anything, mock.Anything, userID, "system", "password_reset").Return(nil).Maybe()
+	m.refreshRepo.On("RevokeByUserID", mock.Anything, mock.Anything, userID).Return(nil).Maybe()
+	m.userRepo.On("GetByID", mock.Anything, mock.Anything, userID).Return(user, nil).Maybe()
 	m.auditRepo.On("Create", mock.Anything, mock.AnythingOfType("*domain.AuditLogEntry")).Return(nil).Maybe()
 	m.notifier.On("Publish", mock.Anything, mock.AnythingOfType("*domain.Event")).Return(nil).Maybe()
 
@@ -1068,15 +1081,15 @@ func TestResetPasswordWithCode_Success(t *testing.T) {
 
 	// Mock expectations (only critical path, async operations are fire-and-forget)
 	m.userRepo.On("GetByEmail", ctx, tenantID, email).Return(user, nil)
-	m.resetRepo.On("GetByCode", ctx, userID, code).Return(resetToken, nil)
+	m.resetRepo.On("GetByCode", ctx, mock.Anything, userID, code).Return(resetToken, nil)
 	m.passwordHasher.On("Hash", newPassword).Return("$argon2id$new_hash", nil)
-	m.userRepo.On("UpdatePassword", ctx, userID, "$argon2id$new_hash").Return(nil)
+	m.userRepo.On("UpdatePassword", ctx, mock.Anything, userID, "$argon2id$new_hash").Return(nil)
 
 	// Async operations use background context
-	m.resetRepo.On("MarkAsUsed", mock.Anything, resetToken.ID).Return(nil).Maybe()
-	m.sessionRepo.On("RevokeAllByUserID", mock.Anything, userID, "system", "password_reset").Return(nil).Maybe()
-	m.refreshRepo.On("RevokeByUserID", mock.Anything, userID).Return(nil).Maybe()
-	m.userRepo.On("GetByID", mock.Anything, userID).Return(user, nil).Maybe()
+	m.resetRepo.On("MarkAsUsed", mock.Anything, mock.Anything, resetToken.ID).Return(nil).Maybe()
+	m.sessionRepo.On("RevokeAllByUserID", mock.Anything, mock.Anything, userID, "system", "password_reset").Return(nil).Maybe()
+	m.refreshRepo.On("RevokeByUserID", mock.Anything, mock.Anything, userID).Return(nil).Maybe()
+	m.userRepo.On("GetByID", mock.Anything, mock.Anything, userID).Return(user, nil).Maybe()
 	m.auditRepo.On("Create", mock.Anything, mock.AnythingOfType("*domain.AuditLogEntry")).Return(nil).Maybe()
 	m.notifier.On("Publish", mock.Anything, mock.AnythingOfType("*domain.Event")).Return(nil).Maybe()
 
@@ -1111,7 +1124,7 @@ func TestResetPasswordWithCode_InvalidCode(t *testing.T) {
 
 	// Mock expectations
 	m.userRepo.On("GetByEmail", ctx, tenantID, email).Return(user, nil)
-	m.resetRepo.On("GetByCode", ctx, userID, code).Return(nil, domain.ErrInvalidResetToken)
+	m.resetRepo.On("GetByCode", ctx, mock.Anything, userID, code).Return(nil, domain.ErrInvalidResetToken)
 
 	// Execute
 	err := m.uc.ResetPasswordWithCode(ctx, tenantID, email, code, newPassword, ipAddress)
@@ -1171,7 +1184,7 @@ func TestResetPasswordWithCode_PasswordHashingFailure(t *testing.T) {
 
 	// Mock expectations
 	m.userRepo.On("GetByEmail", ctx, tenantID, email).Return(user, nil)
-	m.resetRepo.On("GetByCode", ctx, userID, code).Return(resetToken, nil)
+	m.resetRepo.On("GetByCode", ctx, mock.Anything, userID, code).Return(resetToken, nil)
 	m.passwordHasher.On("Hash", newPassword).Return("", assert.AnError)
 
 	// Execute
@@ -1244,7 +1257,7 @@ func TestResetPasswordWithToken_UpdatePasswordFailure(t *testing.T) {
 	// Mock expectations
 	m.resetRepo.On("GetByToken", ctx, tenantID, mock.AnythingOfType("string")).Return(resetToken, nil)
 	m.passwordHasher.On("Hash", newPassword).Return("hashed_new_password", nil)
-	m.userRepo.On("UpdatePassword", ctx, userID, "hashed_new_password").Return(assert.AnError)
+	m.userRepo.On("UpdatePassword", ctx, mock.Anything, userID, "hashed_new_password").Return(assert.AnError)
 
 	// Execute
 	err := m.uc.ResetPasswordWithToken(ctx, tenantID, token, newPassword, ipAddress)
@@ -1313,6 +1326,7 @@ func TestOAuthLogin_Success_ExistingUser(t *testing.T) {
 	m.refreshRepo.On("Create", ctx, mock.AnythingOfType("*domain.RefreshToken")).Return(nil)
 
 	// Async operations use background context
+	m.riskService.On("AssessLoginRisk", ctx, existingUser, ipAddress).Return(domain.NewRiskAssessment(), &domain.Geolocation{Country: "US"}, nil)
 	m.userRepo.On("Update", mock.Anything, mock.AnythingOfType("*domain.User")).Return(nil).Maybe()
 
 	// Execute
@@ -1371,11 +1385,12 @@ func TestOAuthLogin_NewCountryDetection(t *testing.T) {
 	// Mock expectations
 	oauthProvider.On("Exchange", ctx, code).Return(oauthUserInfo, nil)
 	m.userRepo.On("GetByOAuthProvider", ctx, tenantID, provider, oauthUserInfo.ProviderID).Return(existingUser, nil)
-	m.geoService.On("GetCountry", ctx, ipAddress).Return("US", nil) // Now logging from US
+	m.geoService.On("GetCountry", ctx, ipAddress).Return("US", nil).Maybe() // Now logging from US
 	m.sessionRepo.On("Create", ctx, mock.AnythingOfType("*domain.Session")).Return(nil)
 	m.jwtService.On("Generate", ctx, mock.AnythingOfType("*domain.Token")).Return("jwt.access.token", nil)
 	m.tokenGen.On("GenerateSecureToken", 32).Return("secure_refresh_token", nil)
 	m.refreshRepo.On("Create", ctx, mock.AnythingOfType("*domain.RefreshToken")).Return(nil)
+	m.riskService.On("AssessLoginRisk", ctx, existingUser, ipAddress).Return(domain.NewRiskAssessment(), &domain.Geolocation{Country: "US"}, nil)
 	// Async operations use background context
 	m.userRepo.On("Update", mock.Anything, mock.AnythingOfType("*domain.User")).Return(nil)
 	m.notifier.On("Publish", mock.Anything, mock.AnythingOfType("*domain.Event")).Return(nil)
@@ -1506,7 +1521,9 @@ func TestOAuthLogin_SessionCreationFailure(t *testing.T) {
 	// Mock expectations
 	oauthProvider.On("Exchange", ctx, code).Return(userInfo, nil)
 	m.userRepo.On("GetByOAuthProvider", ctx, tenantID, provider, userInfo.ProviderID).Return(existingUser, nil)
-	m.geoService.On("GetCountry", ctx, ipAddress).Return("US", nil)
+	m.geoService.On("GetCountry", ctx, ipAddress).Return("US", nil).Maybe()
+	m.riskService.On("AssessLoginRisk", ctx, existingUser, ipAddress).Return(domain.NewRiskAssessment(), &domain.Geolocation{Country: "US"}, nil)
+	m.userRepo.On("Update", mock.Anything, mock.Anything).Return(nil).Maybe()
 	m.sessionRepo.On("Create", ctx, mock.AnythingOfType("*domain.Session")).Return(assert.AnError)
 
 	// Execute
@@ -1561,7 +1578,9 @@ func TestOAuthLogin_JWTGenerationFailure(t *testing.T) {
 	// Mock expectations
 	oauthProvider.On("Exchange", ctx, code).Return(userInfo, nil)
 	m.userRepo.On("GetByOAuthProvider", ctx, tenantID, provider, userInfo.ProviderID).Return(existingUser, nil)
-	m.geoService.On("GetCountry", ctx, ipAddress).Return("US", nil)
+	m.geoService.On("GetCountry", ctx, ipAddress).Return("US", nil).Maybe()
+	m.riskService.On("AssessLoginRisk", ctx, existingUser, ipAddress).Return(domain.NewRiskAssessment(), &domain.Geolocation{Country: "US"}, nil)
+	m.userRepo.On("Update", mock.Anything, mock.Anything).Return(nil).Maybe()
 	m.sessionRepo.On("Create", ctx, mock.AnythingOfType("*domain.Session")).Return(nil)
 	m.jwtService.On("Generate", ctx, mock.AnythingOfType("*domain.Token")).Return("", assert.AnError)
 
@@ -1575,7 +1594,6 @@ func TestOAuthLogin_JWTGenerationFailure(t *testing.T) {
 
 	oauthProvider.AssertExpectations(t)
 	m.userRepo.AssertExpectations(t)
-	m.geoService.AssertExpectations(t)
 	m.sessionRepo.AssertExpectations(t)
 	m.jwtService.AssertExpectations(t)
 }
@@ -1618,7 +1636,9 @@ func TestOAuthLogin_RefreshTokenCreationFailure(t *testing.T) {
 	// Mock expectations
 	oauthProvider.On("Exchange", ctx, code).Return(userInfo, nil)
 	m.userRepo.On("GetByOAuthProvider", ctx, tenantID, provider, userInfo.ProviderID).Return(existingUser, nil)
-	m.geoService.On("GetCountry", ctx, ipAddress).Return("US", nil)
+	m.geoService.On("GetCountry", ctx, ipAddress).Return("US", nil).Maybe()
+	m.riskService.On("AssessLoginRisk", ctx, existingUser, ipAddress).Return(domain.NewRiskAssessment(), &domain.Geolocation{Country: "US"}, nil)
+	m.userRepo.On("Update", mock.Anything, mock.Anything).Return(nil).Maybe()
 	m.sessionRepo.On("Create", ctx, mock.AnythingOfType("*domain.Session")).Return(nil)
 	m.jwtService.On("Generate", ctx, mock.AnythingOfType("*domain.Token")).Return("jwt_token", nil)
 	m.tokenGen.On("GenerateSecureToken", 32).Return("refresh_token", nil)

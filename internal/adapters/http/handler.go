@@ -3,7 +3,9 @@ package http
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"strings"
 	"time"
@@ -262,10 +264,14 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get IP address
-	ipAddress := r.RemoteAddr
+	ipAddress, _, _ := net.SplitHostPort(r.RemoteAddr)
+	if ipAddress == "" {
+		ipAddress = r.RemoteAddr // Fallback
+	}
 	userAgent := r.UserAgent()
 
 	user, err := h.authUC.Register(r.Context(), usecase.RegisterInput{
+		TenantID:  req.TenantID,
 		Username:  req.Username,
 		Email:     req.Email,
 		Password:  req.Password,
@@ -280,12 +286,13 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 
 	// Send verification email (async, don't block registration if it fails)
 	// Use background context to prevent cancellation when request ends
-	go func() {
-		if err := h.emailVerificationUC.SendVerificationEmail(context.Background(), usecase.SendVerificationInput{
-			UserID:    user.ID,
-			IPAddress: ipAddress,
-			UserAgent: userAgent,
-		}); err != nil {
+		go func() {
+			if err := h.emailVerificationUC.SendVerificationEmail(context.Background(), usecase.SendVerificationInput{
+				TenantID:  user.TenantID,
+				UserID:    user.ID,
+				IPAddress: ipAddress,
+				UserAgent: userAgent,
+			}); err != nil {
 			h.logger.Error().Err(err).Str("user_id", user.ID).Msg("failed to send verification email after registration")
 		}
 	}()
@@ -327,10 +334,14 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ipAddress := r.RemoteAddr
+	ipAddress, _, _ := net.SplitHostPort(r.RemoteAddr)
+	if ipAddress == "" {
+		ipAddress = r.RemoteAddr // Fallback
+	}
 	userAgent := r.UserAgent()
 
 	response, err := h.authUC.Login(r.Context(), usecase.LoginInput{
+		TenantID:   req.TenantID,
 		Identifier: req.Identifier,
 		Password:   req.Password,
 		TwoFACode:  req.TwoFACode,
@@ -383,7 +394,7 @@ func (h *Handler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tenantID, _ := GetTenantIDFromContext(r.Context())
+	tenantID := req.TenantID
 	response, err := h.tokenUC.RefreshToken(r.Context(), tenantID, req.RefreshToken)
 	if err != nil {
 		h.handleAuthError(w, err)
@@ -453,9 +464,12 @@ func (h *Handler) ForgotPassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ipAddress := r.RemoteAddr
+	ipAddress, _, _ := net.SplitHostPort(r.RemoteAddr)
+	if ipAddress == "" {
+		ipAddress = r.RemoteAddr // Fallback
+	}
 
-	tenantID, _ := GetTenantIDFromContext(r.Context())
+	tenantID := req.TenantID
 	if err := h.authUC.ForgotPassword(r.Context(), tenantID, req.Email, ipAddress); err != nil {
 		h.logger.Error().Err(err).Msg("forgot password failed")
 		// Always return success to prevent email enumeration
@@ -489,7 +503,10 @@ func (h *Handler) ResetPassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ipAddress := r.RemoteAddr
+	ipAddress, _, _ := net.SplitHostPort(r.RemoteAddr)
+	if ipAddress == "" {
+		ipAddress = r.RemoteAddr // Fallback
+	}
 
 	if err := h.authUC.ResetPasswordWithToken(r.Context(), req.TenantID, req.Token, req.NewPassword, ipAddress); err != nil {
 		h.handleAuthError(w, err)
@@ -524,7 +541,10 @@ func (h *Handler) ResetPasswordWithCode(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	ipAddress := r.RemoteAddr
+	ipAddress, _, _ := net.SplitHostPort(r.RemoteAddr)
+	if ipAddress == "" {
+		ipAddress = r.RemoteAddr // Fallback
+	}
 
 	if err := h.authUC.ResetPasswordWithCode(r.Context(), req.TenantID, req.Email, req.Code, req.NewPassword, ipAddress); err != nil {
 		h.handleAuthError(w, err)
@@ -693,7 +713,10 @@ func (h *Handler) GoogleOAuthCallback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	state := r.URL.Query().Get("state")
-	ipAddress := r.RemoteAddr
+	ipAddress, _, _ := net.SplitHostPort(r.RemoteAddr)
+	if ipAddress == "" {
+		ipAddress = r.RemoteAddr // Fallback
+	}
 	userAgent := r.UserAgent()
 
 	tenantID, _ := GetTenantIDFromContext(r.Context())
@@ -767,7 +790,10 @@ func (h *Handler) GitHubOAuthCallback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	state := r.URL.Query().Get("state")
-	ipAddress := r.RemoteAddr
+	ipAddress, _, _ := net.SplitHostPort(r.RemoteAddr)
+	if ipAddress == "" {
+		ipAddress = r.RemoteAddr // Fallback
+	}
 	userAgent := r.UserAgent()
 
 	tenantID, _ := GetTenantIDFromContext(r.Context())
@@ -1210,7 +1236,10 @@ func (h *Handler) VerifyEmailGET(w http.ResponseWriter, r *http.Request) {
 // @Router       /auth/resend-verification [post]
 func (h *Handler) ResendVerificationEmail(w http.ResponseWriter, r *http.Request) {
 	userID := r.Context().Value("user_id").(string)
-	ipAddress := r.RemoteAddr
+	ipAddress, _, _ := net.SplitHostPort(r.RemoteAddr)
+	if ipAddress == "" {
+		ipAddress = r.RemoteAddr // Fallback
+	}
 	userAgent := r.UserAgent()
 
 	tenantID, _ := GetTenantIDFromContext(r.Context())
@@ -1377,48 +1406,47 @@ func respondWithError(w http.ResponseWriter, code int, message, errorCode string
 }
 
 func (h *Handler) handleAuthError(w http.ResponseWriter, err error) {
-	switch err {
-	case domain.ErrInvalidCredentials:
+	if errors.Is(err, domain.ErrInvalidCredentials) {
 		respondWithError(w, http.StatusUnauthorized, "invalid credentials", "INVALID_CREDENTIALS")
-	case domain.ErrAccountLocked:
+	} else if errors.Is(err, domain.ErrAccountLocked) {
 		respondWithError(w, http.StatusForbidden, "account is locked due to too many failed attempts", "ACCOUNT_LOCKED")
-	case domain.ErrPasswordExpired:
+	} else if errors.Is(err, domain.ErrPasswordExpired) {
 		respondWithError(w, http.StatusForbidden, "password has expired", "PASSWORD_EXPIRED")
-	case domain.ErrPasswordResetRequired:
+	} else if errors.Is(err, domain.ErrPasswordResetRequired) {
 		respondWithError(w, http.StatusForbidden, "password reset is required by admin", "PASSWORD_RESET_REQUIRED")
-	case domain.ErrUserNotFound:
+	} else if errors.Is(err, domain.ErrUserNotFound) {
 		respondWithError(w, http.StatusNotFound, "user not found", "USER_NOT_FOUND")
-	case domain.ErrEmailAlreadyExists:
+	} else if errors.Is(err, domain.ErrEmailAlreadyExists) {
 		respondWithError(w, http.StatusConflict, "email already exists", "EMAIL_EXISTS")
-	case domain.ErrUsernameAlreadyExists:
+	} else if errors.Is(err, domain.ErrUsernameAlreadyExists) {
 		respondWithError(w, http.StatusConflict, "username already exists", "USERNAME_EXISTS")
-	case domain.ErrInvalidEmail:
+	} else if errors.Is(err, domain.ErrInvalidEmail) {
 		respondWithError(w, http.StatusBadRequest, "invalid email format", "INVALID_EMAIL")
-	case domain.ErrInvalidUsername:
+	} else if errors.Is(err, domain.ErrInvalidUsername) {
 		respondWithError(w, http.StatusBadRequest, "invalid username format", "INVALID_USERNAME")
-	case domain.ErrInvalidPassword:
+	} else if errors.Is(err, domain.ErrInvalidPassword) {
 		respondWithError(w, http.StatusBadRequest, "invalid password", "INVALID_PASSWORD")
-	case domain.ErrWeakPassword:
+	} else if errors.Is(err, domain.ErrWeakPassword) {
 		respondWithError(w, http.StatusBadRequest, "password is too weak", "WEAK_PASSWORD")
-	case domain.ErrRateLimitExceeded:
+	} else if errors.Is(err, domain.ErrRateLimitExceeded) {
 		respondWithError(w, http.StatusTooManyRequests, "rate limit exceeded", "RATE_LIMIT")
-	case domain.ErrTokenExpired:
+	} else if errors.Is(err, domain.ErrTokenExpired) {
 		respondWithError(w, http.StatusUnauthorized, "token expired", "TOKEN_EXPIRED")
-	case domain.ErrTokenRevoked:
+	} else if errors.Is(err, domain.ErrTokenRevoked) {
 		respondWithError(w, http.StatusUnauthorized, "token revoked", "TOKEN_REVOKED")
-	case domain.ErrInvalidResetToken:
+	} else if errors.Is(err, domain.ErrInvalidResetToken) {
 		respondWithError(w, http.StatusBadRequest, "invalid or expired reset token", "INVALID_RESET_TOKEN")
-	case domain.Err2FARequired:
+	} else if errors.Is(err, domain.Err2FARequired) {
 		respondWithError(w, http.StatusUnauthorized, "2FA code required", "2FA_REQUIRED")
-	case domain.ErrVerificationTokenNotFound:
+	} else if errors.Is(err, domain.ErrVerificationTokenNotFound) {
 		respondWithError(w, http.StatusNotFound, "verification token not found", "TOKEN_NOT_FOUND")
-	case domain.ErrVerificationTokenExpired:
+	} else if errors.Is(err, domain.ErrVerificationTokenExpired) {
 		respondWithError(w, http.StatusBadRequest, "verification token expired", "TOKEN_EXPIRED")
-	case domain.ErrVerificationTokenUsed:
+	} else if errors.Is(err, domain.ErrVerificationTokenUsed) {
 		respondWithError(w, http.StatusBadRequest, "verification token already used", "TOKEN_USED")
-	case domain.ErrEmailAlreadyVerified:
+	} else if errors.Is(err, domain.ErrEmailAlreadyVerified) {
 		respondWithError(w, http.StatusConflict, "email already verified", "EMAIL_VERIFIED")
-	default:
+	} else {
 		// Check if it's a validation error with a descriptive message
 		errMsg := err.Error()
 		if strings.Contains(errMsg, "password") || strings.Contains(errMsg, "username") || strings.Contains(errMsg, "email") {

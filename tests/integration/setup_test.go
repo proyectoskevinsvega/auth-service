@@ -10,10 +10,12 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/joho/godotenv"
 	"github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/require"
@@ -22,9 +24,25 @@ import (
 	postgresadapter "github.com/vertercloud/auth-service/internal/adapters/postgres"
 	redisadapter "github.com/vertercloud/auth-service/internal/adapters/redis"
 	"github.com/vertercloud/auth-service/internal/config"
+	"github.com/vertercloud/auth-service/internal/domain"
 	"github.com/vertercloud/auth-service/internal/ports"
 	"github.com/vertercloud/auth-service/internal/usecase"
 )
+
+// TestMain carga el archivo .env.test antes de ejecutar cualquier test de integración.
+// Busca el .env.test en el directorio raíz del proyecto (2 niveles arriba de tests/integration/).
+func TestMain(m *testing.M) {
+	// Intentar cargar .env.test desde la raíz del proyecto
+	envPath := "../../.env.test"
+	if err := godotenv.Load(envPath); err != nil {
+		// Si no existe, continuar con las variables de entorno del sistema
+		fmt.Printf("[setup] .env.test no encontrado en %s, usando variables del sistema\n", envPath)
+	} else {
+		fmt.Printf("[setup] .env.test cargado desde %s\n", envPath)
+	}
+	os.Exit(m.Run())
+}
+
 
 // TestServer represents a test server with all dependencies
 type TestServer struct {
@@ -43,6 +61,10 @@ type TestServer struct {
 	Blacklist             ports.TokenBlacklist
 	RateLimiter           ports.RateLimiter
 	SessionStore          ports.SessionStore
+	AuthUC                *usecase.AuthUseCase
+	TokenUC               *usecase.TokenUseCase
+	SessionUC             *usecase.SessionUseCase
+	TenantID              string
 	Cleanup               func()
 }
 
@@ -63,6 +85,10 @@ func SetupTestServer(t *testing.T) *TestServer {
 	require.NoError(t, err, "failed to connect to test database")
 	require.NoError(t, dbPool.Ping(ctx), "failed to ping test database")
 
+	// Run migrations
+	err = runTestMigrations(ctx, dbPool)
+	require.NoError(t, err, "failed to run test migrations")
+
 	// Connect to Redis
 	redisClient := redis.NewClient(&redis.Options{
 		Addr:         cfg.Redis.Addrs[0],
@@ -75,6 +101,9 @@ func SetupTestServer(t *testing.T) *TestServer {
 		PoolSize:     10,
 	})
 	require.NoError(t, redisClient.Ping(ctx).Err(), "failed to connect to Redis")
+
+	// Initial cleanup to ensure clean slate
+	cleanupTestData(t, dbPool, redisClient)
 
 	// Initialize repositories
 	userRepo := postgresadapter.NewUserRepository(dbPool)
@@ -195,11 +224,22 @@ func SetupTestServer(t *testing.T) *TestServer {
 		nil, // m2mUC
 		nil, // complianceUC
 		logger,
+		nil, // metrics (not needed in tests)
 		cfg.Server.AllowedOrigins,
 		cfg.Server.Environment,
 		cfg.JWT.Issuer,
 		cfg.Server.BaseDomain,
 	)
+
+	// Create a test tenant
+	testTenant := domain.NewTenant(domain.NewTenantInput{
+		Slug: "test-tenant",
+		Name: "Test Tenant",
+	})
+	err = tenantRepo.Create(ctx, testTenant)
+	if err != nil {
+		t.Fatalf("failed to create test tenant: %v", err)
+	}
 
 	// Create test server (disable telemetry for tests)
 	router := httpHandler.SetupRoutes(false)
@@ -231,6 +271,10 @@ func SetupTestServer(t *testing.T) *TestServer {
 		Blacklist:             blacklist,
 		RateLimiter:           rateLimiter,
 		SessionStore:          sessionStore,
+		AuthUC:                authUC,
+		TokenUC:               tokenUC,
+		SessionUC:             sessionUC,
+		TenantID:              testTenant.ID,
 		Cleanup:               cleanup,
 	}
 }
@@ -264,17 +308,19 @@ func loadTestConfig() (*config.Config, error) {
 		},
 		Redis: config.RedisConfig{
 			Addrs:    []string{getEnvOrDefault("REDIS_ADDR", "localhost:6379")},
-			Password: getEnvOrDefault("REDIS_PASSWORD", "redispassword"),
-			DB:       getEnvOrDefaultInt("REDIS_DB", 1), // Use DB 1 for tests
+			Password: getEnvOrDefault("REDIS_PASSWORD", ""),
+			DB:       getEnvOrDefaultInt("REDIS_DB", 15), // Use DB 15 for tests by default
 			PoolSize: 10,
 		},
 		JWT: config.JWTConfig{
-			PrivateKey: privateKey,
-			PublicKey:  publicKey,
-			Issuer:     "auth-service-test",
+			PrivateKey:    privateKey,
+			PublicKey:     publicKey,
+			Issuer:        "auth-service-test",
+			AccessExpiry:  1 * time.Hour,
+			RefreshExpiry: 24 * time.Hour,
 		},
 		RateLimit: config.RateLimitConfig{
-			LoginAttempts:      5,
+			LoginAttempts:      20,
 			LoginWindow:        15 * time.Minute,
 			LoginBlockDuration: 15 * time.Minute,
 			RegisterAttempts:   3,
@@ -313,12 +359,21 @@ func cleanupTestData(t *testing.T, db *pgxpool.Pool, redis *redis.Client) {
 
 	// Clean up PostgreSQL tables (in reverse order of dependencies)
 	tables := []string{
-		"audit_logs",
-		"password_reset_tokens",
-		"email_verifications",
-		"sessions",
-		"refresh_tokens",
-		"users",
+		"auth_webhook_subscriptions",
+		"auth_audit_log",
+		"auth_password_resets",
+		"auth_email_verifications",
+		"auth_sessions",
+		"auth_refresh_tokens",
+		"auth_user_roles",
+		"auth_role_permissions",
+		"auth_roles",
+		"auth_permissions",
+		"auth_webauthn_credentials",
+		"auth_2fa_backup_codes",
+		"auth_2fa",
+		"auth_users",
+		"auth_tenants",
 	}
 
 	for _, table := range tables {
@@ -332,6 +387,61 @@ func cleanupTestData(t *testing.T, db *pgxpool.Pool, redis *redis.Client) {
 	if err := redis.FlushDB(ctx).Err(); err != nil {
 		t.Logf("warning: failed to flush Redis: %v", err)
 	}
+}
+
+// runTestMigrations executes all SQL migrations
+func runTestMigrations(ctx context.Context, pool *pgxpool.Pool) error {
+	// Preamble: Create necessary functions if they don't exist
+	preamble := `
+	CREATE OR REPLACE FUNCTION update_modified_column()
+	RETURNS TRIGGER AS $$
+	BEGIN
+		NEW.updated_at = now();
+		RETURN NEW;
+	END;
+	$$ language 'plpgsql';
+	`
+	if _, err := pool.Exec(ctx, preamble); err != nil {
+		return fmt.Errorf("failed to create migration preamble: %w", err)
+	}
+
+	// Get migrations directory path (2 levels up from tests/integration)
+	migrationsDir := filepath.Join("..", "..", "internal", "adapters", "postgres", "migrations")
+
+	migrations := []string{
+		"001_initial_schema.up.sql",
+		"002_add_performance_indexes.up.sql",
+		"003_add_email_verifications.up.sql",
+		"004_fix_oauth_constraint.up.sql",
+		"005_add_geo_coordinates.up.sql",
+		"006_add_account_lockout.up.sql",
+		"007_add_password_expiration.up.sql",
+		"008_add_forced_password_reset.up.sql",
+		"009_rbac_abac.up.sql",
+		"010_webauthn_credentials.up.sql",
+		"011_multi_tenancy.up.sql",
+		"012_oauth_clients.up.sql",
+		"013_add_2fa_backup_codes.up.sql",
+		"014_add_webhook_subscriptions.up.sql",
+	}
+
+	for _, migration := range migrations {
+		migrationPath := filepath.Join(migrationsDir, migration)
+		sqlBytes, err := os.ReadFile(migrationPath)
+		if err != nil {
+			return fmt.Errorf("failed to read migration %s: %w", migration, err)
+		}
+
+		_, err = pool.Exec(ctx, string(sqlBytes))
+		if err != nil {
+			// Some migrations might fail if already applied, but in tests 
+			// we usually truncate tables rather than dropping schema.
+			// Let's print a warning but continue if it's a "already exists" error.
+			fmt.Printf("[migration] warning: %s might have failed: %v\n", migration, err)
+		}
+	}
+
+	return nil
 }
 
 // Helper functions

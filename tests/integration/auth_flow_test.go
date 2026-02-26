@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -19,6 +20,7 @@ func TestCompleteAuthFlow_WithSetup(t *testing.T) {
 	// Step 1: Register a new user
 	t.Run("Register", func(t *testing.T) {
 		registerPayload := map[string]interface{}{
+			"tenant_id": ts.TenantID,
 			"email":    "testuser@example.com",
 			"password": "SecurePassword123!",
 			"username": "testuser",
@@ -46,8 +48,9 @@ func TestCompleteAuthFlow_WithSetup(t *testing.T) {
 	var accessToken, refreshToken string
 	t.Run("Login", func(t *testing.T) {
 		loginPayload := map[string]interface{}{
-			"email":    "testuser@example.com",
-			"password": "SecurePassword123!",
+			"tenant_id":  ts.TenantID,
+			"identifier": "testuser@example.com",
+			"password":   "SecurePassword123!",
 		}
 
 		resp := makeRequest(t, ts.Server, "POST", "/api/v1/auth/login", loginPayload, nil)
@@ -95,7 +98,12 @@ func TestCompleteAuthFlow_WithSetup(t *testing.T) {
 	// Step 4: Refresh the access token
 	var newAccessToken string
 	t.Run("RefreshToken", func(t *testing.T) {
+		// Wait a second to ensure IAT is different for the new token
+		time.Sleep(time.Second)
+
+		t.Logf("Refreshing token: %s", refreshToken)
 		refreshPayload := map[string]interface{}{
+			"tenant_id":     ts.TenantID,
 			"refresh_token": refreshToken,
 		}
 
@@ -159,6 +167,7 @@ func TestLoginWithInvalidCredentials_WithSetup(t *testing.T) {
 
 	// First, register a user
 	registerPayload := map[string]interface{}{
+		"tenant_id": ts.TenantID,
 		"email":    "validuser@example.com",
 		"password": "ValidPassword123!",
 		"username": "validuser",
@@ -202,8 +211,9 @@ func TestLoginWithInvalidCredentials_WithSetup(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			loginPayload := map[string]interface{}{
-				"email":    tt.email,
-				"password": tt.password,
+				"tenant_id":  ts.TenantID,
+				"identifier": tt.email,
+				"password":   tt.password,
 			}
 
 			resp := makeRequest(t, ts.Server, "POST", "/api/v1/auth/login", loginPayload, nil)
@@ -227,6 +237,7 @@ func TestRegisterValidation(t *testing.T) {
 		{
 			name: "Valid registration",
 			payload: map[string]interface{}{
+				"tenant_id": ts.TenantID,
 				"email":    "valid@example.com",
 				"password": "SecurePassword123!",
 				"username": "validuser",
@@ -236,6 +247,7 @@ func TestRegisterValidation(t *testing.T) {
 		{
 			name: "Invalid email format",
 			payload: map[string]interface{}{
+				"tenant_id": ts.TenantID,
 				"email":    "notanemail",
 				"password": "SecurePassword123!",
 				"username": "testuser2",
@@ -245,6 +257,7 @@ func TestRegisterValidation(t *testing.T) {
 		{
 			name: "Weak password",
 			payload: map[string]interface{}{
+				"tenant_id": ts.TenantID,
 				"email":    "user@example.com",
 				"password": "weak",
 				"username": "testuser3",
@@ -254,6 +267,7 @@ func TestRegisterValidation(t *testing.T) {
 		{
 			name: "Missing username",
 			payload: map[string]interface{}{
+				"tenant_id": ts.TenantID,
 				"email":    "user@example.com",
 				"password": "SecurePassword123!",
 			},
@@ -262,6 +276,7 @@ func TestRegisterValidation(t *testing.T) {
 		{
 			name: "Duplicate email",
 			payload: map[string]interface{}{
+				"tenant_id": ts.TenantID,
 				"email":    "valid@example.com",
 				"password": "AnotherPassword123!",
 				"username": "anotheruser",
@@ -287,6 +302,7 @@ func TestConcurrentLogins(t *testing.T) {
 
 	// Register a user
 	registerPayload := map[string]interface{}{
+		"tenant_id": ts.TenantID,
 		"email":    "concurrent@example.com",
 		"password": "Password123!",
 		"username": "concurrentuser",
@@ -302,8 +318,9 @@ func TestConcurrentLogins(t *testing.T) {
 	for i := 0; i < numConcurrent; i++ {
 		go func() {
 			loginPayload := map[string]interface{}{
-				"email":    "concurrent@example.com",
-				"password": "Password123!",
+				"tenant_id":  ts.TenantID,
+				"identifier": "concurrent@example.com",
+				"password":   "Password123!",
 			}
 
 			resp := makeRequest(t, ts.Server, "POST", "/api/v1/auth/login", loginPayload, nil)
@@ -332,6 +349,7 @@ func TestSessionManagement(t *testing.T) {
 
 	// Register and login
 	registerPayload := map[string]interface{}{
+		"tenant_id": ts.TenantID,
 		"email":    "session@example.com",
 		"password": "Password123!",
 		"username": "sessionuser",
@@ -342,8 +360,9 @@ func TestSessionManagement(t *testing.T) {
 
 	// Login to create a session
 	loginPayload := map[string]interface{}{
-		"email":    "session@example.com",
-		"password": "Password123!",
+		"tenant_id":  ts.TenantID,
+		"identifier": "session@example.com",
+		"password":   "Password123!",
 	}
 	resp = makeRequest(t, ts.Server, "POST", "/api/v1/auth/login", loginPayload, nil)
 	body, _ := io.ReadAll(resp.Body)
@@ -362,10 +381,15 @@ func TestSessionManagement(t *testing.T) {
 		resp := makeRequest(t, ts.Server, "GET", "/api/v1/auth/sessions", nil, headers)
 		defer resp.Body.Close()
 
+		body, _ := io.ReadAll(resp.Body)
+		if resp.StatusCode != http.StatusOK {
+			t.Logf("Response Status: %d", resp.StatusCode)
+			t.Logf("Response Body: %s", string(body))
+		}
+
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
 
 		var response map[string]interface{}
-		body, _ := io.ReadAll(resp.Body)
 		json.Unmarshal(body, &response)
 
 		sessions := response["sessions"].([]interface{})
