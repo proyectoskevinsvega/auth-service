@@ -35,6 +35,7 @@ type AuthUseCase struct {
 	roleRepo       ports.RoleRepository // Added for RBAC
 	backupCodeRepo ports.BackupCodeRepository
 	totpService    ports.TOTPService
+	tenantRepo     ports.TenantRepository
 }
 
 func NewAuthUseCase(
@@ -57,6 +58,7 @@ func NewAuthUseCase(
 	roleRepo ports.RoleRepository,
 	backupCodeRepo ports.BackupCodeRepository,
 	totpService ports.TOTPService,
+	tenantRepo ports.TenantRepository,
 ) *AuthUseCase {
 	return &AuthUseCase{
 		userRepo:       userRepo,
@@ -78,6 +80,7 @@ func NewAuthUseCase(
 		roleRepo:       roleRepo,
 		backupCodeRepo: backupCodeRepo,
 		totpService:    totpService,
+		tenantRepo:     tenantRepo,
 	}
 }
 
@@ -98,6 +101,17 @@ type LoginResponse struct {
 }
 
 func (uc *AuthUseCase) Login(ctx context.Context, input LoginInput) (*LoginResponse, error) {
+	// Auto-Translate Slug to UUID
+	tenant, err := uc.tenantRepo.GetBySlug(ctx, input.TenantID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to lookup tenant: %w", err)
+	}
+	if tenant == nil {
+		return nil, fmt.Errorf("tenant with slug %s not found", input.TenantID)
+	}
+	// Override the textual slug with the database UUID before doing queries
+	input.TenantID = tenant.ID
+
 	// Rate limiting
 	// Rate limit check (consolidated)
 	rateLimitKey := fmt.Sprintf("login:%s:%s", input.TenantID, input.Identifier)
@@ -176,6 +190,11 @@ func (uc *AuthUseCase) Login(ctx context.Context, input LoginInput) (*LoginRespo
 	// Update user immediate or in the background? Better immediate for security sync.
 	if err := uc.userRepo.Update(ctx, user); err != nil {
 		fmt.Printf("warning: failed to reset failed login attempts: %v\n", err)
+	}
+
+	// Email Verification check (P0)
+	if !user.EmailVerified {
+		return nil, domain.ErrEmailNotVerified
 	}
 
 	// Check password expiration (P0)
@@ -368,6 +387,17 @@ type RegisterInput struct {
 }
 
 func (uc *AuthUseCase) Register(ctx context.Context, input RegisterInput) (*domain.User, error) {
+	// Auto-Translate Slug to UUID
+	tenant, err := uc.tenantRepo.GetBySlug(ctx, input.TenantID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to lookup tenant: %w", err)
+	}
+	if tenant == nil {
+		return nil, fmt.Errorf("tenant with slug %s not found", input.TenantID)
+	}
+	// Override the textual slug with the database UUID before creating users
+	input.TenantID = tenant.ID
+
 	// Rate limiting - fail-safe: if rate limiter fails, reject request to prevent abuse
 	rateLimitKey := "register:" + input.IPAddress
 	exceeded, err := uc.rateLimiter.CheckLimit(ctx, rateLimitKey, uc.config.RateLimit.RegisterAttempts, uc.config.RateLimit.RegisterWindow)
@@ -973,4 +1003,41 @@ func (uc *AuthUseCase) PasswordlessLogin(ctx context.Context, user *domain.User,
 	}()
 
 	return response, nil
+}
+
+// GetUserByEmail abstractly returns the User entity strictly from its Email
+func (uc *AuthUseCase) GetUserByEmail(ctx context.Context, tenantID, email string) (*domain.User, error) {
+	return uc.userRepo.GetByEmail(ctx, tenantID, email)
+}
+
+// GetResendRateLimitConfig returns the specific Rate Limit config for Resend Email
+func (uc *AuthUseCase) GetResendRateLimitConfig() (int, time.Duration) {
+	return uc.config.RateLimit.ResendAttempts, uc.config.RateLimit.ResendWindow
+}
+
+// ResendVerificationEmail checks rate limits and then returns the targeted user
+func (uc *AuthUseCase) ResendVerificationEmail(ctx context.Context, tenantID, email, ipAddress string) (*domain.User, error) {
+	// Rate limiting - Protect Resend Endpoint per user email (e.g. 4 emails per Hour)
+	rateLimitKey := fmt.Sprintf("resend:%s:%s", tenantID, email)
+	exceeded, err := uc.rateLimiter.CheckLimit(ctx, rateLimitKey, uc.config.RateLimit.ResendAttempts, uc.config.RateLimit.ResendWindow)
+	if err != nil {
+		return nil, fmt.Errorf("rate limit check failed: %w", err)
+	}
+	if exceeded {
+		return nil, domain.ErrRateLimitExceeded
+	}
+
+	// Fetch user ID disconnected from JWT Context
+	user, err := uc.userRepo.GetByEmail(ctx, tenantID, email)
+	if err != nil {
+		return nil, domain.ErrUserNotFound
+	}
+
+	// All checks passed, we can Increment the Rate Limiter
+	if _, err := uc.rateLimiter.Increment(context.Background(), rateLimitKey, uc.config.RateLimit.ResendWindow); err != nil {
+		fmt.Printf("warning: failed to increment resend rate limit: %v\n", err)
+	}
+
+	// We return the user struct to the handler so it can trigger the actual verification email
+	return user, nil
 }

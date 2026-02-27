@@ -36,6 +36,7 @@ type ServerConfig struct {
 	Environment    string
 	BaseDomain     string
 	AllowedOrigins []string
+	DisableCSRF    bool
 }
 
 type DatabaseConfig struct {
@@ -80,6 +81,10 @@ type RateLimitConfig struct {
 	RegisterWindow     time.Duration
 	RefreshAttempts    int
 	RefreshWindow      time.Duration
+	ResendAttempts     int
+	ResendWindow       time.Duration
+	VerifyAttempts     int
+	VerifyWindow       time.Duration
 }
 
 type EmailConfig struct {
@@ -197,6 +202,7 @@ func Load() (*Config, error) {
 			Environment:    getEnv("ENVIRONMENT", "development"),
 			BaseDomain:     getEnv("BASE_DOMAIN", "localhost:8080"),
 			AllowedOrigins: strings.Split(getEnv("ALLOWED_ORIGINS", "http://localhost:3000,http://localhost:8080"), ","),
+			DisableCSRF:    getEnvAsBool("DISABLE_CSRF", false),
 		},
 		Database: buildDatabaseConfig(),
 		Redis:    buildRedisConfig(),
@@ -215,6 +221,10 @@ func Load() (*Config, error) {
 			RegisterWindow:     time.Second * time.Duration(getEnvAsInt("RATE_LIMIT_REGISTER_WINDOW", 3600)),
 			RefreshAttempts:    getEnvAsInt("RATE_LIMIT_REFRESH_ATTEMPTS", 10),
 			RefreshWindow:      time.Second * time.Duration(getEnvAsInt("RATE_LIMIT_REFRESH_WINDOW", 60)),
+			ResendAttempts:     getEnvAsInt("RATE_LIMIT_RESEND_ATTEMPTS", 4),
+			ResendWindow:       time.Second * time.Duration(getEnvAsInt("RATE_LIMIT_RESEND_WINDOW", 3600)),
+			VerifyAttempts:     getEnvAsInt("RATE_LIMIT_VERIFY_ATTEMPTS", 5),
+			VerifyWindow:       time.Second * time.Duration(getEnvAsInt("RATE_LIMIT_VERIFY_WINDOW", 900)), // 15 minutos en segundos
 		},
 		Email: EmailConfig{
 			Enabled:      getEnvAsBool("EMAIL_ENABLED", false),

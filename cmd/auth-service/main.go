@@ -57,6 +57,7 @@ import (
 
 	"github.com/hibiken/asynq"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/joho/godotenv"
 	"github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog"
 	cryptoadapter "github.com/vertercloud/auth-service/internal/adapters/crypto"
@@ -83,6 +84,11 @@ func main() {
 	// Setup logger
 	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
 	logger := zerolog.New(os.Stdout).With().Timestamp().Logger()
+
+	// Gracefully load .env if it exists (mostly for local development when not using make run)
+	if err := godotenv.Load(); err != nil {
+		logger.Debug().Msg("No .env file found or couldn't be loaded, relying on system environment variables")
+	}
 
 	// Load configuration
 	cfg, err := config.Load()
@@ -380,6 +386,7 @@ func initializeDependencies(cfg *config.Config, logger zerolog.Logger, telemetry
 		roleRepo,
 		backupCodeRepo,
 		totpService,
+		tenantRepo,
 	)
 
 	sessionUC := usecase.NewSessionUseCase(
@@ -405,6 +412,8 @@ func initializeDependencies(cfg *config.Config, logger zerolog.Logger, telemetry
 		logger,
 		cfg.Server.BaseDomain,
 		cfg.Server.Environment,
+		rateLimiter,   // Added Redis RateLimiter
+		cfg,           // Added Global Settings
 	)
 	logger.Info().Msg("Email verification use case initialized")
 
@@ -443,6 +452,15 @@ func initializeDependencies(cfg *config.Config, logger zerolog.Logger, telemetry
 	)
 	logger.Info().Msg("Compliance use case initialized")
 
+	tenantUC := usecase.NewTenantUseCase(
+		tenantRepo,
+		userRepo,
+		roleRepo,
+		passwordHasher,
+		cfg,
+	)
+	logger.Info().Msg("Tenant Onboarding use case initialized")
+
 	// Initialize HTTP handler
 	httpHandler := httpadapter.NewHandler(
 		authUC,
@@ -451,6 +469,7 @@ func initializeDependencies(cfg *config.Config, logger zerolog.Logger, telemetry
 		twofaUC,
 		emailVerificationUC,
 		webhookUC,
+		tenantUC,
 		userRepo,
 		oauthProviders,
 		jwtService,
@@ -515,7 +534,7 @@ func initializeDependencies(cfg *config.Config, logger zerolog.Logger, telemetry
 }
 
 func startHTTPServer(cfg *config.Config, handler *httpadapter.Handler, logger zerolog.Logger, telemetryConfig telemetry.Config) *http.Server {
-	router := handler.SetupRoutes(telemetryConfig.Enabled && telemetryConfig.TraceHTTP)
+	router := handler.SetupRoutes(telemetryConfig.Enabled&&telemetryConfig.TraceHTTP, cfg.Server.DisableCSRF)
 
 	server := &http.Server{
 		Addr:         fmt.Sprintf(":%s", cfg.Server.HTTPPort),

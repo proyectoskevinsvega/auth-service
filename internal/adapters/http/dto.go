@@ -2,6 +2,8 @@ package http
 
 import (
 	"time"
+
+	"github.com/vertercloud/auth-service/internal/domain"
 )
 
 // Request DTOs
@@ -12,6 +14,24 @@ type RegisterRequest struct {
 	Username string `json:"username" example:"johndoe" validate:"required,min=3,max=30"` // Nombre de usuario único (3-30 caracteres)
 	Email    string `json:"email" example:"user@example.com" validate:"required,email"`  // Correo electrónico válido
 	Password string `json:"password" example:"SecurePass123!" validate:"required,min=8"` // Contraseña (mínimo 8 caracteres)
+}
+
+// RegisterTenantRequest representa la solicitud para dar de alta a una nueva Empresa/Inquilino junto con su Administrador
+type RegisterTenantRequest struct {
+	TenantSlug string `json:"tenant_slug" example:"acme" validate:"required,alphanum,min=3,max=50"`
+	TenantName string `json:"tenant_name" example:"Acme Corporation" validate:"required,max=100"`
+	AdminUser  struct {
+		Username string `json:"username" example:"admin" validate:"required,min=3,max=30"`
+		Email    string `json:"email" example:"admin@acme.com" validate:"required,email"`
+		Password string `json:"password" example:"SecurePass123!" validate:"required,min=8"`
+	} `json:"admin_user" validate:"required"`
+}
+
+// RegisterTenantResponse encapsula el éxito de crear una nueva Organización
+type RegisterTenantResponse struct {
+	TenantID string       `json:"tenant_id"`
+	Slug     string       `json:"slug"`
+	Admin    *domain.User `json:"admin_user"`
 }
 
 // LoginRequest representa la solicitud de inicio de sesión
@@ -72,8 +92,14 @@ type Disable2FARequest struct {
 
 // VerifyEmailRequest representa la solicitud de verificación de email
 type VerifyEmailRequest struct {
-	TenantID string `json:"tenant_id" example:"customer1" validate:"required"` // ID del tenant
-	Token    string `json:"token" example:"abc123..." validate:"required"`     // Token de verificación recibido por email
+	TenantID string `json:"tenant_id" example:"google" validate:"required"` // ID del tenant
+	Code     string `json:"code" example:"123456" validate:"required,len=6"` // PIN de verificación de 6 dígitos
+}
+
+// ResendVerificationRequest representa la solicitud para reenviar el email de PIN
+type ResendVerificationRequest struct {
+	TenantID string `json:"tenant_id" example:"google" validate:"required"`
+	Email    string `json:"email" example:"user@example.com" validate:"required,email"`
 }
 
 // Response DTOs

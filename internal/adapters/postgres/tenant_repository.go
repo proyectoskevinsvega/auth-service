@@ -2,10 +2,11 @@ package postgres
 
 import (
 	"context"
-	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/vertercloud/auth-service/internal/domain"
 )
@@ -54,7 +55,7 @@ func (r *TenantRepository) GetByID(ctx context.Context, id string) (*domain.Tena
 		&t.CreatedAt,
 		&t.UpdatedAt,
 	)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil // Or a specific error like ErrTenantNotFound
 	}
 	if err != nil {
@@ -79,7 +80,7 @@ func (r *TenantRepository) GetBySlug(ctx context.Context, slug string) (*domain.
 		&t.CreatedAt,
 		&t.UpdatedAt,
 	)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {

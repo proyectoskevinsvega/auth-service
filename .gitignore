@@ -86,3 +86,6 @@ frontend/client/.env.local
 frontend/client/curl.md
 .env.test
 .env.local
+bin/auth-service
+bin/auth-service.exe
+bin/.env

@@ -29,21 +29,28 @@ func NewAuthMiddleware(tokenUC *usecase.TokenUseCase) *AuthMiddleware {
 
 func (m *AuthMiddleware) RequireAuth(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Extract token from Authorization header
+		// Extract token from Authorization header or Cookie
+		var tokenString string
 		authHeader := r.Header.Get("Authorization")
-		if authHeader == "" {
-			respondWithError(w, http.StatusUnauthorized, "missing authorization header", "UNAUTHORIZED")
-			return
+		if authHeader != "" {
+			parts := strings.Split(authHeader, " ")
+			if len(parts) == 2 && parts[0] == "Bearer" {
+				tokenString = parts[1]
+			}
 		}
 
-		// Check Bearer format
-		parts := strings.Split(authHeader, " ")
-		if len(parts) != 2 || parts[0] != "Bearer" {
-			respondWithError(w, http.StatusUnauthorized, "invalid authorization format", "UNAUTHORIZED")
-			return
+		if tokenString == "" {
+			// Fallback to cookie
+			cookie, err := r.Cookie("access_token")
+			if err == nil {
+				tokenString = cookie.Value
+			}
 		}
 
-		tokenString := parts[1]
+		if tokenString == "" {
+			respondWithError(w, http.StatusUnauthorized, "missing authorization token", "UNAUTHORIZED")
+			return
+		}
 
 		// Validate token
 		token, err := m.tokenUC.ValidateToken(r.Context(), tokenString)

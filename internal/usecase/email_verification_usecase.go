@@ -4,18 +4,19 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
-	"encoding/base64"
 	"fmt"
+	"math/big"
 	"time"
 
 	"github.com/rs/zerolog"
+	"github.com/vertercloud/auth-service/internal/config"
 	"github.com/vertercloud/auth-service/internal/domain"
 	"github.com/vertercloud/auth-service/internal/ports"
 )
 
 const (
-	// Email verification token expires after 24 hours
-	EmailVerificationExpiry = 24 * time.Hour
+	// Email verification token expires after 5 minutes
+	EmailVerificationExpiry = 5 * time.Minute
 	// Token length in bytes (32 bytes = 256 bits of entropy)
 	VerificationTokenLength = 32
 )
@@ -28,6 +29,8 @@ type EmailVerificationUseCase struct {
 	logger           zerolog.Logger
 	baseDomain       string
 	environment      string
+	rateLimiter      ports.RateLimiter
+	config           *config.Config
 }
 
 func NewEmailVerificationUseCase(
@@ -38,6 +41,8 @@ func NewEmailVerificationUseCase(
 	logger zerolog.Logger,
 	baseDomain string,
 	environment string,
+	rateLimiter ports.RateLimiter,
+	cfg *config.Config,
 ) *EmailVerificationUseCase {
 	return &EmailVerificationUseCase{
 		userRepo:         userRepo,
@@ -47,6 +52,8 @@ func NewEmailVerificationUseCase(
 		logger:           logger,
 		baseDomain:       baseDomain,
 		environment:      environment,
+		rateLimiter:      rateLimiter,
+		config:           cfg,
 	}
 }
 
@@ -99,7 +106,7 @@ func (uc *EmailVerificationUseCase) SendVerificationEmail(ctx context.Context, i
 			"username":         user.Username,
 			"verification_url": verificationURL,
 			"token":            token,
-			"expires_hours":    int(EmailVerificationExpiry.Hours()),
+			"expires_minutes":  int(EmailVerificationExpiry.Minutes()),
 		}
 
 		if err := uc.emailService.SendVerificationEmail(ctx, user.Email, user.Username, emailData); err != nil {
@@ -116,8 +123,25 @@ func (uc *EmailVerificationUseCase) SendVerificationEmail(ctx context.Context, i
 	return nil
 }
 
-// VerifyEmail verifies an email using the provided token
-func (uc *EmailVerificationUseCase) VerifyEmail(ctx context.Context, tenantID, token string) error {
+// VerifyEmail verifies an email using the provided token, protected by Redis rate limiting
+func (uc *EmailVerificationUseCase) VerifyEmail(ctx context.Context, tenantID, token, ipAddress string) error {
+	// Rate limiting - Protect verification endpoint against brute-force (e.g. 5 guesses per 15 minutes)
+	rateLimitKey := fmt.Sprintf("verify_email_attempt:%s:%s", tenantID, ipAddress)
+	if uc.rateLimiter != nil && uc.config != nil {
+		exceeded, err := uc.rateLimiter.CheckLimit(ctx, rateLimitKey, uc.config.RateLimit.VerifyAttempts, uc.config.RateLimit.VerifyWindow)
+		if err != nil {
+			return fmt.Errorf("rate limit check failed: %w", err)
+		}
+		if exceeded {
+			return domain.ErrRateLimitExceeded
+		}
+		
+		// Unconditionally count this attempt in Redis to prevent massive parallel guessing
+		if _, err := uc.rateLimiter.Increment(context.Background(), rateLimitKey, uc.config.RateLimit.VerifyWindow); err != nil {
+			fmt.Printf("warning: failed to increment verify rate limit: %v\n", err)
+		}
+	}
+
 	// Hash the token to match database
 	tokenHash := uc.hashToken(token)
 
@@ -198,16 +222,18 @@ func (uc *EmailVerificationUseCase) ResendVerificationEmail(ctx context.Context,
 	})
 }
 
-// generateVerificationToken generates a secure random token and its hash
+// generateVerificationToken generates a secure random 6-digit PIN and its hash
 func (uc *EmailVerificationUseCase) generateVerificationToken() (token string, tokenHash string, err error) {
-	// Generate random bytes
-	bytes := make([]byte, VerificationTokenLength)
-	if _, err := rand.Read(bytes); err != nil {
-		return "", "", fmt.Errorf("failed to generate random bytes: %w", err)
+	// Generate a secure 6-digit numeric PIN
+	// 1000000 ensures it's between 000000 and 999999
+	max := big.NewInt(1000000)
+	n, err := rand.Int(rand.Reader, max)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to generate random PIN: %w", err)
 	}
 
-	// Encode to base64url WITHOUT padding for cleaner URLs
-	token = base64.URLEncoding.WithPadding(base64.NoPadding).EncodeToString(bytes)
+	// Format as 6-digit string with leading zeros if necessary
+	token = fmt.Sprintf("%06d", n.Int64())
 
 	// Hash for storage (prevents token leakage from database dumps)
 	tokenHash = uc.hashToken(token)

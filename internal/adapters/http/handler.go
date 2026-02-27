@@ -7,12 +7,14 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
+	"github.com/gorilla/csrf"
 	"github.com/rs/zerolog"
 	httpSwagger "github.com/swaggo/http-swagger/v2"
 	"github.com/vertercloud/auth-service/internal/domain"
@@ -32,6 +34,8 @@ type Handler struct {
 	twofaUC             *usecase.TwoFAUseCase
 	emailVerificationUC *usecase.EmailVerificationUseCase
 	webhookUC           *usecase.WebhookUseCase
+	tenantUC            *usecase.TenantUseCase
+	tenantHandler       *TenantHandler
 	userRepo            ports.UserRepository
 	oauthProviders      map[string]ports.OAuthProvider
 	jwtService          ports.JWTService
@@ -55,6 +59,7 @@ func NewHandler(
 	twofaUC *usecase.TwoFAUseCase,
 	emailVerificationUC *usecase.EmailVerificationUseCase,
 	webhookUC *usecase.WebhookUseCase,
+	tenantUC *usecase.TenantUseCase,
 	userRepo ports.UserRepository,
 	oauthProviders map[string]ports.OAuthProvider,
 	jwtService ports.JWTService,
@@ -75,6 +80,8 @@ func NewHandler(
 		twofaUC:             twofaUC,
 		emailVerificationUC: emailVerificationUC,
 		webhookUC:           webhookUC,
+		tenantUC:            tenantUC,
+		tenantHandler:       NewTenantHandler(tenantUC, logger),
 		userRepo:            userRepo,
 		oauthProviders:      oauthProviders,
 		jwtService:          jwtService,
@@ -91,7 +98,7 @@ func NewHandler(
 	}
 }
 
-func (h *Handler) SetupRoutes(telemetryEnabled bool) http.Handler {
+func (h *Handler) SetupRoutes(telemetryEnabled bool, disableCSRF bool) http.Handler {
 	r := chi.NewRouter()
 
 	// Middleware
@@ -111,7 +118,7 @@ func (h *Handler) SetupRoutes(telemetryEnabled bool) http.Handler {
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   h.allowedOrigins,
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type"},
+		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
 		ExposedHeaders:   []string{"Link"},
 		AllowCredentials: true,
 		MaxAge:           300,
@@ -120,10 +127,50 @@ func (h *Handler) SetupRoutes(telemetryEnabled bool) http.Handler {
 	// Security Headers
 	r.Use(SecurityHeaders(h.env))
 
-	// API v1 routes
+	// Extract hosts for CSRF Trusted Origins
+	var trustedOrigins []string
+	for _, origin := range h.allowedOrigins {
+		if origin == "*" {
+			continue // skip wildcard
+		}
+		if u, err := url.Parse(origin); err == nil && u.Host != "" {
+			trustedOrigins = append(trustedOrigins, u.Host)
+		}
+	}
+
+	// CSRF Protection
+	var csrfMiddleware func(http.Handler) http.Handler
+	if !disableCSRF {
+		// In production this key should come from environment variables
+		csrfAuthKey := []byte("32-byte-long-auth-key-for-dev-use!")
+		csrfMiddleware = csrf.Protect(
+			csrfAuthKey,
+			csrf.Secure(h.env == "production"), // Set to false for local HTTP
+			csrf.Path("/"),
+			csrf.SameSite(csrf.SameSiteLaxMode),
+			csrf.HttpOnly(true), // Only JS can read the response token, not the cookie
+			csrf.TrustedOrigins(trustedOrigins),
+			csrf.ErrorHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				reason := csrf.FailureReason(r)
+				h.logger.Error().Err(reason).Msg("CSRF validation failed")
+				respondWithError(w, http.StatusForbidden, "invalid csrf token", "FORBIDDEN")
+			})),
+		)
+		r.Use(csrfMiddleware)
+	} else {
+		// Dummy middleware that does nothing when CSRF is disabled
+		csrfMiddleware = func(next http.Handler) http.Handler {
+			return next
+		}
+	}
+
 	r.Route("/api/v1", func(r chi.Router) {
+		r.Use(csrfMiddleware)
+
 		// Public routes
+		r.Get("/auth/csrf", h.GetCSRFToken)
 		r.Post("/auth/register", h.Register)
+		r.Post("/auth/tenants/register", h.tenantHandler.RegisterTenant) // Delegated to TenantHandler
 		r.Post("/auth/login", h.Login)
 		r.Post("/auth/token", h.IssueToken)
 		r.Post("/auth/refresh", h.RefreshToken)
@@ -132,6 +179,9 @@ func (h *Handler) SetupRoutes(telemetryEnabled bool) http.Handler {
 		r.Post("/auth/reset-password-code", h.ResetPasswordWithCode)
 		r.Post("/auth/verify-email", h.VerifyEmail)
 		r.Get("/auth/verify-email", h.VerifyEmailGET) // Support GET for email links
+
+		// Email Verification Resend (Protected by strict Rate Limit: 4/hr)
+		r.Post("/auth/resend-verification", h.ResendVerificationEmail)
 
 		// WebAuthn Public Routes (Login)
 		r.Post("/auth/webauthn/login/begin", h.WebAuthnLoginBegin)
@@ -164,9 +214,6 @@ func (h *Handler) SetupRoutes(telemetryEnabled bool) http.Handler {
 			r.Post("/auth/2fa/verify", h.Verify2FA)
 			r.Post("/auth/2fa/disable", h.Disable2FA)
 			r.Post("/auth/2fa/backup-codes", h.RegenerateBackupCodes)
-
-			// Email verification (resend)
-			r.Post("/auth/resend-verification", h.ResendVerificationEmail)
 
 			// OIDC UserInfo
 			r.Get("/auth/userinfo", h.GetUserInfo)
@@ -236,6 +283,19 @@ func (h *Handler) SetupRoutes(telemetryEnabled bool) http.Handler {
 	))
 
 	return r
+}
+
+// GetCSRFToken serves a fresh CSRF token to the frontend client
+// @Summary      Obtener CSRF token
+// @Description  Retorna un nuevo token CSRF en formato JSON para ser enviado en las cabeceras de futuras peticiones POST/PUT/DELETE
+// @Tags         Authentication
+// @Produce      json
+// @Success      200 {object} map[string]string
+// @Router       /auth/csrf [get]
+func (h *Handler) GetCSRFToken(w http.ResponseWriter, r *http.Request) {
+	respondWithJSON(w, http.StatusOK, map[string]string{
+		"csrf_token": csrf.Token(r),
+	})
 }
 
 // Register godoc
@@ -308,6 +368,54 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (h *Handler) setTokenCookies(w http.ResponseWriter, accessToken, refreshToken string) {
+	secure := h.env == "production" || h.env == "prod"
+	
+	http.SetCookie(w, &http.Cookie{
+		Name:     "access_token",
+		Value:    accessToken,
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   secure,
+		SameSite: http.SameSiteLaxMode,
+		MaxAge:   15 * 60, // 15 minutos (coincide con TTL de JWT)
+	})
+	
+	http.SetCookie(w, &http.Cookie{
+		Name:     "refresh_token",
+		Value:    refreshToken,
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   secure,
+		SameSite: http.SameSiteLaxMode,
+		MaxAge:   7 * 24 * 60 * 60, // 7 dias
+	})
+}
+
+func (h *Handler) clearTokenCookies(w http.ResponseWriter) {
+	secure := h.env == "production" || h.env == "prod"
+	
+	http.SetCookie(w, &http.Cookie{
+		Name:     "access_token",
+		Value:    "",
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   secure,
+		SameSite: http.SameSiteLaxMode,
+		MaxAge:   -1,
+	})
+	
+	http.SetCookie(w, &http.Cookie{
+		Name:     "refresh_token",
+		Value:    "",
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   secure,
+		SameSite: http.SameSiteLaxMode,
+		MaxAge:   -1,
+	})
+}
+
 // Login godoc
 // @Summary      Iniciar sesión
 // @Description  Autentica al usuario con email/username y contraseña. Retorna tokens JWT de acceso y actualización. Soporta 2FA si está habilitado.
@@ -355,6 +463,9 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Set HttpOnly Cookies for cross-platform secure Auth caching
+	h.setTokenCookies(w, response.AccessToken, response.RefreshToken)
+
 	respondWithJSON(w, http.StatusOK, LoginResponse{
 		AccessToken:  response.AccessToken,
 		RefreshToken: response.RefreshToken,
@@ -390,6 +501,14 @@ func (h *Handler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if req.RefreshToken == "" {
+		// Fallback to cookie
+		cookie, err := r.Cookie("refresh_token")
+		if err == nil {
+			req.RefreshToken = cookie.Value
+		}
+	}
+
+	if req.RefreshToken == "" {
 		respondWithError(w, http.StatusBadRequest, "refresh_token is required", "BAD_REQUEST")
 		return
 	}
@@ -400,6 +519,8 @@ func (h *Handler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 		h.handleAuthError(w, err)
 		return
 	}
+
+	h.setTokenCookies(w, response.AccessToken, response.RefreshToken)
 
 	respondWithJSON(w, http.StatusOK, RefreshTokenResponse{
 		AccessToken:  response.AccessToken,
@@ -435,6 +556,8 @@ func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 		respondWithError(w, http.StatusInternalServerError, "failed to logout", "INTERNAL_ERROR")
 		return
 	}
+
+	h.clearTokenCookies(w)
 
 	respondWithJSON(w, http.StatusOK, MessageResponse{
 		Message: "logged out successfully",
@@ -1135,14 +1258,14 @@ func (h *Handler) RegenerateBackupCodes(w http.ResponseWriter, r *http.Request) 
 
 // VerifyEmail godoc
 // @Summary      Verificar email (POST)
-// @Description  Verifica el email del usuario usando el token recibido por correo. El token es válido por 48 horas.
+// @Description  Verifica el email del usuario usando el PIN de 6 dígitos. El token es válido por 24 horas.
 // @Tags         Email Verification
 // @Accept       json
 // @Produce      json
-// @Param        request body object{token=string} true "Token de verificación"
+// @Param        request body VerifyEmailRequest true "PIN de verificación"
 // @Success      200 {object} MessageResponse
-// @Failure      400 {object} ErrorResponse "Token inválido, expirado o ya usado"
-// @Failure      404 {object} ErrorResponse "Token no encontrado"
+// @Failure      400 {object} ErrorResponse "PIN inválido, expirado o ya usado"
+// @Failure      404 {object} ErrorResponse "PIN no encontrado"
 // @Failure      409 {object} ErrorResponse "Email ya verificado"
 // @Failure      500 {object} ErrorResponse
 // @Router       /auth/verify-email [post]
@@ -1154,13 +1277,24 @@ func (h *Handler) VerifyEmail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.Token == "" {
-		respondWithError(w, http.StatusBadRequest, "token is required", "MISSING_TOKEN")
+	if req.Code == "" {
+		respondWithError(w, http.StatusBadRequest, "code is required", "MISSING_CODE")
 		return
 	}
 
-	tenantID := req.TenantID
-	if err := h.emailVerificationUC.VerifyEmail(r.Context(), tenantID, req.Token); err != nil {
+	// Translation logic for SingleTenant Alias mapping on Email Verifications
+	tenant, err := h.tenantUC.GetBySlug(r.Context(), req.TenantID)
+	if err == nil && tenant != nil {
+		req.TenantID = tenant.ID
+	}
+
+	// Extract IP Address for Rate Limiting
+	ipAddress, _, _ := net.SplitHostPort(r.RemoteAddr)
+	if ipAddress == "" {
+		ipAddress = r.RemoteAddr
+	}
+
+	if err := h.emailVerificationUC.VerifyEmail(r.Context(), req.TenantID, req.Code, ipAddress); err != nil {
 		h.handleAuthError(w, err)
 		return
 	}
@@ -1190,7 +1324,14 @@ func (h *Handler) VerifyEmailGET(w http.ResponseWriter, r *http.Request) {
 	}
 
 	tenantID := r.URL.Query().Get("tenant_id")
-	if err := h.emailVerificationUC.VerifyEmail(r.Context(), tenantID, token); err != nil {
+	
+	// Extract IP Address for Rate Limiting
+	ipAddress, _, _ := net.SplitHostPort(r.RemoteAddr)
+	if ipAddress == "" {
+		ipAddress = r.RemoteAddr
+	}
+
+	if err := h.emailVerificationUC.VerifyEmail(r.Context(), tenantID, token, ipAddress); err != nil {
 		h.handleAuthError(w, err)
 		return
 	}
@@ -1223,33 +1364,58 @@ func (h *Handler) VerifyEmailGET(w http.ResponseWriter, r *http.Request) {
 
 // ResendVerificationEmail godoc
 // @Summary      Reenviar email de verificación
-// @Description  Reenvía el email de verificación al usuario autenticado. Solo disponible si el email no está verificado.
+// @Description  Reenvía el email de verificación basado en el correo proporcionado. Ruta pública asegurada mediante Rate Limiting.
 // @Tags         Email Verification
 // @Accept       json
 // @Produce      json
-// @Security     BearerAuth
+// @Param        request body ResendVerificationRequest true "Credenciales de reenvío"
 // @Success      200 {object} MessageResponse
-// @Failure      401 {object} ErrorResponse "No autenticado"
+// @Failure      400 {object} ErrorResponse "Datos inválidos"
+// @Failure      404 {object} ErrorResponse "Usuario no encontrado"
 // @Failure      409 {object} ErrorResponse "Email ya verificado"
 // @Failure      429 {object} ErrorResponse "Demasiados intentos"
 // @Failure      500 {object} ErrorResponse
 // @Router       /auth/resend-verification [post]
 func (h *Handler) ResendVerificationEmail(w http.ResponseWriter, r *http.Request) {
-	userID := r.Context().Value("user_id").(string)
+	var req ResendVerificationRequest
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respondWithError(w, http.StatusBadRequest, "invalid request body", "INVALID_REQUEST")
+		return
+	}
+
+	if req.Email == "" || req.TenantID == "" {
+		respondWithError(w, http.StatusBadRequest, "tenant_id and email are required", "MISSING_FIELDS")
+		return
+	}
+
 	ipAddress, _, _ := net.SplitHostPort(r.RemoteAddr)
 	if ipAddress == "" {
 		ipAddress = r.RemoteAddr // Fallback
 	}
 	userAgent := r.UserAgent()
 
-	tenantID, _ := GetTenantIDFromContext(r.Context())
-	if err := h.emailVerificationUC.ResendVerificationEmail(r.Context(), tenantID, userID, ipAddress, userAgent); err != nil {
+	// Translation logic for SingleTenant Alias mapping on Email Verifications
+	tenant, err := h.tenantUC.GetBySlug(r.Context(), req.TenantID)
+	if err == nil && tenant != nil {
+		req.TenantID = tenant.ID
+	}
+
+	// Enforce Rate Limiting and fetch user dynamically
+	user, err := h.authUC.ResendVerificationEmail(r.Context(), req.TenantID, req.Email, ipAddress)
+	if err != nil {
+		h.handleAuthError(w, err)
+		return
+	}
+
+	// Trigger the Email notification subsystem
+	if err := h.emailVerificationUC.ResendVerificationEmail(r.Context(), req.TenantID, user.ID, ipAddress, userAgent); err != nil {
 		h.handleAuthError(w, err)
 		return
 	}
 
 	respondWithJSON(w, http.StatusOK, MessageResponse{
-		Message: "verification email sent successfully",
+		Message: "If the email is registered, a new verification code has been sent",
 	})
 }
 
@@ -1428,6 +1594,8 @@ func (h *Handler) handleAuthError(w http.ResponseWriter, err error) {
 		respondWithError(w, http.StatusBadRequest, "invalid password", "INVALID_PASSWORD")
 	} else if errors.Is(err, domain.ErrWeakPassword) {
 		respondWithError(w, http.StatusBadRequest, "password is too weak", "WEAK_PASSWORD")
+	} else if errors.Is(err, domain.ErrEmailNotVerified) {
+		respondWithError(w, http.StatusForbidden, "email address is not verified", "EMAIL_NOT_VERIFIED")
 	} else if errors.Is(err, domain.ErrRateLimitExceeded) {
 		respondWithError(w, http.StatusTooManyRequests, "rate limit exceeded", "RATE_LIMIT")
 	} else if errors.Is(err, domain.ErrTokenExpired) {

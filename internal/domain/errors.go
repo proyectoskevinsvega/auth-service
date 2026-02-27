@@ -13,6 +13,7 @@ var (
 	ErrUsernameAlreadyExists = errors.New("username already exists")
 	ErrUserNotFound          = errors.New("user not found")
 	ErrUserInactive          = errors.New("user account is inactive")
+	ErrEmailNotVerified      = errors.New("email address is not verified")
 	ErrAccountLocked         = errors.New("user account is blocked due to excessive failed attempts")
 	ErrPasswordExpired       = errors.New("password has expired and must be changed")
 	ErrPasswordResetRequired = errors.New("password reset is required by administrator")

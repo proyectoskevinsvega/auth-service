@@ -31,6 +31,32 @@ curl -X POST "$BASE_URL/auth/register" \
          }'
 ```
 
+### Verificar Correo (PIN de 6 dígitos)
+
+Finaliza el registro validando el PIN enviado al correo electrónico. Sin este paso, el inicio de sesión será bloqueado.
+
+```bash
+curl -X POST "$BASE_URL/auth/verify-email" \
+     -H "Content-Type: application/json" \
+     -d '{
+           "tenant_id": "customer1",
+           "code": "123456"
+         }'
+```
+
+### Reenviar Código de Verificación
+
+Si el usuario no recibió el correo o el código expiró. **Plaqueado a 4 intentos por hora.**
+
+```bash
+curl -X POST "$BASE_URL/auth/resend-verification" \
+     -H "Content-Type: application/json" \
+     -d '{
+           "tenant_id": "customer1",
+           "email": "user@example.com"
+         }'
+```
+
 ### Iniciar Sesión (Login)
 
 Autentica al usuario. Retorna tokens JWT (Access y Refresh).

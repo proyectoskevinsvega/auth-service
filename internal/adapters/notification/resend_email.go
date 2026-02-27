@@ -71,31 +71,26 @@ func (s *ResendEmailService) sendEmail(ctx context.Context, to, subject, html st
 }
 
 func (s *ResendEmailService) SendVerificationEmail(ctx context.Context, to, name string, data map[string]interface{}) error {
-	verificationURL := data["verification_url"].(string)
-	expiresHours := data["expires_hours"].(int)
+	token := data["token"].(string)
+	expiresMinutes := data["expires_minutes"].(int)
 
-	subject := "Confirma tu registro en Vertercloud"
+	subject := "Confirma tu registro - PIN de Verificación"
 	html := fmt.Sprintf(`
 		<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
 			<h2 style="color: #333;">Hola %s,</h2>
-			<p>Gracias por registrarte en Vertercloud.</p>
-			<p>Para completar tu registro, por favor confirma tu correo electrónico:</p>
+			<p>Gracias por registrarte en nuestra plataforma.</p>
+			<p>Para completar tu registro e iniciar sesión, por favor ingresa el siguiente PIN de seguridad en la aplicación:</p>
 
-			<div style="background-color: #f5f5f5; padding: 20px; border-radius: 5px; margin: 20px 0;">
-				<p style="text-align: center;">
-					<a href="%s" style="display: inline-block; padding: 12px 30px; background-color: #007bff; color: white; text-decoration: none; border-radius: 5px; font-weight: bold;">Verificar Correo Electrónico</a>
-				</p>
-				<p style="text-align: center; color: #666; font-size: 14px; margin-top: 15px;">Este enlace expira en %d horas</p>
+			<div style="background-color: #f5f5f5; padding: 20px; border-radius: 5px; margin: 20px 0; text-align: center;">
+				<p style="font-size: 42px; font-weight: bold; letter-spacing: 12px; color: #007bff; margin: 15px 0;">%s</p>
+				<p style="color: #666; font-size: 14px; margin-top: 15px;">Este código expira en %d minutos</p>
 			</div>
 
-			<p style="color: #666; font-size: 13px;">Si el botón no funciona, copia y pega este enlace en tu navegador:</p>
-			<p style="word-break: break-all; color: #007bff; font-size: 12px;">%s</p>
+			<p style="color: #999; font-size: 12px; margin-top: 30px;">Si no creaste una cuenta, puedes ignorar este correo con seguridad. Nadie puede acceder sin este código.</p>
 
-			<p style="color: #999; font-size: 12px; margin-top: 30px;">Si no creaste una cuenta, puedes ignorar este correo con seguridad.</p>
-
-			<p>Saludos,<br>El equipo de Vertercloud</p>
+			<p>Saludos,<br>El equipo de Soporte</p>
 		</div>
-	`, name, verificationURL, expiresHours, verificationURL)
+	`, name, token, expiresMinutes)
 
 	return s.sendEmail(ctx, to, subject, html)
 }
