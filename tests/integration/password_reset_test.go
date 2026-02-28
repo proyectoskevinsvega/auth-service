@@ -22,9 +22,9 @@ func TestPasswordResetFlow(t *testing.T) {
 	// Step 1: Register a user
 	registerPayload := map[string]interface{}{
 		"tenant_id": ts.TenantID,
-		"email":    "reset@example.com",
-		"password": "OldPassword123!",
-		"username": "resetuser",
+		"email":     "reset@example.com",
+		"password":  "OldPassword123!",
+		"username":  "resetuser",
 	}
 	resp := makeRequest(t, ts.Server, "POST", "/api/v1/auth/register", registerPayload, nil)
 	resp.Body.Close()
@@ -35,7 +35,7 @@ func TestPasswordResetFlow(t *testing.T) {
 	t.Run("RequestPasswordReset", func(t *testing.T) {
 		resetPayload := map[string]interface{}{
 			"tenant_id": ts.TenantID,
-			"email": "reset@example.com",
+			"email":     "reset@example.com",
 		}
 
 		resp := makeRequest(t, ts.Server, "POST", "/api/v1/auth/forgot-password", resetPayload, nil)
@@ -57,8 +57,8 @@ func TestPasswordResetFlow(t *testing.T) {
 	// Step 3: Reset password with token
 	t.Run("ResetPassword", func(t *testing.T) {
 		resetPayload := map[string]interface{}{
-			"tenant_id": ts.TenantID,
-			"token":    resetToken,
+			"tenant_id":    ts.TenantID,
+			"token":        resetToken,
 			"new_password": "NewPassword123!",
 		}
 
@@ -106,8 +106,8 @@ func TestPasswordResetFlow(t *testing.T) {
 	// Step 6: Try to use the same reset token again (should fail)
 	t.Run("ReuseResetToken", func(t *testing.T) {
 		resetPayload := map[string]interface{}{
-			"tenant_id": ts.TenantID,
-			"token":    resetToken,
+			"tenant_id":    ts.TenantID,
+			"token":        resetToken,
 			"new_password": "AnotherPassword123!",
 		}
 
@@ -144,7 +144,7 @@ func TestPasswordResetInvalidEmail(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			resetPayload := map[string]interface{}{
 				"tenant_id": ts.TenantID,
-				"email": tt.email,
+				"email":     tt.email,
 			}
 
 			resp := makeRequest(t, ts.Server, "POST", "/api/v1/auth/forgot-password", resetPayload, nil)
@@ -184,7 +184,7 @@ func TestPasswordResetInvalidToken(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			resetPayload := map[string]interface{}{
 				"tenant_id":    ts.TenantID,
-				"token":       tt.token,
+				"token":        tt.token,
 				"new_password": tt.password,
 			}
 
@@ -206,9 +206,9 @@ func TestPasswordResetRevokesExistingSessions(t *testing.T) {
 	// Register a user
 	registerPayload := map[string]interface{}{
 		"tenant_id": ts.TenantID,
-		"email":    "revoke@example.com",
-		"password": "OldPassword123!",
-		"username": "revokeuser",
+		"email":     "revoke@example.com",
+		"password":  "OldPassword123!",
+		"username":  "revokeuser",
 	}
 	resp := makeRequest(t, ts.Server, "POST", "/api/v1/auth/register", registerPayload, nil)
 	resp.Body.Close()
@@ -240,7 +240,7 @@ func TestPasswordResetRevokesExistingSessions(t *testing.T) {
 	// Request and perform password reset
 	resetRequestPayload := map[string]interface{}{
 		"tenant_id": ts.TenantID,
-		"email": "revoke@example.com",
+		"email":     "revoke@example.com",
 	}
 	resp = makeRequest(t, ts.Server, "POST", "/api/v1/auth/forgot-password", resetRequestPayload, nil)
 	resp.Body.Close()
@@ -257,8 +257,8 @@ func TestPasswordResetRevokesExistingSessions(t *testing.T) {
 
 	// Reset password
 	resetPayload := map[string]interface{}{
-		"tenant_id": ts.TenantID,
-		"token":    resetToken,
+		"tenant_id":    ts.TenantID,
+		"token":        resetToken,
 		"new_password": "NewPassword123!",
 	}
 	resp = makeRequest(t, ts.Server, "POST", "/api/v1/auth/reset-password", resetPayload, nil)

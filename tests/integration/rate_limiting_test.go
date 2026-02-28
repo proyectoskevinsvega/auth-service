@@ -16,9 +16,9 @@ func TestLoginRateLimiting(t *testing.T) {
 	// Register a user first
 	registerPayload := map[string]interface{}{
 		"tenant_id": ts.TenantID,
-		"email":    "ratelimit@example.com",
-		"password": "Password123!",
-		"username": "ratelimituser",
+		"email":     "ratelimit@example.com",
+		"password":  "Password123!",
+		"username":  "ratelimituser",
 	}
 	resp := makeRequest(t, ts.Server, "POST", "/api/v1/auth/register", registerPayload, nil)
 	resp.Body.Close()
@@ -75,9 +75,9 @@ func TestRegisterRateLimiting(t *testing.T) {
 		for i := 0; i < maxAttempts; i++ {
 			registerPayload := map[string]interface{}{
 				"tenant_id": ts.TenantID,
-				"email":    "user" + string(rune('a'+i)) + "@example.com",
-				"password": "Password123!",
-				"username": "user" + string(rune('a'+i)),
+				"email":     "user" + string(rune('a'+i)) + "@example.com",
+				"password":  "Password123!",
+				"username":  "user" + string(rune('a'+i)),
 			}
 
 			resp := makeRequest(t, ts.Server, "POST", "/api/v1/auth/register", registerPayload, nil)
@@ -94,9 +94,9 @@ func TestRegisterRateLimiting(t *testing.T) {
 		// Next attempt should be rate limited
 		registerPayload := map[string]interface{}{
 			"tenant_id": ts.TenantID,
-			"email":    "ratelimited@example.com",
-			"password": "Password123!",
-			"username": "ratelimiteduser",
+			"email":     "ratelimited@example.com",
+			"password":  "Password123!",
+			"username":  "ratelimiteduser",
 		}
 
 		resp := makeRequest(t, ts.Server, "POST", "/api/v1/auth/register", registerPayload, nil)
@@ -114,9 +114,9 @@ func TestRateLimitReset(t *testing.T) {
 	// Register a user
 	registerPayload := map[string]interface{}{
 		"tenant_id": ts.TenantID,
-		"email":    "reset@example.com",
-		"password": "Password123!",
-		"username": "resetuser",
+		"email":     "reset@example.com",
+		"password":  "Password123!",
+		"username":  "resetuser",
 	}
 	resp := makeRequest(t, ts.Server, "POST", "/api/v1/auth/register", registerPayload, nil)
 	resp.Body.Close()
@@ -160,9 +160,9 @@ func TestRateLimitPerUser(t *testing.T) {
 	for i, user := range users {
 		registerPayload := map[string]interface{}{
 			"tenant_id": ts.TenantID,
-			"email":    user.email,
-			"password": user.password,
-			"username": "ratelimituser" + string(rune('1'+i)),
+			"email":     user.email,
+			"password":  user.password,
+			"username":  "ratelimituser" + string(rune('1'+i)),
 		}
 		resp := makeRequest(t, ts.Server, "POST", "/api/v1/auth/register", registerPayload, nil)
 		resp.Body.Close()

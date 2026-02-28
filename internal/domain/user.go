@@ -64,7 +64,7 @@ func NewUser(input NewUserInput) (*User, error) {
 
 	now := time.Now()
 	return &User{
-		ID:              uuid.New().String(),
+		ID:              uuid.Must(uuid.NewV7()).String(),
 		TenantID:        input.TenantID,
 		Username:        input.Username,
 		Email:           input.Email,

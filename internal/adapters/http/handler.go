@@ -346,13 +346,13 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 
 	// Send verification email (async, don't block registration if it fails)
 	// Use background context to prevent cancellation when request ends
-		go func() {
-			if err := h.emailVerificationUC.SendVerificationEmail(context.Background(), usecase.SendVerificationInput{
-				TenantID:  user.TenantID,
-				UserID:    user.ID,
-				IPAddress: ipAddress,
-				UserAgent: userAgent,
-			}); err != nil {
+	go func() {
+		if err := h.emailVerificationUC.SendVerificationEmail(context.Background(), usecase.SendVerificationInput{
+			TenantID:  user.TenantID,
+			UserID:    user.ID,
+			IPAddress: ipAddress,
+			UserAgent: userAgent,
+		}); err != nil {
 			h.logger.Error().Err(err).Str("user_id", user.ID).Msg("failed to send verification email after registration")
 		}
 	}()
@@ -368,50 +368,65 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// getRootDomain extracts the root domain for cookies (e.g. auth.example.com -> .example.com)
+func getRootDomain(domain string) string {
+	parts := strings.Split(domain, ".")
+	if len(parts) >= 2 {
+		return "." + strings.Join(parts[len(parts)-2:], ".")
+	}
+	return domain
+}
+
 func (h *Handler) setTokenCookies(w http.ResponseWriter, accessToken, refreshToken string) {
 	secure := h.env == "production" || h.env == "prod"
-	
+	rootCookieDomain := getRootDomain(h.baseDomain)
+
 	http.SetCookie(w, &http.Cookie{
 		Name:     "access_token",
 		Value:    accessToken,
 		Path:     "/",
 		HttpOnly: true,
 		Secure:   secure,
-		SameSite: http.SameSiteLaxMode,
-		MaxAge:   15 * 60, // 15 minutos (coincide con TTL de JWT)
+		SameSite: http.SameSiteNoneMode, // Requerido para peticiones entre subdominios
+		Domain:   rootCookieDomain,      // Permitir compartir hacia el TLD calculado dinámicamente
+		MaxAge:   15 * 60,               // 15 minutos (coincide con TTL de JWT)
 	})
-	
+
 	http.SetCookie(w, &http.Cookie{
 		Name:     "refresh_token",
 		Value:    refreshToken,
 		Path:     "/",
 		HttpOnly: true,
 		Secure:   secure,
-		SameSite: http.SameSiteLaxMode,
+		SameSite: http.SameSiteNoneMode,
+		Domain:   rootCookieDomain,
 		MaxAge:   7 * 24 * 60 * 60, // 7 dias
 	})
 }
 
 func (h *Handler) clearTokenCookies(w http.ResponseWriter) {
 	secure := h.env == "production" || h.env == "prod"
-	
+	rootCookieDomain := getRootDomain(h.baseDomain)
+
 	http.SetCookie(w, &http.Cookie{
 		Name:     "access_token",
 		Value:    "",
 		Path:     "/",
 		HttpOnly: true,
 		Secure:   secure,
-		SameSite: http.SameSiteLaxMode,
+		SameSite: http.SameSiteNoneMode,
+		Domain:   rootCookieDomain,
 		MaxAge:   -1,
 	})
-	
+
 	http.SetCookie(w, &http.Cookie{
 		Name:     "refresh_token",
 		Value:    "",
 		Path:     "/",
 		HttpOnly: true,
 		Secure:   secure,
-		SameSite: http.SameSiteLaxMode,
+		SameSite: http.SameSiteNoneMode,
+		Domain:   rootCookieDomain,
 		MaxAge:   -1,
 	})
 }
@@ -1324,7 +1339,7 @@ func (h *Handler) VerifyEmailGET(w http.ResponseWriter, r *http.Request) {
 	}
 
 	tenantID := r.URL.Query().Get("tenant_id")
-	
+
 	// Extract IP Address for Rate Limiting
 	ipAddress, _, _ := net.SplitHostPort(r.RemoteAddr)
 	if ipAddress == "" {

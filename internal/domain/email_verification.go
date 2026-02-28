@@ -22,7 +22,7 @@ type EmailVerification struct {
 func NewEmailVerification(tenantID, userID, tokenHash string, expiryDuration time.Duration, ipAddress, userAgent string) *EmailVerification {
 	now := time.Now().UTC()
 	return &EmailVerification{
-		ID:        uuid.New().String(),
+		ID:        uuid.Must(uuid.NewV7()).String(),
 		TenantID:  tenantID,
 		UserID:    userID,
 		TokenHash: tokenHash,

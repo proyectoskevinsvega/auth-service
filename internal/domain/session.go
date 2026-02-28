@@ -38,7 +38,7 @@ type NewSessionInput struct {
 func NewSession(input NewSessionInput) *Session {
 	now := time.Now().UTC()
 	return &Session{
-		ID:         uuid.New().String(),
+		ID:         uuid.Must(uuid.NewV7()).String(),
 		TenantID:   input.TenantID,
 		UserID:     input.UserID,
 		IPAddress:  input.IPAddress,

@@ -5,9 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/vertercloud/auth-service/internal/ports"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/github"
-	"github.com/vertercloud/auth-service/internal/ports"
 )
 
 type GitHubProvider struct {

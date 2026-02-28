@@ -54,8 +54,8 @@ func BenchmarkTokenValidation_CacheHit(b *testing.B) {
 
 	ctx := context.Background()
 	tokenString := "valid.jwt.token"
-	jti := uuid.New().String()
-	userID := uuid.New().String()
+	jti := uuid.Must(uuid.NewV7()).String()
+	userID := uuid.Must(uuid.NewV7()).String()
 
 	now := time.Now()
 	parsedToken := &domain.Token{
@@ -120,8 +120,8 @@ func BenchmarkTokenValidation_CacheMiss(b *testing.B) {
 
 	ctx := context.Background()
 	tokenString := "valid.jwt.token"
-	jti := uuid.New().String()
-	userID := uuid.New().String()
+	jti := uuid.Must(uuid.NewV7()).String()
+	userID := uuid.Must(uuid.NewV7()).String()
 
 	now := time.Now()
 	parsedToken := &domain.Token{
@@ -187,8 +187,8 @@ func BenchmarkTokenValidation_Blacklist(b *testing.B) {
 
 	ctx := context.Background()
 	tokenString := "blacklisted.jwt.token"
-	jti := uuid.New().String()
-	userID := uuid.New().String()
+	jti := uuid.Must(uuid.NewV7()).String()
+	userID := uuid.Must(uuid.NewV7()).String()
 
 	now := time.Now()
 	parsedToken := &domain.Token{
@@ -253,8 +253,8 @@ func BenchmarkTokenRevocation(b *testing.B) {
 
 	ctx := context.Background()
 	tokenString := "valid.jwt.token"
-	jti := uuid.New().String()
-	userID := uuid.New().String()
+	jti := uuid.Must(uuid.NewV7()).String()
+	userID := uuid.Must(uuid.NewV7()).String()
 
 	now := time.Now()
 	parsedToken := &domain.Token{

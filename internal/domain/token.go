@@ -21,7 +21,7 @@ type Token struct {
 func NewToken(tenantID, userID, email string, expiry time.Duration) *Token {
 	now := time.Now()
 	return &Token{
-		JTI:         uuid.New().String(),
+		JTI:         uuid.Must(uuid.NewV7()).String(),
 		TenantID:    tenantID,
 		UserID:      userID,
 		Email:       email,
@@ -95,7 +95,7 @@ type RefreshToken struct {
 func NewRefreshToken(tenantID, userID, sessionID, tokenHash string, expiry time.Duration) *RefreshToken {
 	now := time.Now().UTC()
 	return &RefreshToken{
-		ID:        uuid.New().String(),
+		ID:        uuid.Must(uuid.NewV7()).String(),
 		TenantID:  tenantID,
 		UserID:    userID,
 		SessionID: sessionID,
@@ -122,7 +122,7 @@ func (rt *RefreshToken) Revoke() {
 
 func (rt *RefreshToken) Rotate(newTokenHash string) *RefreshToken {
 	newToken := &RefreshToken{
-		ID:            uuid.New().String(),
+		ID:            uuid.Must(uuid.NewV7()).String(),
 		TenantID:      rt.TenantID,
 		UserID:        rt.UserID,
 		SessionID:     rt.SessionID,
@@ -151,7 +151,7 @@ type PasswordResetToken struct {
 func NewPasswordResetToken(tenantID, userID, token, code string) *PasswordResetToken {
 	now := time.Now().UTC() // Use UTC to avoid timezone issues
 	return &PasswordResetToken{
-		ID:        uuid.New().String(),
+		ID:        uuid.Must(uuid.NewV7()).String(),
 		TenantID:  tenantID,
 		UserID:    userID,
 		Token:     token,

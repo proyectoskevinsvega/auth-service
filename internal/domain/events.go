@@ -39,7 +39,7 @@ type Event struct {
 
 func NewEvent(tenantID string, eventType EventType, userID, email string, data map[string]interface{}) *Event {
 	return &Event{
-		ID:        uuid.New().String(),
+		ID:        uuid.Must(uuid.NewV7()).String(),
 		TenantID:  tenantID,
 		Type:      eventType,
 		UserID:    userID,
@@ -73,7 +73,7 @@ type AuditLogEntry struct {
 
 func NewAuditLogEntry(tenantID, userID, action, ipAddress, userAgent, country string, success bool, errorMsg string, metadata map[string]interface{}) *AuditLogEntry {
 	return &AuditLogEntry{
-		ID:        uuid.New().String(),
+		ID:        uuid.Must(uuid.NewV7()).String(),
 		TenantID:  tenantID,
 		UserID:    userID,
 		Action:    action,

@@ -49,7 +49,7 @@ func TestEnable2FA_Success(t *testing.T) {
 	m := setupTwoFAUseCase(t)
 	ctx := context.Background()
 
-	userID := uuid.New().String()
+	userID := uuid.Must(uuid.NewV7()).String()
 	tenantID := "test-tenant"
 	user := &domain.User{
 		ID:       userID,
@@ -90,7 +90,7 @@ func TestEnable2FA_UserNotFound(t *testing.T) {
 	m := setupTwoFAUseCase(t)
 	ctx := context.Background()
 
-	userID := uuid.New().String()
+	userID := uuid.Must(uuid.NewV7()).String()
 	tenantID := "test-tenant"
 
 	// Mock expectations
@@ -112,7 +112,7 @@ func TestEnable2FA_AlreadyEnabled(t *testing.T) {
 	m := setupTwoFAUseCase(t)
 	ctx := context.Background()
 
-	userID := uuid.New().String()
+	userID := uuid.Must(uuid.NewV7()).String()
 	tenantID := "test-tenant"
 	user := &domain.User{
 		ID:               userID,
@@ -146,7 +146,7 @@ func TestEnable2FA_GenerateError(t *testing.T) {
 	m := setupTwoFAUseCase(t)
 	ctx := context.Background()
 
-	userID := uuid.New().String()
+	userID := uuid.Must(uuid.NewV7()).String()
 	tenantID := "test-tenant"
 	user := &domain.User{
 		ID:               userID,
@@ -176,7 +176,7 @@ func TestVerify2FA_Success(t *testing.T) {
 	m := setupTwoFAUseCase(t)
 	ctx := context.Background()
 
-	userID := uuid.New().String()
+	userID := uuid.Must(uuid.NewV7()).String()
 	tenantID := "test-tenant"
 	secret := "JBSWY3DPEHPK3PXP"
 	code := "123456"
@@ -210,7 +210,7 @@ func TestVerify2FA_InvalidCode(t *testing.T) {
 	m := setupTwoFAUseCase(t)
 	ctx := context.Background()
 
-	userID := uuid.New().String()
+	userID := uuid.Must(uuid.NewV7()).String()
 	tenantID := "test-tenant"
 	secret := "JBSWY3DPEHPK3PXP"
 	code := "999999"
@@ -247,7 +247,7 @@ func TestVerify2FA_NotInitialized(t *testing.T) {
 	m := setupTwoFAUseCase(t)
 	ctx := context.Background()
 
-	userID := uuid.New().String()
+	userID := uuid.Must(uuid.NewV7()).String()
 	tenantID := "test-tenant"
 	code := "123456"
 
@@ -282,7 +282,7 @@ func TestVerify2FA_AlreadyEnabled(t *testing.T) {
 	m := setupTwoFAUseCase(t)
 	ctx := context.Background()
 
-	userID := uuid.New().String()
+	userID := uuid.Must(uuid.NewV7()).String()
 	tenantID := "test-tenant"
 	code := "123456"
 
@@ -313,7 +313,7 @@ func TestDisable2FA_Success(t *testing.T) {
 	m := setupTwoFAUseCase(t)
 	ctx := context.Background()
 
-	userID := uuid.New().String()
+	userID := uuid.Must(uuid.NewV7()).String()
 	tenantID := "test-tenant"
 	secret := "JBSWY3DPEHPK3PXP"
 	code := "123456"
@@ -347,7 +347,7 @@ func TestDisable2FA_InvalidCode(t *testing.T) {
 	m := setupTwoFAUseCase(t)
 	ctx := context.Background()
 
-	userID := uuid.New().String()
+	userID := uuid.Must(uuid.NewV7()).String()
 	tenantID := "test-tenant"
 	secret := "JBSWY3DPEHPK3PXP"
 	code := "999999"
@@ -384,7 +384,7 @@ func TestDisable2FA_NotEnabled(t *testing.T) {
 	m := setupTwoFAUseCase(t)
 	ctx := context.Background()
 
-	userID := uuid.New().String()
+	userID := uuid.Must(uuid.NewV7()).String()
 	tenantID := "test-tenant"
 	code := "123456"
 
@@ -419,7 +419,7 @@ func TestVerify2FA_VerificationError(t *testing.T) {
 	m := setupTwoFAUseCase(t)
 	ctx := context.Background()
 
-	userID := uuid.New().String()
+	userID := uuid.Must(uuid.NewV7()).String()
 	tenantID := "test-tenant"
 	secret := "JBSWY3DPEHPK3PXP"
 	code := "123456"
@@ -453,7 +453,7 @@ func TestDisable2FA_VerificationError(t *testing.T) {
 	m := setupTwoFAUseCase(t)
 	ctx := context.Background()
 
-	userID := uuid.New().String()
+	userID := uuid.Must(uuid.NewV7()).String()
 	tenantID := "test-tenant"
 	secret := "JBSWY3DPEHPK3PXP"
 	code := "123456"
@@ -487,7 +487,7 @@ func TestEnable2FA_UpdateError(t *testing.T) {
 	m := setupTwoFAUseCase(t)
 	ctx := context.Background()
 
-	userID := uuid.New().String()
+	userID := uuid.Must(uuid.NewV7()).String()
 	tenantID := "test-tenant"
 	user := &domain.User{
 		ID:               userID,
@@ -525,7 +525,7 @@ func TestVerify2FA_UpdateError(t *testing.T) {
 	m := setupTwoFAUseCase(t)
 	ctx := context.Background()
 
-	userID := uuid.New().String()
+	userID := uuid.Must(uuid.NewV7()).String()
 	tenantID := "test-tenant"
 	secret := "JBSWY3DPEHPK3PXP"
 	code := "123456"
@@ -560,7 +560,7 @@ func TestDisable2FA_UpdateError(t *testing.T) {
 	m := setupTwoFAUseCase(t)
 	ctx := context.Background()
 
-	userID := uuid.New().String()
+	userID := uuid.Must(uuid.NewV7()).String()
 	tenantID := "test-tenant"
 	secret := "JBSWY3DPEHPK3PXP"
 	code := "123456"

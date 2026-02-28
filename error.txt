@@ -1,0 +1,183 @@
+=== RUN   TestAuthUseCase_Login_Lockout
+=== RUN   TestAuthUseCase_Login_Lockout/Should_lock_account_after_multiple_failed_attempts
+=== RUN   TestAuthUseCase_Login_Lockout/Should_reset_attempts_on_success
+--- PASS: TestAuthUseCase_Login_Lockout (0.03s)
+    --- PASS: TestAuthUseCase_Login_Lockout/Should_lock_account_after_multiple_failed_attempts (0.03s)
+    --- PASS: TestAuthUseCase_Login_Lockout/Should_reset_attempts_on_success (0.00s)
+=== RUN   TestAuthUseCase_Register_Success
+--- PASS: TestAuthUseCase_Register_Success (0.00s)
+=== RUN   TestAuthUseCase_Login_Success
+--- PASS: TestAuthUseCase_Login_Success (0.00s)
+=== RUN   TestAuthUseCase_Login_RateLimitExceeded
+--- PASS: TestAuthUseCase_Login_RateLimitExceeded (0.00s)
+=== RUN   TestAuthUseCase_Login_InvalidPassword
+--- PASS: TestAuthUseCase_Login_InvalidPassword (0.00s)
+=== RUN   TestAuthUseCase_Login_UserInactive
+--- PASS: TestAuthUseCase_Login_UserInactive (0.00s)
+=== RUN   TestAuthUseCase_Login_2FARequired
+--- PASS: TestAuthUseCase_Login_2FARequired (0.00s)
+=== RUN   TestAuthUseCase_Login_RateLimitCheckFailure
+--- PASS: TestAuthUseCase_Login_RateLimitCheckFailure (0.00s)
+=== RUN   TestAuthUseCase_Login_SessionCreationFailure
+--- PASS: TestAuthUseCase_Login_SessionCreationFailure (0.00s)
+=== RUN   TestAuthUseCase_Login_JWTGenerationFailure
+--- PASS: TestAuthUseCase_Login_JWTGenerationFailure (0.00s)
+=== RUN   TestAuthUseCase_Login_RefreshTokenCreationFailure
+--- PASS: TestAuthUseCase_Login_RefreshTokenCreationFailure (0.00s)
+=== RUN   TestAuthUseCase_Login_NewCountryDetection
+--- PASS: TestAuthUseCase_Login_NewCountryDetection (0.05s)
+=== RUN   TestAuthUseCase_Register_UsernameExists
+--- PASS: TestAuthUseCase_Register_UsernameExists (0.00s)
+=== RUN   TestAuthUseCase_Register_EmailExists
+--- PASS: TestAuthUseCase_Register_EmailExists (0.00s)
+=== RUN   TestAuthUseCase_Register_RateLimitExceeded
+--- PASS: TestAuthUseCase_Register_RateLimitExceeded (0.00s)
+=== RUN   TestAuthUseCase_Register_InvalidUsername
+--- PASS: TestAuthUseCase_Register_InvalidUsername (0.00s)
+=== RUN   TestAuthUseCase_Register_InvalidEmail
+--- PASS: TestAuthUseCase_Register_InvalidEmail (0.00s)
+=== RUN   TestAuthUseCase_Register_InvalidPassword
+--- PASS: TestAuthUseCase_Register_InvalidPassword (0.00s)
+=== RUN   TestAuthUseCase_Register_PasswordHashingFailure
+--- PASS: TestAuthUseCase_Register_PasswordHashingFailure (0.00s)
+=== RUN   TestAuthUseCase_Register_UserCreationFailure
+--- PASS: TestAuthUseCase_Register_UserCreationFailure (0.00s)
+=== RUN   TestAuthUseCase_Register_RateLimitCheckFailure
+--- PASS: TestAuthUseCase_Register_RateLimitCheckFailure (0.00s)
+=== RUN   TestForgotPassword_Success
+--- PASS: TestForgotPassword_Success (0.00s)
+=== RUN   TestForgotPassword_UserNotFound
+--- PASS: TestForgotPassword_UserNotFound (0.00s)
+=== RUN   TestResetPasswordWithToken_Success
+--- PASS: TestResetPasswordWithToken_Success (0.00s)
+=== RUN   TestResetPasswordWithToken_InvalidToken
+--- PASS: TestResetPasswordWithToken_InvalidToken (0.00s)
+=== RUN   TestResetPasswordWithToken_ExpiredToken
+--- PASS: TestResetPasswordWithToken_ExpiredToken (0.00s)
+=== RUN   TestResetPasswordWithCode_Success
+--- PASS: TestResetPasswordWithCode_Success (0.00s)
+=== RUN   TestResetPasswordWithCode_InvalidCode
+--- PASS: TestResetPasswordWithCode_InvalidCode (0.00s)
+=== RUN   TestResetPasswordWithCode_InvalidPassword
+--- PASS: TestResetPasswordWithCode_InvalidPassword (0.00s)
+=== RUN   TestResetPasswordWithCode_PasswordHashingFailure
+--- PASS: TestResetPasswordWithCode_PasswordHashingFailure (0.00s)
+=== RUN   TestResetPasswordWithToken_PasswordHashingFailure
+--- PASS: TestResetPasswordWithToken_PasswordHashingFailure (0.00s)
+=== RUN   TestResetPasswordWithToken_UpdatePasswordFailure
+--- PASS: TestResetPasswordWithToken_UpdatePasswordFailure (0.00s)
+=== RUN   TestOAuthLogin_Success_NewUser
+    auth_usecase_test.go:1297: Skipped due to bug in production code - NewUser requires username but OAuth doesn't provide it initially
+--- SKIP: TestOAuthLogin_Success_NewUser (0.00s)
+=== RUN   TestOAuthLogin_Success_ExistingUser
+--- PASS: TestOAuthLogin_Success_ExistingUser (0.00s)
+=== RUN   TestOAuthLogin_NewCountryDetection
+--- PASS: TestOAuthLogin_NewCountryDetection (0.05s)
+=== RUN   TestOAuthLogin_ProviderNotFound
+--- PASS: TestOAuthLogin_ProviderNotFound (0.00s)
+=== RUN   TestOAuthLogin_InvalidCode
+--- PASS: TestOAuthLogin_InvalidCode (0.00s)
+=== RUN   TestOAuthLogin_SessionCreationFailure
+--- PASS: TestOAuthLogin_SessionCreationFailure (0.00s)
+=== RUN   TestOAuthLogin_JWTGenerationFailure
+--- PASS: TestOAuthLogin_JWTGenerationFailure (0.00s)
+=== RUN   TestOAuthLogin_RefreshTokenCreationFailure
+--- PASS: TestOAuthLogin_RefreshTokenCreationFailure (0.00s)
+=== RUN   TestOAuthLogin_UserCreationFailure
+    auth_usecase_test.go:1688: Skipped due to bug in production code - OAuthLogin tries to create user without username, but NewUser validates username is not empty
+--- SKIP: TestOAuthLogin_UserCreationFailure (0.00s)
+=== RUN   TestSendVerificationEmail_Success
+--- PASS: TestSendVerificationEmail_Success (0.00s)
+=== RUN   TestSendVerificationEmail_UserNotFound
+--- PASS: TestSendVerificationEmail_UserNotFound (0.00s)
+=== RUN   TestSendVerificationEmail_EmailAlreadyVerified
+--- PASS: TestSendVerificationEmail_EmailAlreadyVerified (0.00s)
+=== RUN   TestSendVerificationEmail_EmailServiceFailure
+--- PASS: TestSendVerificationEmail_EmailServiceFailure (0.00s)
+=== RUN   TestVerifyEmail_Success
+--- PASS: TestVerifyEmail_Success (0.00s)
+=== RUN   TestVerifyEmail_TokenNotFound
+--- PASS: TestVerifyEmail_TokenNotFound (0.00s)
+=== RUN   TestVerifyEmail_TokenAlreadyUsed
+--- PASS: TestVerifyEmail_TokenAlreadyUsed (0.00s)
+=== RUN   TestVerifyEmail_TokenExpired
+--- PASS: TestVerifyEmail_TokenExpired (0.00s)
+=== RUN   TestVerifyEmail_EmailAlreadyVerified
+--- PASS: TestVerifyEmail_EmailAlreadyVerified (0.00s)
+=== RUN   TestResendVerificationEmail_Success
+--- PASS: TestResendVerificationEmail_Success (0.00s)
+=== RUN   TestResendVerificationEmail_UserNotFound
+--- PASS: TestResendVerificationEmail_UserNotFound (0.00s)
+=== RUN   TestResendVerificationEmail_EmailAlreadyVerified
+--- PASS: TestResendVerificationEmail_EmailAlreadyVerified (0.00s)
+=== RUN   TestSendVerificationEmail_CreateError
+--- PASS: TestSendVerificationEmail_CreateError (0.00s)
+=== RUN   TestVerifyEmail_UpdateError
+--- PASS: TestVerifyEmail_UpdateError (0.00s)
+=== RUN   TestVerifyEmail_MarkAsVerifiedError
+--- PASS: TestVerifyEmail_MarkAsVerifiedError (0.00s)
+=== RUN   TestVerifyEmail_UserNotFound
+--- PASS: TestVerifyEmail_UserNotFound (0.00s)
+=== RUN   TestRiskService_AssessLoginRisk_ThreatIntel
+--- PASS: TestRiskService_AssessLoginRisk_ThreatIntel (0.00s)
+=== RUN   TestListUserSessions_Success
+--- PASS: TestListUserSessions_Success (0.00s)
+=== RUN   TestListUserSessions_RepositoryError
+--- PASS: TestListUserSessions_RepositoryError (0.00s)
+=== RUN   TestRevokeSession_Success
+--- PASS: TestRevokeSession_Success (0.00s)
+=== RUN   TestRevokeSession_SessionNotFound
+--- PASS: TestRevokeSession_SessionNotFound (0.00s)
+=== RUN   TestRevokeSession_WrongUser
+--- PASS: TestRevokeSession_WrongUser (0.00s)
+=== RUN   TestRevokeSession_DatabaseError
+--- PASS: TestRevokeSession_DatabaseError (0.00s)
+=== RUN   TestRevokeSession_RevokeError
+--- PASS: TestRevokeSession_RevokeError (0.00s)
+=== RUN   TestRevokeAllSessions_Success
+--- PASS: TestRevokeAllSessions_Success (0.00s)
+=== RUN   TestRevokeAllSessions_OnlyCurrentSession
+--- PASS: TestRevokeAllSessions_OnlyCurrentSession (0.00s)
+=== RUN   TestRevokeAllSessions_PartialFailure
+--- PASS: TestRevokeAllSessions_PartialFailure (0.00s)
+=== RUN   TestCleanupExpiredSessions_Success
+--- PASS: TestCleanupExpiredSessions_Success (0.00s)
+=== RUN   TestCleanupExpiredSessions_Error
+--- PASS: TestCleanupExpiredSessions_Error (0.00s)
+=== RUN   TestTokenUseCase_ValidateToken_Success_CacheHit
+--- FAIL: TestTokenUseCase_ValidateToken_Success_CacheHit (0.00s)
+panic: 
+	assert: mock: I don't know what to return because the method call was unexpected.
+		Either do Mock.On("GetByID").Return(...) first, or remove the GetByID() call.
+		This method was unexpected:
+			GetByID(context.backgroundCtx,string,string)
+			0: context.backgroundCtx{emptyCtx:context.emptyCtx{}}
+			1: ""
+			2: "53826e65-b23f-4f00-a015-8108188bb394"
+		at: [D:/archivos-kevins/desarrollo/backend-server/backend/auth-service/tests/mocks/session_repository_mock.go:21 D:/archivos-kevins/desarrollo/backend-server/backend/auth-service/internal/usecase/token_usecase.go:91 D:/archivos-kevins/desarrollo/backend-server/backend/auth-service/internal/usecase/token_usecase_test.go:106] [recovered, repanicked]
+
+goroutine 108 [running]:
+testing.tRunner.func1.2({0x7ff62082c520, 0xc000345380})
+	C:/Program Files/Go/src/testing/testing.go:1872 +0x239
+testing.tRunner.func1()
+	C:/Program Files/Go/src/testing/testing.go:1875 +0x35b
+panic({0x7ff62082c520?, 0xc000345380?})
+	C:/Program Files/Go/src/runtime/panic.go:783 +0x132
+github.com/stretchr/testify/mock.(*Mock).fail(0xc0002a05a0, {0x7ff6208ef293?, 0x4?}, {0xc00003ed40?, 0x3?, 0x3?})
+	C:/Users/progr/go/pkg/mod/github.com/stretchr/testify@v1.11.1/mock/mock.go:359 +0x125
+github.com/stretchr/testify/mock.(*Mock).MethodCalled(0xc0002a05a0, {0x7ff620a061ee, 0x7}, {0xc0003f35f0, 0x3, 0x3})
+	C:/Users/progr/go/pkg/mod/github.com/stretchr/testify@v1.11.1/mock/mock.go:527 +0x77b
+github.com/stretchr/testify/mock.(*Mock).Called(0xc0002a05a0, {0xc0003f35f0, 0x3, 0x3})
+	C:/Users/progr/go/pkg/mod/github.com/stretchr/testify@v1.11.1/mock/mock.go:491 +0x125
+github.com/vertercloud/auth-service/tests/mocks.(*MockSessionRepository).GetByID(0xc0002a05a0, {0x7ff62097ce38, 0x7ff620cb2240}, {0x0, 0x0}, {0xc00033ac90, 0x24})
+	D:/archivos-kevins/desarrollo/backend-server/backend/auth-service/tests/mocks/session_repository_mock.go:21 +0x131
+github.com/vertercloud/auth-service/internal/usecase.(*TokenUseCase).ValidateToken(0xc0000e8300, {0x7ff62097ce38, 0x7ff620cb2240}, {0x7ff6208d210c, 0xf})
+	D:/archivos-kevins/desarrollo/backend-server/backend/auth-service/internal/usecase/token_usecase.go:91 +0x16b
+github.com/vertercloud/auth-service/internal/usecase.TestTokenUseCase_ValidateToken_Success_CacheHit(0xc000003dc0)
+	D:/archivos-kevins/desarrollo/backend-server/backend/auth-service/internal/usecase/token_usecase_test.go:106 +0x525
+testing.tRunner(0xc000003dc0, 0x7ff6208fdae0)
+	C:/Program Files/Go/src/testing/testing.go:1934 +0xc3
+created by testing.(*T).Run in goroutine 1
+	C:/Program Files/Go/src/testing/testing.go:1997 +0x44b
+FAIL	github.com/vertercloud/auth-service/internal/usecase	2.357s
+FAIL

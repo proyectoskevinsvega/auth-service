@@ -29,7 +29,7 @@ type NewClientInput struct {
 func NewClient(input NewClientInput, secretHash string) *Client {
 	now := time.Now()
 	return &Client{
-		ID:               uuid.New().String(),
+		ID:               uuid.Must(uuid.NewV7()).String(),
 		TenantID:         input.TenantID,
 		ClientID:         input.ClientID,
 		ClientSecretHash: secretHash,

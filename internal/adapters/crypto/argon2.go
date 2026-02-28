@@ -20,7 +20,7 @@ type Argon2Hasher struct {
 
 func NewArgon2Hasher() *Argon2Hasher {
 	return &Argon2Hasher{
-		memory:      64 * 1024, // 64 MB
+		memory:      32 * 1024, // 32 MB
 		iterations:  3,
 		parallelism: 2,
 		saltLength:  16,

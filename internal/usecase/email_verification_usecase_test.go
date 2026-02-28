@@ -11,6 +11,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/vertercloud/auth-service/internal/config"
 	"github.com/vertercloud/auth-service/internal/domain"
 	"github.com/vertercloud/auth-service/tests/mocks"
 )
@@ -21,6 +22,7 @@ type EmailVerificationUseCaseMocks struct {
 	verificationRepo *mocks.MockEmailVerificationRepository
 	emailService     *mocks.MockEmailService
 	notifier         *mocks.MockNotificationPublisher
+	rateLimiter      *mocks.MockRateLimiter
 }
 
 func setupEmailVerificationUseCase(_ *testing.T) EmailVerificationUseCaseMocks {
@@ -28,9 +30,21 @@ func setupEmailVerificationUseCase(_ *testing.T) EmailVerificationUseCaseMocks {
 	verificationRepo := new(mocks.MockEmailVerificationRepository)
 	emailService := new(mocks.MockEmailService)
 	notifier := new(mocks.MockNotificationPublisher)
+	rateLimiter := new(mocks.MockRateLimiter)
 	logger := zerolog.New(os.Stdout).Level(zerolog.Disabled)
 
-	uc := NewEmailVerificationUseCase(userRepo, verificationRepo, emailService, notifier, logger, "example.com", "development")
+	cfg := &config.Config{
+		RateLimit: config.RateLimitConfig{
+			VerifyAttempts: 5,
+			VerifyWindow:   15 * time.Minute,
+		},
+	}
+
+	// Default Mocks for RateLimiter so tests don't fail unexpectedly
+	rateLimiter.On("CheckLimit", mock.Anything, mock.AnythingOfType("string"), mock.AnythingOfType("int"), mock.AnythingOfType("time.Duration")).Return(false, nil).Maybe()
+	rateLimiter.On("Increment", mock.Anything, mock.AnythingOfType("string"), mock.AnythingOfType("time.Duration")).Return(1, nil).Maybe()
+
+	uc := NewEmailVerificationUseCase(userRepo, verificationRepo, emailService, notifier, logger, "example.com", "development", rateLimiter, cfg)
 
 	return EmailVerificationUseCaseMocks{
 		uc:               uc,
@@ -38,6 +52,7 @@ func setupEmailVerificationUseCase(_ *testing.T) EmailVerificationUseCaseMocks {
 		verificationRepo: verificationRepo,
 		emailService:     emailService,
 		notifier:         notifier,
+		rateLimiter:      rateLimiter,
 	}
 }
 
@@ -46,7 +61,7 @@ func TestSendVerificationEmail_Success(t *testing.T) {
 	m := setupEmailVerificationUseCase(t)
 	ctx := context.Background()
 
-	userID := uuid.New().String()
+	userID := uuid.Must(uuid.NewV7()).String()
 	tenantID := "test-tenant"
 	user := &domain.User{
 		ID:            userID,
@@ -86,7 +101,7 @@ func TestSendVerificationEmail_UserNotFound(t *testing.T) {
 	m := setupEmailVerificationUseCase(t)
 	ctx := context.Background()
 
-	userID := uuid.New().String()
+	userID := uuid.Must(uuid.NewV7()).String()
 	tenantID := "test-tenant"
 	input := SendVerificationInput{
 		TenantID:  tenantID,
@@ -112,7 +127,7 @@ func TestSendVerificationEmail_EmailAlreadyVerified(t *testing.T) {
 	m := setupEmailVerificationUseCase(t)
 	ctx := context.Background()
 
-	userID := uuid.New().String()
+	userID := uuid.Must(uuid.NewV7()).String()
 	tenantID := "test-tenant"
 	user := &domain.User{
 		ID:            userID,
@@ -152,7 +167,7 @@ func TestSendVerificationEmail_EmailServiceFailure(t *testing.T) {
 	m := setupEmailVerificationUseCase(t)
 	ctx := context.Background()
 
-	userID := uuid.New().String()
+	userID := uuid.Must(uuid.NewV7()).String()
 	tenantID := "test-tenant"
 	user := &domain.User{
 		ID:            userID,
@@ -191,13 +206,13 @@ func TestVerifyEmail_Success(t *testing.T) {
 	m := setupEmailVerificationUseCase(t)
 	ctx := context.Background()
 
-	userID := uuid.New().String()
+	userID := uuid.Must(uuid.NewV7()).String()
 	tenantID := "test-tenant"
 	token := "valid_token_12345"
 	tokenHash := "hashed_token"
 
 	verification := &domain.EmailVerification{
-		ID:         uuid.New().String(),
+		ID:         uuid.Must(uuid.NewV7()).String(),
 		TenantID:   tenantID,
 		UserID:     userID,
 		TokenHash:  tokenHash,
@@ -225,7 +240,7 @@ func TestVerifyEmail_Success(t *testing.T) {
 	m.notifier.On("Publish", mock.Anything, mock.Anything).Return(nil).Maybe()
 
 	// Execute
-	err := m.uc.VerifyEmail(ctx, tenantID, token)
+	err := m.uc.VerifyEmail(ctx, tenantID, token, "192.168.1.1")
 
 	// Assert
 	assert.NoError(t, err)
@@ -245,7 +260,7 @@ func TestVerifyEmail_TokenNotFound(t *testing.T) {
 	m.verificationRepo.On("GetByTokenHash", ctx, tenantID, mock.AnythingOfType("string")).Return(nil, domain.ErrVerificationTokenNotFound)
 
 	// Execute
-	err := m.uc.VerifyEmail(ctx, tenantID, token)
+	err := m.uc.VerifyEmail(ctx, tenantID, token, "192.168.1.1")
 
 	// Assert
 	assert.Error(t, err)
@@ -263,9 +278,9 @@ func TestVerifyEmail_TokenAlreadyUsed(t *testing.T) {
 	verifiedAt := time.Now().Add(-1 * time.Hour)
 
 	verification := &domain.EmailVerification{
-		ID:         uuid.New().String(),
+		ID:         uuid.Must(uuid.NewV7()).String(),
 		TenantID:   tenantID,
-		UserID:     uuid.New().String(),
+		UserID:     uuid.Must(uuid.NewV7()).String(),
 		TokenHash:  "hashed_token",
 		ExpiresAt:  time.Now().Add(23 * time.Hour),
 		VerifiedAt: &verifiedAt, // Ya verificado
@@ -278,7 +293,7 @@ func TestVerifyEmail_TokenAlreadyUsed(t *testing.T) {
 	m.verificationRepo.On("GetByTokenHash", ctx, tenantID, mock.AnythingOfType("string")).Return(verification, nil)
 
 	// Execute
-	err := m.uc.VerifyEmail(ctx, tenantID, token)
+	err := m.uc.VerifyEmail(ctx, tenantID, token, "192.168.1.1")
 
 	// Assert
 	assert.Error(t, err)
@@ -300,9 +315,9 @@ func TestVerifyEmail_TokenExpired(t *testing.T) {
 	token := "expired_token"
 
 	verification := &domain.EmailVerification{
-		ID:         uuid.New().String(),
+		ID:         uuid.Must(uuid.NewV7()).String(),
 		TenantID:   tenantID,
-		UserID:     uuid.New().String(),
+		UserID:     uuid.Must(uuid.NewV7()).String(),
 		TokenHash:  "hashed_token",
 		ExpiresAt:  time.Now().Add(-1 * time.Hour), // Expirado
 		VerifiedAt: nil,
@@ -315,7 +330,7 @@ func TestVerifyEmail_TokenExpired(t *testing.T) {
 	m.verificationRepo.On("GetByTokenHash", ctx, tenantID, mock.AnythingOfType("string")).Return(verification, nil)
 
 	// Execute
-	err := m.uc.VerifyEmail(ctx, tenantID, token)
+	err := m.uc.VerifyEmail(ctx, tenantID, token, "192.168.1.1")
 
 	// Assert
 	assert.Error(t, err)
@@ -333,12 +348,12 @@ func TestVerifyEmail_EmailAlreadyVerified(t *testing.T) {
 	m := setupEmailVerificationUseCase(t)
 	ctx := context.Background()
 
-	userID := uuid.New().String()
+	userID := uuid.Must(uuid.NewV7()).String()
 	tenantID := "test-tenant"
 	token := "valid_token"
 
 	verification := &domain.EmailVerification{
-		ID:         uuid.New().String(),
+		ID:         uuid.Must(uuid.NewV7()).String(),
 		TenantID:   tenantID,
 		UserID:     userID,
 		TokenHash:  "hashed_token",
@@ -363,7 +378,7 @@ func TestVerifyEmail_EmailAlreadyVerified(t *testing.T) {
 	m.userRepo.On("GetByID", ctx, tenantID, userID).Return(user, nil)
 
 	// Execute
-	err := m.uc.VerifyEmail(ctx, tenantID, token)
+	err := m.uc.VerifyEmail(ctx, tenantID, token, "192.168.1.1")
 
 	// Assert
 	assert.Error(t, err)
@@ -382,7 +397,7 @@ func TestResendVerificationEmail_Success(t *testing.T) {
 	m := setupEmailVerificationUseCase(t)
 	ctx := context.Background()
 
-	userID := uuid.New().String()
+	userID := uuid.Must(uuid.NewV7()).String()
 	tenantID := "test-tenant"
 	user := &domain.User{
 		ID:            userID,
@@ -414,7 +429,7 @@ func TestResendVerificationEmail_UserNotFound(t *testing.T) {
 	m := setupEmailVerificationUseCase(t)
 	ctx := context.Background()
 
-	userID := uuid.New().String()
+	userID := uuid.Must(uuid.NewV7()).String()
 	tenantID := "test-tenant"
 
 	// Mock expectations
@@ -438,7 +453,7 @@ func TestResendVerificationEmail_EmailAlreadyVerified(t *testing.T) {
 	m := setupEmailVerificationUseCase(t)
 	ctx := context.Background()
 
-	userID := uuid.New().String()
+	userID := uuid.Must(uuid.NewV7()).String()
 	tenantID := "test-tenant"
 	user := &domain.User{
 		ID:            userID,
@@ -471,7 +486,7 @@ func TestSendVerificationEmail_CreateError(t *testing.T) {
 	m := setupEmailVerificationUseCase(t)
 	ctx := context.Background()
 
-	userID := uuid.New().String()
+	userID := uuid.Must(uuid.NewV7()).String()
 	tenantID := "test-tenant"
 	user := &domain.User{
 		ID:            userID,
@@ -510,12 +525,12 @@ func TestVerifyEmail_UpdateError(t *testing.T) {
 	m := setupEmailVerificationUseCase(t)
 	ctx := context.Background()
 
-	userID := uuid.New().String()
+	userID := uuid.Must(uuid.NewV7()).String()
 	tenantID := "test-tenant"
 	token := "valid_token_12345"
 
 	verification := &domain.EmailVerification{
-		ID:         uuid.New().String(),
+		ID:         uuid.Must(uuid.NewV7()).String(),
 		TenantID:   tenantID,
 		UserID:     userID,
 		TokenHash:  "hashed_token",
@@ -542,7 +557,7 @@ func TestVerifyEmail_UpdateError(t *testing.T) {
 	m.userRepo.On("Update", ctx, mock.AnythingOfType("*domain.User")).Return(fmt.Errorf("update failed"))
 
 	// Execute
-	err := m.uc.VerifyEmail(ctx, tenantID, token)
+	err := m.uc.VerifyEmail(ctx, tenantID, token, "192.168.1.1")
 
 	// Assert
 	assert.Error(t, err)
@@ -556,12 +571,12 @@ func TestVerifyEmail_MarkAsVerifiedError(t *testing.T) {
 	m := setupEmailVerificationUseCase(t)
 	ctx := context.Background()
 
-	userID := uuid.New().String()
+	userID := uuid.Must(uuid.NewV7()).String()
 	tenantID := "test-tenant"
 	token := "valid_token_12345"
 
 	verification := &domain.EmailVerification{
-		ID:         uuid.New().String(),
+		ID:         uuid.Must(uuid.NewV7()).String(),
 		TenantID:   tenantID,
 		UserID:     userID,
 		TokenHash:  "hashed_token",
@@ -587,7 +602,7 @@ func TestVerifyEmail_MarkAsVerifiedError(t *testing.T) {
 	m.verificationRepo.On("MarkAsVerified", ctx, tenantID, mock.AnythingOfType("string")).Return(fmt.Errorf("mark failed"))
 
 	// Execute
-	err := m.uc.VerifyEmail(ctx, tenantID, token)
+	err := m.uc.VerifyEmail(ctx, tenantID, token, "192.168.1.1")
 
 	// Assert
 	assert.Error(t, err)
@@ -601,12 +616,12 @@ func TestVerifyEmail_UserNotFound(t *testing.T) {
 	m := setupEmailVerificationUseCase(t)
 	ctx := context.Background()
 
-	userID := uuid.New().String()
+	userID := uuid.Must(uuid.NewV7()).String()
 	tenantID := "test-tenant"
 	token := "valid_token_12345"
 
 	verification := &domain.EmailVerification{
-		ID:         uuid.New().String(),
+		ID:         uuid.Must(uuid.NewV7()).String(),
 		TenantID:   tenantID,
 		UserID:     userID,
 		TokenHash:  "hashed_token",
@@ -622,7 +637,7 @@ func TestVerifyEmail_UserNotFound(t *testing.T) {
 	m.userRepo.On("GetByID", ctx, tenantID, userID).Return(nil, domain.ErrUserNotFound)
 
 	// Execute
-	err := m.uc.VerifyEmail(ctx, tenantID, token)
+	err := m.uc.VerifyEmail(ctx, tenantID, token, "192.168.1.1")
 
 	// Assert
 	assert.Error(t, err)

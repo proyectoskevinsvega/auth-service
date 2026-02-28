@@ -30,7 +30,7 @@ type NewTenantInput struct {
 func NewTenant(input NewTenantInput) *Tenant {
 	now := time.Now()
 	return &Tenant{
-		ID:     uuid.New().String(),
+		ID:     uuid.Must(uuid.NewV7()).String(),
 		Slug:   input.Slug,
 		Name:   input.Name,
 		Active: true,

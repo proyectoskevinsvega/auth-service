@@ -135,7 +135,7 @@ func (uc *EmailVerificationUseCase) VerifyEmail(ctx context.Context, tenantID, t
 		if exceeded {
 			return domain.ErrRateLimitExceeded
 		}
-		
+
 		// Unconditionally count this attempt in Redis to prevent massive parallel guessing
 		if _, err := uc.rateLimiter.Increment(context.Background(), rateLimitKey, uc.config.RateLimit.VerifyWindow); err != nil {
 			fmt.Printf("warning: failed to increment verify rate limit: %v\n", err)

@@ -13,9 +13,9 @@ type OAuthProvider interface {
 }
 
 type OAuthUserInfo struct {
-	ProviderID   string
-	Email        string
-	Name         string
-	Picture      string
+	ProviderID    string
+	Email         string
+	Name          string
+	Picture       string
 	EmailVerified bool
 }

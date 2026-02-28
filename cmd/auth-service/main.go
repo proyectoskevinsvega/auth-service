@@ -412,8 +412,8 @@ func initializeDependencies(cfg *config.Config, logger zerolog.Logger, telemetry
 		logger,
 		cfg.Server.BaseDomain,
 		cfg.Server.Environment,
-		rateLimiter,   // Added Redis RateLimiter
-		cfg,           // Added Global Settings
+		rateLimiter, // Added Redis RateLimiter
+		cfg,         // Added Global Settings
 	)
 	logger.Info().Msg("Email verification use case initialized")
 
@@ -534,7 +534,7 @@ func initializeDependencies(cfg *config.Config, logger zerolog.Logger, telemetry
 }
 
 func startHTTPServer(cfg *config.Config, handler *httpadapter.Handler, logger zerolog.Logger, telemetryConfig telemetry.Config) *http.Server {
-	router := handler.SetupRoutes(telemetryConfig.Enabled&&telemetryConfig.TraceHTTP, cfg.Server.DisableCSRF)
+	router := handler.SetupRoutes(telemetryConfig.Enabled && telemetryConfig.TraceHTTP, cfg.Server.DisableCSRF)
 
 	server := &http.Server{
 		Addr:         fmt.Sprintf(":%s", cfg.Server.HTTPPort),

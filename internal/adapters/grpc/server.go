@@ -107,7 +107,7 @@ func (s *AuthServer) ValidateToken(ctx context.Context, req *pb.ValidateTokenReq
 // RevokeToken revokes a token
 func (s *AuthServer) RevokeToken(ctx context.Context, req *pb.RevokeTokenRequest) (*pb.RevokeTokenResponse, error) {
 	startTime := time.Now()
-	
+
 	if req.Token == "" {
 		s.metrics.RecordGRPCRequest("RevokeToken", "invalid_argument", time.Since(startTime))
 		return nil, status.Error(codes.InvalidArgument, "token is required")

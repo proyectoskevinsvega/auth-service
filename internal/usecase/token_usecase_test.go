@@ -84,8 +84,8 @@ func TestTokenUseCase_ValidateToken_Success_CacheHit(t *testing.T) {
 	ctx := context.Background()
 
 	tokenString := "valid.jwt.token"
-	jti := uuid.New().String()
-	userID := uuid.New().String()
+	jti := uuid.Must(uuid.NewV7()).String()
+	userID := uuid.Must(uuid.NewV7()).String()
 
 	// Token from JWT verification
 	now := time.Now()
@@ -101,6 +101,8 @@ func TestTokenUseCase_ValidateToken_Success_CacheHit(t *testing.T) {
 	m.jwtService.On("Verify", ctx, tokenString).Return(parsedToken, nil).Once()
 	m.blacklist.On("IsBlacklisted", ctx, jti).Return(false, nil)
 	m.tokenCache.On("Get", ctx, jti).Return(parsedToken, nil)
+	m.sessionRepo.On("GetByID", ctx, mock.AnythingOfType("string"), jti).Return(&domain.Session{Revoked: false}, nil)
+	m.tokenCache.On("Set", ctx, jti, parsedToken, mock.AnythingOfType("time.Duration")).Return(nil)
 
 	// Execute
 	token, err := m.uc.ValidateToken(ctx, tokenString)
@@ -121,8 +123,8 @@ func TestTokenUseCase_ValidateToken_Success_CacheMiss(t *testing.T) {
 	ctx := context.Background()
 
 	tokenString := "valid.jwt.token"
-	jti := uuid.New().String()
-	userID := uuid.New().String()
+	jti := uuid.Must(uuid.NewV7()).String()
+	userID := uuid.Must(uuid.NewV7()).String()
 
 	// Token from JWT verification
 	now := time.Now()
@@ -139,6 +141,7 @@ func TestTokenUseCase_ValidateToken_Success_CacheMiss(t *testing.T) {
 	m.jwtService.On("Verify", ctx, tokenString).Return(parsedToken, nil).Twice() // Called twice
 	m.blacklist.On("IsBlacklisted", ctx, jti).Return(false, nil)
 	m.tokenCache.On("Get", ctx, jti).Return(nil, domain.ErrTokenNotFound)
+	m.sessionRepo.On("GetByID", ctx, mock.AnythingOfType("string"), jti).Return(&domain.Session{Revoked: false}, nil)
 	m.tokenCache.On("Set", ctx, jti, parsedToken, mock.AnythingOfType("time.Duration")).Return(nil)
 
 	// Execute
@@ -160,8 +163,8 @@ func TestTokenUseCase_ValidateToken_TokenBlacklisted(t *testing.T) {
 	ctx := context.Background()
 
 	tokenString := "blacklisted.jwt.token"
-	jti := uuid.New().String()
-	userID := uuid.New().String()
+	jti := uuid.Must(uuid.NewV7()).String()
+	userID := uuid.Must(uuid.NewV7()).String()
 
 	now := time.Now()
 	parsedToken := &domain.Token{
@@ -214,8 +217,8 @@ func TestTokenUseCase_ValidateToken_ExpiredToken(t *testing.T) {
 	ctx := context.Background()
 
 	tokenString := "expired.jwt.token"
-	jti := uuid.New().String()
-	userID := uuid.New().String()
+	jti := uuid.Must(uuid.NewV7()).String()
+	userID := uuid.Must(uuid.NewV7()).String()
 
 	// Expired token
 	now := time.Now()
@@ -251,8 +254,8 @@ func TestTokenUseCase_RevokeToken_Success(t *testing.T) {
 	ctx := context.Background()
 
 	tokenString := "valid.jwt.token"
-	jti := uuid.New().String()
-	userID := uuid.New().String()
+	jti := uuid.Must(uuid.NewV7()).String()
+	userID := uuid.Must(uuid.NewV7()).String()
 
 	now := time.Now()
 	parsedToken := &domain.Token{
@@ -268,6 +271,7 @@ func TestTokenUseCase_RevokeToken_Success(t *testing.T) {
 	m.jwtService.On("Verify", ctx, tokenString).Return(parsedToken, nil)
 	m.blacklist.On("Add", ctx, jti, mock.AnythingOfType("time.Duration")).Return(nil)
 	m.tokenCache.On("Delete", ctx, jti).Return(nil)
+	m.sessionRepo.On("Revoke", ctx, mock.AnythingOfType("string"), jti, "user", "logout").Return(nil)
 
 	// Execute
 	err := m.uc.RevokeToken(ctx, tokenString)
@@ -304,13 +308,13 @@ func TestRefreshToken_Success(t *testing.T) {
 	m := setupTokenUseCase(t)
 	ctx := context.Background()
 
-	userID := uuid.New().String()
+	userID := uuid.Must(uuid.NewV7()).String()
 	tenantID := "test-tenant"
-	sessionID := uuid.New().String()
+	sessionID := uuid.Must(uuid.NewV7()).String()
 	refreshTokenStr := "refresh_token_12345"
 
 	refreshToken := &domain.RefreshToken{
-		ID:        uuid.New().String(),
+		ID:        uuid.Must(uuid.NewV7()).String(),
 		TenantID:  tenantID,
 		UserID:    userID,
 		SessionID: sessionID,
@@ -331,7 +335,7 @@ func TestRefreshToken_Success(t *testing.T) {
 		ID:        sessionID,
 		TenantID:  tenantID,
 		UserID:    userID,
-		JTI:       uuid.New().String(),
+		JTI:       uuid.Must(uuid.NewV7()).String(),
 		CreatedAt: time.Now(),
 		ExpiresAt: time.Now().Add(24 * time.Hour),
 		Revoked:   false,
@@ -385,13 +389,13 @@ func TestRefreshToken_TokenStolen(t *testing.T) {
 	m := setupTokenUseCase(t)
 	ctx := context.Background()
 
-	userID := uuid.New().String()
+	userID := uuid.Must(uuid.NewV7()).String()
 	tenantID := "test-tenant"
-	sessionID := uuid.New().String()
+	sessionID := uuid.Must(uuid.NewV7()).String()
 	refreshTokenStr := "stolen_refresh_token"
 
 	refreshToken := &domain.RefreshToken{
-		ID:        uuid.New().String(),
+		ID:        uuid.Must(uuid.NewV7()).String(),
 		TenantID:  tenantID,
 		UserID:    userID,
 		SessionID: sessionID,
@@ -433,13 +437,13 @@ func TestRefreshToken_TokenExpired(t *testing.T) {
 	m := setupTokenUseCase(t)
 	ctx := context.Background()
 
-	userID := uuid.New().String()
+	userID := uuid.Must(uuid.NewV7()).String()
 	tenantID := "test-tenant"
-	sessionID := uuid.New().String()
+	sessionID := uuid.Must(uuid.NewV7()).String()
 	refreshTokenStr := "expired_refresh_token"
 
 	refreshToken := &domain.RefreshToken{
-		ID:        uuid.New().String(),
+		ID:        uuid.Must(uuid.NewV7()).String(),
 		TenantID:  tenantID,
 		UserID:    userID,
 		SessionID: sessionID,
@@ -467,13 +471,13 @@ func TestRefreshToken_UserNotFound(t *testing.T) {
 	m := setupTokenUseCase(t)
 	ctx := context.Background()
 
-	userID := uuid.New().String()
+	userID := uuid.Must(uuid.NewV7()).String()
 	tenantID := "test-tenant"
-	sessionID := uuid.New().String()
+	sessionID := uuid.Must(uuid.NewV7()).String()
 	refreshTokenStr := "valid_refresh_token"
 
 	refreshToken := &domain.RefreshToken{
-		ID:        uuid.New().String(),
+		ID:        uuid.Must(uuid.NewV7()).String(),
 		TenantID:  tenantID,
 		UserID:    userID,
 		SessionID: sessionID,
@@ -503,13 +507,13 @@ func TestRefreshToken_UserInactive(t *testing.T) {
 	m := setupTokenUseCase(t)
 	ctx := context.Background()
 
-	userID := uuid.New().String()
+	userID := uuid.Must(uuid.NewV7()).String()
 	tenantID := "test-tenant"
-	sessionID := uuid.New().String()
+	sessionID := uuid.Must(uuid.NewV7()).String()
 	refreshTokenStr := "valid_refresh_token"
 
 	refreshToken := &domain.RefreshToken{
-		ID:        uuid.New().String(),
+		ID:        uuid.Must(uuid.NewV7()).String(),
 		TenantID:  tenantID,
 		UserID:    userID,
 		SessionID: sessionID,
@@ -545,13 +549,13 @@ func TestRefreshToken_SessionExpired(t *testing.T) {
 	m := setupTokenUseCase(t)
 	ctx := context.Background()
 
-	userID := uuid.New().String()
+	userID := uuid.Must(uuid.NewV7()).String()
 	tenantID := "test-tenant"
-	sessionID := uuid.New().String()
+	sessionID := uuid.Must(uuid.NewV7()).String()
 	refreshTokenStr := "valid_refresh_token"
 
 	refreshToken := &domain.RefreshToken{
-		ID:        uuid.New().String(),
+		ID:        uuid.Must(uuid.NewV7()).String(),
 		TenantID:  tenantID,
 		UserID:    userID,
 		SessionID: sessionID,
@@ -573,7 +577,7 @@ func TestRefreshToken_SessionExpired(t *testing.T) {
 		ID:        sessionID,
 		TenantID:  tenantID,
 		UserID:    userID,
-		JTI:       uuid.New().String(),
+		JTI:       uuid.Must(uuid.NewV7()).String(),
 		CreatedAt: time.Now().Add(-30 * 24 * time.Hour),
 		ExpiresAt: time.Now().Add(-1 * time.Hour), // Expired
 		Revoked:   false,
@@ -601,13 +605,13 @@ func TestRefreshToken_JWTGenerationFailure(t *testing.T) {
 	m := setupTokenUseCase(t)
 	ctx := context.Background()
 
-	userID := uuid.New().String()
+	userID := uuid.Must(uuid.NewV7()).String()
 	tenantID := "test-tenant"
-	sessionID := uuid.New().String()
+	sessionID := uuid.Must(uuid.NewV7()).String()
 	refreshTokenStr := "valid_refresh_token"
 
 	refreshToken := &domain.RefreshToken{
-		ID:        uuid.New().String(),
+		ID:        uuid.Must(uuid.NewV7()).String(),
 		TenantID:  tenantID,
 		UserID:    userID,
 		SessionID: sessionID,
@@ -628,7 +632,7 @@ func TestRefreshToken_JWTGenerationFailure(t *testing.T) {
 		ID:        sessionID,
 		TenantID:  tenantID,
 		UserID:    userID,
-		JTI:       uuid.New().String(),
+		JTI:       uuid.Must(uuid.NewV7()).String(),
 		CreatedAt: time.Now(),
 		ExpiresAt: time.Now().Add(24 * time.Hour),
 		Revoked:   false,
@@ -658,13 +662,13 @@ func TestRefreshToken_RotationFailure(t *testing.T) {
 	m := setupTokenUseCase(t)
 	ctx := context.Background()
 
-	userID := uuid.New().String()
+	userID := uuid.Must(uuid.NewV7()).String()
 	tenantID := "test-tenant"
-	sessionID := uuid.New().String()
+	sessionID := uuid.Must(uuid.NewV7()).String()
 	refreshTokenStr := "valid_refresh_token"
 
 	refreshToken := &domain.RefreshToken{
-		ID:        uuid.New().String(),
+		ID:        uuid.Must(uuid.NewV7()).String(),
 		TenantID:  tenantID,
 		UserID:    userID,
 		SessionID: sessionID,
@@ -685,7 +689,7 @@ func TestRefreshToken_RotationFailure(t *testing.T) {
 		ID:        sessionID,
 		TenantID:  tenantID,
 		UserID:    userID,
-		JTI:       uuid.New().String(),
+		JTI:       uuid.Must(uuid.NewV7()).String(),
 		CreatedAt: time.Now(),
 		ExpiresAt: time.Now().Add(24 * time.Hour),
 		Revoked:   false,
@@ -717,13 +721,13 @@ func TestRefreshToken_SessionNotFound(t *testing.T) {
 	m := setupTokenUseCase(t)
 	ctx := context.Background()
 
-	userID := uuid.New().String()
+	userID := uuid.Must(uuid.NewV7()).String()
 	tenantID := "test-tenant"
-	sessionID := uuid.New().String()
+	sessionID := uuid.Must(uuid.NewV7()).String()
 	refreshTokenStr := "valid_refresh_token"
 
 	refreshToken := &domain.RefreshToken{
-		ID:        uuid.New().String(),
+		ID:        uuid.Must(uuid.NewV7()).String(),
 		TenantID:  tenantID,
 		UserID:    userID,
 		SessionID: sessionID,

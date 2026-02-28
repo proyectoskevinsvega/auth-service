@@ -63,7 +63,7 @@ func (s *JWTService) Generate(ctx context.Context, token *domain.Token) (string,
 	}
 
 	jwtToken := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
-	
+
 	// Inyectamos el KID en los Headers del JWT
 	jwtToken.Header["kid"] = s.kid
 

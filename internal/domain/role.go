@@ -28,7 +28,7 @@ type Role struct {
 func NewRole(name, description string) *Role {
 	now := time.Now()
 	return &Role{
-		ID:          uuid.New().String(),
+		ID:          uuid.Must(uuid.NewV7()).String(),
 		Name:        name,
 		Description: description,
 		Permissions: []Permission{},
@@ -40,7 +40,7 @@ func NewRole(name, description string) *Role {
 func NewPermission(name, description string) *Permission {
 	now := time.Now()
 	return &Permission{
-		ID:          uuid.New().String(),
+		ID:          uuid.Must(uuid.NewV7()).String(),
 		Name:        name,
 		Description: description,
 		CreatedAt:   now,

@@ -43,7 +43,6 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-
 // TestServer represents a test server with all dependencies
 type TestServer struct {
 	Server                *httptest.Server
@@ -174,6 +173,7 @@ func SetupTestServer(t *testing.T) *TestServer {
 		roleRepo,
 		postgresadapter.NewBackupCodeRepository(dbPool),
 		totpService,
+		tenantRepo,
 	)
 
 	sessionUC := usecase.NewSessionUseCase(
@@ -199,6 +199,8 @@ func SetupTestServer(t *testing.T) *TestServer {
 		logger,
 		cfg.Server.BaseDomain,
 		cfg.Server.Environment,
+		rateLimiter,
+		cfg,
 	)
 
 	webauthnUC, _ := usecase.NewWebAuthnUseCase(
@@ -217,6 +219,7 @@ func SetupTestServer(t *testing.T) *TestServer {
 		twofaUC,
 		emailVerificationUC,
 		nil, // webhookUC (not needed in tests)
+		nil, // tenantUC (not needed in tests)
 		userRepo,
 		map[string]ports.OAuthProvider{}, // empty OAuth providers for tests
 		jwtService,
@@ -241,8 +244,8 @@ func SetupTestServer(t *testing.T) *TestServer {
 		t.Fatalf("failed to create test tenant: %v", err)
 	}
 
-	// Create test server (disable telemetry for tests)
-	router := httpHandler.SetupRoutes(false)
+	// Create test server (disable telemetry and CSRF for tests)
+	router := httpHandler.SetupRoutes(false, false)
 	server := httptest.NewServer(router)
 
 	cleanup := func() {
@@ -434,7 +437,7 @@ func runTestMigrations(ctx context.Context, pool *pgxpool.Pool) error {
 
 		_, err = pool.Exec(ctx, string(sqlBytes))
 		if err != nil {
-			// Some migrations might fail if already applied, but in tests 
+			// Some migrations might fail if already applied, but in tests
 			// we usually truncate tables rather than dropping schema.
 			// Let's print a warning but continue if it's a "already exists" error.
 			fmt.Printf("[migration] warning: %s might have failed: %v\n", migration, err)

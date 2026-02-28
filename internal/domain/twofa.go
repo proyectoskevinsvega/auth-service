@@ -18,7 +18,7 @@ type BackupCode struct {
 
 func NewBackupCode(tenantID, userID, codeHash string) *BackupCode {
 	return &BackupCode{
-		ID:        uuid.New().String(),
+		ID:        uuid.Must(uuid.NewV7()).String(),
 		TenantID:  tenantID,
 		UserID:    userID,
 		CodeHash:  codeHash,

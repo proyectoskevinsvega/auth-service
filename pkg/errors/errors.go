@@ -25,10 +25,10 @@ func NewAppError(code, message string, statusCode int) *AppError {
 
 // Common errors
 var (
-	ErrBadRequest          = NewAppError("BAD_REQUEST", "Bad request", http.StatusBadRequest)
-	ErrUnauthorized        = NewAppError("UNAUTHORIZED", "Unauthorized", http.StatusUnauthorized)
-	ErrForbidden           = NewAppError("FORBIDDEN", "Forbidden", http.StatusForbidden)
-	ErrNotFound            = NewAppError("NOT_FOUND", "Resource not found", http.StatusNotFound)
-	ErrInternalServer      = NewAppError("INTERNAL_SERVER_ERROR", "Internal server error", http.StatusInternalServerError)
-	ErrRateLimitExceeded   = NewAppError("RATE_LIMIT_EXCEEDED", "Rate limit exceeded", http.StatusTooManyRequests)
+	ErrBadRequest        = NewAppError("BAD_REQUEST", "Bad request", http.StatusBadRequest)
+	ErrUnauthorized      = NewAppError("UNAUTHORIZED", "Unauthorized", http.StatusUnauthorized)
+	ErrForbidden         = NewAppError("FORBIDDEN", "Forbidden", http.StatusForbidden)
+	ErrNotFound          = NewAppError("NOT_FOUND", "Resource not found", http.StatusNotFound)
+	ErrInternalServer    = NewAppError("INTERNAL_SERVER_ERROR", "Internal server error", http.StatusInternalServerError)
+	ErrRateLimitExceeded = NewAppError("RATE_LIMIT_EXCEEDED", "Rate limit exceeded", http.StatusTooManyRequests)
 )

@@ -33,6 +33,7 @@ type AuthUseCaseMocks struct {
 	roleRepo       *mocks.MockRoleRepository
 	backupCodeRepo *mocks.MockBackupCodeRepository
 	totpService    *mocks.MockTOTPService
+	tenantRepo     *mocks.MockTenantRepository
 }
 
 func setupAuthUseCase(_ *testing.T) *AuthUseCaseMocks {
@@ -51,6 +52,7 @@ func setupAuthUseCase(_ *testing.T) *AuthUseCaseMocks {
 	emailService := new(mocks.MockEmailService)
 	notifier := new(mocks.MockNotificationPublisher)
 	riskService := new(mocks.MockRiskService)
+	tenantRepo := new(mocks.MockTenantRepository)
 
 	cfg := &config.Config{
 		JWT: config.JWTConfig{
@@ -88,6 +90,7 @@ func setupAuthUseCase(_ *testing.T) *AuthUseCaseMocks {
 		roleRepo,
 		new(mocks.MockBackupCodeRepository),
 		new(mocks.MockTOTPService),
+		tenantRepo,
 	)
 
 	// Baseline .Maybe() mocks for async goroutines in Login/Register that run
@@ -95,6 +98,7 @@ func setupAuthUseCase(_ *testing.T) *AuthUseCaseMocks {
 	geoService.On("GetLocation", mock.Anything, mock.Anything).Return(&domain.Geolocation{Country: "US"}, nil).Maybe()
 	notifier.On("Publish", mock.Anything, mock.Anything).Return(nil).Maybe()
 	riskService.On("VerifyGeofencing", mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
+	tenantRepo.On("GetBySlug", mock.Anything, mock.Anything).Return(&domain.Tenant{ID: "test-tenant"}, nil).Maybe()
 
 	return &AuthUseCaseMocks{
 		uc:             uc,
@@ -113,6 +117,7 @@ func setupAuthUseCase(_ *testing.T) *AuthUseCaseMocks {
 		notifier:       notifier,
 		riskService:    riskService,
 		roleRepo:       roleRepo,
+		tenantRepo:     tenantRepo,
 	}
 }
 
@@ -129,14 +134,14 @@ func TestAuthUseCase_Register_Success(t *testing.T) {
 	}
 
 	// Mock expectations (only critical path, async operations are fire-and-forget)
-	m.rateLimiter.On("CheckLimit", ctx, "register:192.168.1.1", 3, time.Hour).Return(false, nil)
+	m.rateLimiter.On("CheckLimit", ctx, mock.AnythingOfType("string"), 3, time.Hour).Return(false, nil)
 	m.userRepo.On("GetByUsername", ctx, mock.Anything, input.Username).Return(nil, domain.ErrUserNotFound)
 	m.userRepo.On("GetByEmail", ctx, mock.Anything, input.Email).Return(nil, domain.ErrUserNotFound)
 	m.passwordHasher.On("Hash", input.Password).Return("$argon2id$hashed_password", nil)
 	m.userRepo.On("Create", ctx, mock.AnythingOfType("*domain.User"), "$argon2id$hashed_password").Return(nil)
 
 	// Async operations (fire-and-forget, not verified in success test)
-	m.rateLimiter.On("Increment", mock.Anything, "register:192.168.1.1", time.Hour).Return(1, nil).Maybe()
+	m.rateLimiter.On("Increment", mock.Anything, mock.AnythingOfType("string"), time.Hour).Return(1, nil).Maybe()
 	m.geoService.On("GetCountry", mock.Anything, input.IPAddress).Return("US", nil).Maybe()
 	m.auditRepo.On("Create", mock.Anything, mock.AnythingOfType("*domain.AuditLogEntry")).Return(nil).Maybe()
 	m.emailService.On("SendWelcome", mock.Anything, input.Email, input.Username).Return(nil).Maybe()
@@ -171,7 +176,7 @@ func TestAuthUseCase_Login_Success(t *testing.T) {
 	}
 
 	existingUser := &domain.User{
-		ID:               uuid.New().String(),
+		ID:               uuid.Must(uuid.NewV7()).String(),
 		Username:         "testuser",
 		Email:            "test@example.com",
 		PasswordHash:     "$argon2id$hashed_password",
@@ -182,8 +187,8 @@ func TestAuthUseCase_Login_Success(t *testing.T) {
 	}
 
 	// Mock expectations (only critical path, async operations are fire-and-forget)
-	m.rateLimiter.On("CheckLimit", ctx, "login:192.168.1.1", 5, time.Minute).Return(false, nil)
-	m.rateLimiter.On("Increment", ctx, "login:192.168.1.1", time.Minute).Return(1, nil)
+	m.rateLimiter.On("CheckLimit", ctx, mock.AnythingOfType("string"), 5, time.Minute).Return(false, nil)
+	m.rateLimiter.On("Increment", ctx, mock.AnythingOfType("string"), time.Minute).Return(1, nil)
 	m.userRepo.On("GetByEmailOrUsername", ctx, mock.Anything, input.Identifier).Return(existingUser, nil)
 	m.passwordHasher.On("Verify", input.Password, existingUser.PasswordHash).Return(true, nil)
 	m.tokenGen.On("GenerateSecureToken", 32).Return("secure_refresh_token_value", nil)
@@ -231,7 +236,7 @@ func TestAuthUseCase_Login_RateLimitExceeded(t *testing.T) {
 	}
 
 	// Mock expectations - rate limit exceeded
-	m.rateLimiter.On("CheckLimit", ctx, "login:192.168.1.1", 5, time.Minute).Return(true, nil)
+	m.rateLimiter.On("CheckLimit", ctx, mock.AnythingOfType("string"), 5, time.Minute).Return(true, nil)
 
 	// Execute
 	response, err := m.uc.Login(ctx, input)
@@ -257,7 +262,7 @@ func TestAuthUseCase_Login_InvalidPassword(t *testing.T) {
 	}
 
 	existingUser := &domain.User{
-		ID:               uuid.New().String(),
+		ID:               uuid.Must(uuid.NewV7()).String(),
 		Username:         "testuser",
 		Email:            "test@example.com",
 		PasswordHash:     "$argon2id$hashed_password",
@@ -268,8 +273,8 @@ func TestAuthUseCase_Login_InvalidPassword(t *testing.T) {
 	}
 
 	// Mock expectations
-	m.rateLimiter.On("CheckLimit", ctx, "login:192.168.1.1", 5, time.Minute).Return(false, nil)
-	m.rateLimiter.On("Increment", ctx, "login:192.168.1.1", time.Minute).Return(1, nil)
+	m.rateLimiter.On("CheckLimit", ctx, mock.AnythingOfType("string"), 5, time.Minute).Return(false, nil)
+	m.rateLimiter.On("Increment", ctx, mock.AnythingOfType("string"), time.Minute).Return(1, nil)
 	m.userRepo.On("GetByEmailOrUsername", ctx, mock.Anything, input.Identifier).Return(existingUser, nil)
 	m.passwordHasher.On("Verify", input.Password, existingUser.PasswordHash).Return(false, nil)
 	m.userRepo.On("Update", ctx, existingUser).Return(nil).Once() // Increment attempts call
@@ -303,17 +308,18 @@ func TestAuthUseCase_Login_UserInactive(t *testing.T) {
 	}
 
 	existingUser := &domain.User{
-		ID:           uuid.New().String(),
-		Username:     "testuser",
-		Email:        "test@example.com",
-		PasswordHash: "$argon2id$hashed_password",
-		Active:       false, // Usuario inactivo
-		CreatedAt:    time.Now(),
+		ID:            uuid.Must(uuid.NewV7()).String(),
+		Username:      "testuser",
+		Email:         "test@example.com",
+		PasswordHash:  "$argon2id$hashed_password",
+		EmailVerified: true,
+		Active:        false, // Usuario inactivo
+		CreatedAt:     time.Now(),
 	}
 
 	// Mock expectations
-	m.rateLimiter.On("CheckLimit", ctx, "login:192.168.1.1", 5, time.Minute).Return(false, nil)
-	m.rateLimiter.On("Increment", ctx, "login:192.168.1.1", time.Minute).Return(1, nil)
+	m.rateLimiter.On("CheckLimit", ctx, mock.AnythingOfType("string"), 5, time.Minute).Return(false, nil)
+	m.rateLimiter.On("Increment", ctx, mock.AnythingOfType("string"), time.Minute).Return(1, nil)
 	m.userRepo.On("GetByEmailOrUsername", ctx, mock.Anything, input.Identifier).Return(existingUser, nil)
 
 	// Execute
@@ -343,18 +349,19 @@ func TestAuthUseCase_Login_2FARequired(t *testing.T) {
 	}
 
 	existingUser := &domain.User{
-		ID:               uuid.New().String(),
+		ID:               uuid.Must(uuid.NewV7()).String(),
 		Username:         "testuser",
 		Email:            "test@example.com",
 		PasswordHash:     "$argon2id$hashed_password",
+		EmailVerified:    true,
 		TwoFactorEnabled: true, // 2FA habilitado
 		Active:           true,
 		CreatedAt:        time.Now(),
 	}
 
 	// Mock expectations
-	m.rateLimiter.On("CheckLimit", ctx, "login:192.168.1.1", 5, time.Minute).Return(false, nil)
-	m.rateLimiter.On("Increment", ctx, "login:192.168.1.1", time.Minute).Return(1, nil)
+	m.rateLimiter.On("CheckLimit", ctx, mock.AnythingOfType("string"), 5, time.Minute).Return(false, nil)
+	m.rateLimiter.On("Increment", ctx, mock.AnythingOfType("string"), time.Minute).Return(1, nil)
 	m.userRepo.On("GetByEmailOrUsername", ctx, mock.Anything, input.Identifier).Return(existingUser, nil)
 	m.passwordHasher.On("Verify", input.Password, existingUser.PasswordHash).Return(true, nil)
 	m.userRepo.On("Update", mock.Anything, mock.Anything).Return(nil).Maybe()
@@ -385,7 +392,7 @@ func TestAuthUseCase_Login_RateLimitCheckFailure(t *testing.T) {
 	}
 
 	// Mock expectations - rate limit check fails with error
-	m.rateLimiter.On("CheckLimit", ctx, "login:192.168.1.1", 5, time.Minute).Return(false, assert.AnError)
+	m.rateLimiter.On("CheckLimit", ctx, mock.AnythingOfType("string"), 5, time.Minute).Return(false, assert.AnError)
 
 	// Execute
 	response, err := m.uc.Login(ctx, input)
@@ -411,18 +418,19 @@ func TestAuthUseCase_Login_SessionCreationFailure(t *testing.T) {
 	}
 
 	existingUser := &domain.User{
-		ID:               uuid.New().String(),
+		ID:               uuid.Must(uuid.NewV7()).String(),
 		Username:         "testuser",
 		Email:            "test@example.com",
 		PasswordHash:     "$argon2id$hashed_password",
 		TwoFactorEnabled: false,
 		Active:           true,
 		CreatedAt:        time.Now(),
+		EmailVerified:    true,
 	}
 
 	// Mock expectations
-	m.rateLimiter.On("CheckLimit", ctx, "login:192.168.1.1", 5, time.Minute).Return(false, nil)
-	m.rateLimiter.On("Increment", ctx, "login:192.168.1.1", time.Minute).Return(1, nil)
+	m.rateLimiter.On("CheckLimit", ctx, mock.AnythingOfType("string"), 5, time.Minute).Return(false, nil)
+	m.rateLimiter.On("Increment", ctx, mock.AnythingOfType("string"), time.Minute).Return(1, nil)
 	m.userRepo.On("GetByEmailOrUsername", ctx, mock.Anything, input.Identifier).Return(existingUser, nil)
 	m.passwordHasher.On("Verify", input.Password, existingUser.PasswordHash).Return(true, nil)
 	m.riskService.On("AssessLoginRisk", ctx, existingUser, input.IPAddress).Return(domain.NewRiskAssessment(), &domain.Geolocation{Country: "US"}, nil)
@@ -457,18 +465,19 @@ func TestAuthUseCase_Login_JWTGenerationFailure(t *testing.T) {
 	}
 
 	existingUser := &domain.User{
-		ID:               uuid.New().String(),
+		ID:               uuid.Must(uuid.NewV7()).String(),
 		Username:         "testuser",
 		Email:            "test@example.com",
 		PasswordHash:     "$argon2id$hashed_password",
 		TwoFactorEnabled: false,
 		Active:           true,
 		CreatedAt:        time.Now(),
+		EmailVerified:    true,
 	}
 
 	// Mock expectations
-	m.rateLimiter.On("CheckLimit", ctx, "login:192.168.1.1", 5, time.Minute).Return(false, nil)
-	m.rateLimiter.On("Increment", ctx, "login:192.168.1.1", time.Minute).Return(1, nil)
+	m.rateLimiter.On("CheckLimit", ctx, mock.AnythingOfType("string"), 5, time.Minute).Return(false, nil)
+	m.rateLimiter.On("Increment", ctx, mock.AnythingOfType("string"), time.Minute).Return(1, nil)
 	m.userRepo.On("GetByEmailOrUsername", ctx, mock.Anything, input.Identifier).Return(existingUser, nil)
 	m.passwordHasher.On("Verify", input.Password, existingUser.PasswordHash).Return(true, nil)
 	m.riskService.On("AssessLoginRisk", ctx, existingUser, input.IPAddress).Return(domain.NewRiskAssessment(), &domain.Geolocation{Country: "US"}, nil)
@@ -505,18 +514,19 @@ func TestAuthUseCase_Login_RefreshTokenCreationFailure(t *testing.T) {
 	}
 
 	existingUser := &domain.User{
-		ID:               uuid.New().String(),
+		ID:               uuid.Must(uuid.NewV7()).String(),
 		Username:         "testuser",
 		Email:            "test@example.com",
 		PasswordHash:     "$argon2id$hashed_password",
 		TwoFactorEnabled: false,
 		Active:           true,
 		CreatedAt:        time.Now(),
+		EmailVerified:    true,
 	}
 
 	// Mock expectations
-	m.rateLimiter.On("CheckLimit", ctx, "login:192.168.1.1", 5, time.Minute).Return(false, nil)
-	m.rateLimiter.On("Increment", ctx, "login:192.168.1.1", time.Minute).Return(1, nil)
+	m.rateLimiter.On("CheckLimit", ctx, mock.AnythingOfType("string"), 5, time.Minute).Return(false, nil)
+	m.rateLimiter.On("Increment", ctx, mock.AnythingOfType("string"), time.Minute).Return(1, nil)
 	m.userRepo.On("GetByEmailOrUsername", ctx, mock.Anything, input.Identifier).Return(existingUser, nil)
 	m.passwordHasher.On("Verify", input.Password, existingUser.PasswordHash).Return(true, nil)
 	m.riskService.On("AssessLoginRisk", ctx, existingUser, input.IPAddress).Return(domain.NewRiskAssessment(), &domain.Geolocation{Country: "US"}, nil)
@@ -557,19 +567,20 @@ func TestAuthUseCase_Login_NewCountryDetection(t *testing.T) {
 	}
 
 	existingUser := &domain.User{
-		ID:               uuid.New().String(),
+		ID:               uuid.Must(uuid.NewV7()).String(),
 		Username:         "testuser",
 		Email:            "test@example.com",
 		PasswordHash:     "$argon2id$hashed_password",
 		TwoFactorEnabled: false,
 		Active:           true,
+		EmailVerified:    true,
 		LastLoginCountry: "MX", // Previous login was from Mexico
 		CreatedAt:        time.Now(),
 	}
 
 	// Mock expectations
-	m.rateLimiter.On("CheckLimit", ctx, "login:192.168.1.1", 5, time.Minute).Return(false, nil)
-	m.rateLimiter.On("Increment", ctx, "login:192.168.1.1", time.Minute).Return(1, nil)
+	m.rateLimiter.On("CheckLimit", ctx, mock.AnythingOfType("string"), 5, time.Minute).Return(false, nil)
+	m.rateLimiter.On("Increment", ctx, mock.AnythingOfType("string"), time.Minute).Return(1, nil)
 	m.userRepo.On("GetByEmailOrUsername", ctx, mock.Anything, input.Identifier).Return(existingUser, nil)
 	m.passwordHasher.On("Verify", input.Password, existingUser.PasswordHash).Return(true, nil)
 	m.riskService.On("AssessLoginRisk", ctx, existingUser, input.IPAddress).Return(domain.NewRiskAssessment(), &domain.Geolocation{Country: "US"}, nil)
@@ -627,13 +638,14 @@ func TestAuthUseCase_Register_UsernameExists(t *testing.T) {
 	}
 
 	existingUser := &domain.User{
-		ID:       uuid.New().String(),
-		Username: "existinguser",
-		Email:    "existing@example.com",
+		ID:            uuid.Must(uuid.NewV7()).String(),
+		Username:      "existinguser",
+		Email:         "existing@example.com",
+		EmailVerified: true,
 	}
 
 	// Mock expectations
-	m.rateLimiter.On("CheckLimit", ctx, "register:192.168.1.1", 3, time.Hour).Return(false, nil)
+	m.rateLimiter.On("CheckLimit", ctx, mock.AnythingOfType("string"), 3, time.Hour).Return(false, nil)
 	m.userRepo.On("GetByUsername", ctx, mock.Anything, input.Username).Return(existingUser, nil) // Username existe
 
 	// Execute
@@ -662,13 +674,14 @@ func TestAuthUseCase_Register_EmailExists(t *testing.T) {
 	}
 
 	existingUser := &domain.User{
-		ID:       uuid.New().String(),
-		Username: "otheruser",
-		Email:    "existing@example.com",
+		ID:            uuid.Must(uuid.NewV7()).String(),
+		Username:      "otheruser",
+		Email:         "existing@example.com",
+		EmailVerified: true,
 	}
 
 	// Mock expectations
-	m.rateLimiter.On("CheckLimit", ctx, "register:192.168.1.1", 3, time.Hour).Return(false, nil)
+	m.rateLimiter.On("CheckLimit", ctx, mock.AnythingOfType("string"), 3, time.Hour).Return(false, nil)
 	m.userRepo.On("GetByUsername", ctx, mock.Anything, input.Username).Return(nil, domain.ErrUserNotFound)
 	m.userRepo.On("GetByEmail", ctx, mock.Anything, input.Email).Return(existingUser, nil) // Email existe
 
@@ -698,7 +711,7 @@ func TestAuthUseCase_Register_RateLimitExceeded(t *testing.T) {
 	}
 
 	// Mock expectations - rate limit exceeded
-	m.rateLimiter.On("CheckLimit", ctx, "register:192.168.1.1", 3, time.Hour).Return(true, nil)
+	m.rateLimiter.On("CheckLimit", ctx, mock.AnythingOfType("string"), 3, time.Hour).Return(true, nil)
 
 	// Execute
 	user, err := m.uc.Register(ctx, input)
@@ -724,7 +737,7 @@ func TestAuthUseCase_Register_InvalidUsername(t *testing.T) {
 	}
 
 	// Mock expectations - pass rate limit check
-	m.rateLimiter.On("CheckLimit", ctx, "register:192.168.1.1", 3, time.Hour).Return(false, nil)
+	m.rateLimiter.On("CheckLimit", ctx, mock.AnythingOfType("string"), 3, time.Hour).Return(false, nil)
 
 	// Execute
 	user, err := m.uc.Register(ctx, input)
@@ -750,7 +763,7 @@ func TestAuthUseCase_Register_InvalidEmail(t *testing.T) {
 	}
 
 	// Mock expectations - pass rate limit check
-	m.rateLimiter.On("CheckLimit", ctx, "register:192.168.1.1", 3, time.Hour).Return(false, nil)
+	m.rateLimiter.On("CheckLimit", ctx, mock.AnythingOfType("string"), 3, time.Hour).Return(false, nil)
 
 	// Execute
 	user, err := m.uc.Register(ctx, input)
@@ -776,7 +789,7 @@ func TestAuthUseCase_Register_InvalidPassword(t *testing.T) {
 	}
 
 	// Mock expectations - pass rate limit check
-	m.rateLimiter.On("CheckLimit", ctx, "register:192.168.1.1", 3, time.Hour).Return(false, nil)
+	m.rateLimiter.On("CheckLimit", ctx, mock.AnythingOfType("string"), 3, time.Hour).Return(false, nil)
 
 	// Execute
 	user, err := m.uc.Register(ctx, input)
@@ -802,7 +815,7 @@ func TestAuthUseCase_Register_PasswordHashingFailure(t *testing.T) {
 	}
 
 	// Mock expectations
-	m.rateLimiter.On("CheckLimit", ctx, "register:192.168.1.1", 3, time.Hour).Return(false, nil)
+	m.rateLimiter.On("CheckLimit", ctx, mock.AnythingOfType("string"), 3, time.Hour).Return(false, nil)
 	m.userRepo.On("GetByUsername", ctx, mock.Anything, "testuser").Return(nil, domain.ErrUserNotFound)
 	m.userRepo.On("GetByEmail", ctx, mock.Anything, "test@example.com").Return(nil, domain.ErrUserNotFound)
 	m.passwordHasher.On("Hash", "SecurePass123!").Return("", assert.AnError)
@@ -833,7 +846,7 @@ func TestAuthUseCase_Register_UserCreationFailure(t *testing.T) {
 	}
 
 	// Mock expectations
-	m.rateLimiter.On("CheckLimit", ctx, "register:192.168.1.1", 3, time.Hour).Return(false, nil)
+	m.rateLimiter.On("CheckLimit", ctx, mock.AnythingOfType("string"), 3, time.Hour).Return(false, nil)
 	m.userRepo.On("GetByUsername", ctx, mock.Anything, "testuser").Return(nil, domain.ErrUserNotFound)
 	m.userRepo.On("GetByEmail", ctx, mock.Anything, "test@example.com").Return(nil, domain.ErrUserNotFound)
 	m.passwordHasher.On("Hash", "SecurePass123!").Return("hashed_password", nil)
@@ -865,7 +878,7 @@ func TestAuthUseCase_Register_RateLimitCheckFailure(t *testing.T) {
 	}
 
 	// Mock expectations - rate limit check fails
-	m.rateLimiter.On("CheckLimit", ctx, "register:192.168.1.1", 3, time.Hour).Return(false, assert.AnError)
+	m.rateLimiter.On("CheckLimit", ctx, mock.AnythingOfType("string"), 3, time.Hour).Return(false, assert.AnError)
 
 	// Execute
 	user, err := m.uc.Register(ctx, input)
@@ -888,11 +901,12 @@ func TestForgotPassword_Success(t *testing.T) {
 	tenantID := "test-tenant"
 
 	user := &domain.User{
-		ID:       uuid.New().String(),
-		TenantID: tenantID,
-		Username: "testuser",
-		Email:    email,
-		Active:   true,
+		ID:            uuid.Must(uuid.NewV7()).String(),
+		TenantID:      tenantID,
+		Username:      "testuser",
+		Email:         email,
+		Active:        true,
+		EmailVerified: true,
 	}
 
 	// Mock expectations (only critical path, async operations are fire-and-forget)
@@ -948,14 +962,14 @@ func TestResetPasswordWithToken_Success(t *testing.T) {
 	m := setupAuthUseCase(t)
 	ctx := context.Background()
 
-	userID := uuid.New().String()
+	userID := uuid.Must(uuid.NewV7()).String()
 	tenantID := "test-tenant"
 	token := "valid_reset_token"
 	newPassword := "NewSecurePass123!"
 	ipAddress := "192.168.1.1"
 
 	resetToken := &domain.PasswordResetToken{
-		ID:        uuid.New().String(),
+		ID:        uuid.Must(uuid.NewV7()).String(),
 		TenantID:  tenantID,
 		UserID:    userID,
 		Token:     token,
@@ -966,11 +980,12 @@ func TestResetPasswordWithToken_Success(t *testing.T) {
 	}
 
 	user := &domain.User{
-		ID:       userID,
-		TenantID: tenantID,
-		Username: "testuser",
-		Email:    "test@example.com",
-		Active:   true,
+		ID:            userID,
+		TenantID:      tenantID,
+		Username:      "testuser",
+		Email:         "test@example.com",
+		Active:        true,
+		EmailVerified: true,
 	}
 
 	// Mock expectations (only critical path, async operations are fire-and-forget)
@@ -1028,8 +1043,8 @@ func TestResetPasswordWithToken_ExpiredToken(t *testing.T) {
 	ipAddress := "192.168.1.1"
 
 	resetToken := &domain.PasswordResetToken{
-		ID:        uuid.New().String(),
-		UserID:    uuid.New().String(),
+		ID:        uuid.Must(uuid.NewV7()).String(),
+		UserID:    uuid.Must(uuid.NewV7()).String(),
 		Token:     token,
 		Code:      "123456",
 		ExpiresAt: time.Now().Add(-1 * time.Hour), // Expirado
@@ -1055,7 +1070,7 @@ func TestResetPasswordWithCode_Success(t *testing.T) {
 	m := setupAuthUseCase(t)
 	ctx := context.Background()
 
-	userID := uuid.New().String()
+	userID := uuid.Must(uuid.NewV7()).String()
 	tenantID := "test-tenant"
 	email := "test@example.com"
 	code := "123456"
@@ -1063,14 +1078,15 @@ func TestResetPasswordWithCode_Success(t *testing.T) {
 	ipAddress := "192.168.1.1"
 
 	user := &domain.User{
-		ID:       userID,
-		Username: "testuser",
-		Email:    email,
-		Active:   true,
+		ID:            userID,
+		Username:      "testuser",
+		Email:         email,
+		Active:        true,
+		EmailVerified: true,
 	}
 
 	resetToken := &domain.PasswordResetToken{
-		ID:        uuid.New().String(),
+		ID:        uuid.Must(uuid.NewV7()).String(),
 		UserID:    userID,
 		Token:     "some_token",
 		Code:      code,
@@ -1108,7 +1124,7 @@ func TestResetPasswordWithCode_InvalidCode(t *testing.T) {
 	m := setupAuthUseCase(t)
 	ctx := context.Background()
 
-	userID := uuid.New().String()
+	userID := uuid.Must(uuid.NewV7()).String()
 	tenantID := "test-tenant"
 	email := "test@example.com"
 	code := "999999"
@@ -1116,10 +1132,11 @@ func TestResetPasswordWithCode_InvalidCode(t *testing.T) {
 	ipAddress := "192.168.1.1"
 
 	user := &domain.User{
-		ID:       userID,
-		Username: "testuser",
-		Email:    email,
-		Active:   true,
+		ID:            userID,
+		Username:      "testuser",
+		Email:         email,
+		Active:        true,
+		EmailVerified: true,
 	}
 
 	// Mock expectations
@@ -1158,7 +1175,7 @@ func TestResetPasswordWithCode_PasswordHashingFailure(t *testing.T) {
 	m := setupAuthUseCase(t)
 	ctx := context.Background()
 
-	userID := uuid.New().String()
+	userID := uuid.Must(uuid.NewV7()).String()
 	tenantID := "test-tenant"
 	email := "test@example.com"
 	code := "123456"
@@ -1166,14 +1183,15 @@ func TestResetPasswordWithCode_PasswordHashingFailure(t *testing.T) {
 	ipAddress := "192.168.1.1"
 
 	user := &domain.User{
-		ID:       userID,
-		Username: "testuser",
-		Email:    email,
-		Active:   true,
+		ID:            userID,
+		Username:      "testuser",
+		Email:         email,
+		Active:        true,
+		EmailVerified: true,
 	}
 
 	resetToken := &domain.PasswordResetToken{
-		ID:        uuid.New().String(),
+		ID:        uuid.Must(uuid.NewV7()).String(),
 		UserID:    userID,
 		Token:     "hashed_token",
 		Code:      code,
@@ -1203,14 +1221,14 @@ func TestResetPasswordWithToken_PasswordHashingFailure(t *testing.T) {
 	m := setupAuthUseCase(t)
 	ctx := context.Background()
 
-	userID := uuid.New().String()
+	userID := uuid.Must(uuid.NewV7()).String()
 	tenantID := "test-tenant"
 	token := "reset_token_12345"
 	newPassword := "NewSecurePass123!"
 	ipAddress := "192.168.1.1"
 
 	resetToken := &domain.PasswordResetToken{
-		ID:        uuid.New().String(),
+		ID:        uuid.Must(uuid.NewV7()).String(),
 		TenantID:  tenantID,
 		UserID:    userID,
 		Token:     "hashed_token",
@@ -1238,14 +1256,14 @@ func TestResetPasswordWithToken_UpdatePasswordFailure(t *testing.T) {
 	m := setupAuthUseCase(t)
 	ctx := context.Background()
 
-	userID := uuid.New().String()
+	userID := uuid.Must(uuid.NewV7()).String()
 	tenantID := "test-tenant"
 	token := "reset_token_12345"
 	newPassword := "NewSecurePass123!"
 	ipAddress := "192.168.1.1"
 
 	resetToken := &domain.PasswordResetToken{
-		ID:        uuid.New().String(),
+		ID:        uuid.Must(uuid.NewV7()).String(),
 		TenantID:  tenantID,
 		UserID:    userID,
 		Token:     "hashed_token",
@@ -1298,13 +1316,14 @@ func TestOAuthLogin_Success_ExistingUser(t *testing.T) {
 	}
 
 	existingUser := &domain.User{
-		ID:              uuid.New().String(),
+		ID:              uuid.Must(uuid.NewV7()).String(),
 		Username:        "existing",
 		Email:           "existing@example.com",
 		OAuthProvider:   "github",
 		OAuthProviderID: "github_user_67890",
 		Active:          true,
 		CreatedAt:       time.Now(),
+		EmailVerified:   true,
 	}
 
 	tenantID := "test-tenant"
@@ -1363,12 +1382,13 @@ func TestOAuthLogin_NewCountryDetection(t *testing.T) {
 	}
 
 	existingUser := &domain.User{
-		ID:               uuid.New().String(),
+		ID:               uuid.Must(uuid.NewV7()).String(),
 		Username:         "traveler",
 		Email:            "traveler@example.com",
 		OAuthProvider:    "github",
 		OAuthProviderID:  "github_user_99999",
 		Active:           true,
+		EmailVerified:    true,
 		LastLoginCountry: "MX", // Previous login was from Mexico
 		CreatedAt:        time.Now(),
 	}
@@ -1494,13 +1514,14 @@ func TestOAuthLogin_SessionCreationFailure(t *testing.T) {
 	device := "Desktop"
 
 	existingUser := &domain.User{
-		ID:              uuid.New().String(),
+		ID:              uuid.Must(uuid.NewV7()).String(),
 		Username:        "testuser",
 		Email:           "test@example.com",
 		OAuthProvider:   provider,
 		OAuthProviderID: "oauth_12345",
 		Active:          true,
 		CreatedAt:       time.Now(),
+		EmailVerified:   true,
 	}
 
 	userInfo := &ports.OAuthUserInfo{
@@ -1553,7 +1574,7 @@ func TestOAuthLogin_JWTGenerationFailure(t *testing.T) {
 	tenantID := "test-tenant"
 
 	existingUser := &domain.User{
-		ID:              uuid.New().String(),
+		ID:              uuid.Must(uuid.NewV7()).String(),
 		TenantID:        tenantID,
 		Username:        "testuser",
 		Email:           "test@example.com",
@@ -1561,6 +1582,7 @@ func TestOAuthLogin_JWTGenerationFailure(t *testing.T) {
 		OAuthProviderID: "oauth_12345",
 		Active:          true,
 		CreatedAt:       time.Now(),
+		EmailVerified:   true,
 	}
 
 	userInfo := &ports.OAuthUserInfo{
@@ -1611,7 +1633,7 @@ func TestOAuthLogin_RefreshTokenCreationFailure(t *testing.T) {
 	tenantID := "test-tenant"
 
 	existingUser := &domain.User{
-		ID:              uuid.New().String(),
+		ID:              uuid.Must(uuid.NewV7()).String(),
 		TenantID:        tenantID,
 		Username:        "testuser",
 		Email:           "test@example.com",
@@ -1619,6 +1641,7 @@ func TestOAuthLogin_RefreshTokenCreationFailure(t *testing.T) {
 		OAuthProviderID: "oauth_12345",
 		Active:          true,
 		CreatedAt:       time.Now(),
+		EmailVerified:   true,
 	}
 
 	userInfo := &ports.OAuthUserInfo{

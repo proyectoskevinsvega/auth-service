@@ -21,9 +21,9 @@ func TestCompleteAuthFlow_WithSetup(t *testing.T) {
 	t.Run("Register", func(t *testing.T) {
 		registerPayload := map[string]interface{}{
 			"tenant_id": ts.TenantID,
-			"email":    "testuser@example.com",
-			"password": "SecurePassword123!",
-			"username": "testuser",
+			"email":     "testuser@example.com",
+			"password":  "SecurePassword123!",
+			"username":  "testuser",
 		}
 
 		resp := makeRequest(t, ts.Server, "POST", "/api/v1/auth/register", registerPayload, nil)
@@ -168,9 +168,9 @@ func TestLoginWithInvalidCredentials_WithSetup(t *testing.T) {
 	// First, register a user
 	registerPayload := map[string]interface{}{
 		"tenant_id": ts.TenantID,
-		"email":    "validuser@example.com",
-		"password": "ValidPassword123!",
-		"username": "validuser",
+		"email":     "validuser@example.com",
+		"password":  "ValidPassword123!",
+		"username":  "validuser",
 	}
 	resp := makeRequest(t, ts.Server, "POST", "/api/v1/auth/register", registerPayload, nil)
 	resp.Body.Close()
@@ -238,9 +238,9 @@ func TestRegisterValidation(t *testing.T) {
 			name: "Valid registration",
 			payload: map[string]interface{}{
 				"tenant_id": ts.TenantID,
-				"email":    "valid@example.com",
-				"password": "SecurePassword123!",
-				"username": "validuser",
+				"email":     "valid@example.com",
+				"password":  "SecurePassword123!",
+				"username":  "validuser",
 			},
 			expectedStatus: http.StatusCreated,
 		},
@@ -248,9 +248,9 @@ func TestRegisterValidation(t *testing.T) {
 			name: "Invalid email format",
 			payload: map[string]interface{}{
 				"tenant_id": ts.TenantID,
-				"email":    "notanemail",
-				"password": "SecurePassword123!",
-				"username": "testuser2",
+				"email":     "notanemail",
+				"password":  "SecurePassword123!",
+				"username":  "testuser2",
 			},
 			expectedStatus: http.StatusBadRequest,
 		},
@@ -258,9 +258,9 @@ func TestRegisterValidation(t *testing.T) {
 			name: "Weak password",
 			payload: map[string]interface{}{
 				"tenant_id": ts.TenantID,
-				"email":    "user@example.com",
-				"password": "weak",
-				"username": "testuser3",
+				"email":     "user@example.com",
+				"password":  "weak",
+				"username":  "testuser3",
 			},
 			expectedStatus: http.StatusBadRequest,
 		},
@@ -268,8 +268,8 @@ func TestRegisterValidation(t *testing.T) {
 			name: "Missing username",
 			payload: map[string]interface{}{
 				"tenant_id": ts.TenantID,
-				"email":    "user@example.com",
-				"password": "SecurePassword123!",
+				"email":     "user@example.com",
+				"password":  "SecurePassword123!",
 			},
 			expectedStatus: http.StatusBadRequest,
 		},
@@ -277,9 +277,9 @@ func TestRegisterValidation(t *testing.T) {
 			name: "Duplicate email",
 			payload: map[string]interface{}{
 				"tenant_id": ts.TenantID,
-				"email":    "valid@example.com",
-				"password": "AnotherPassword123!",
-				"username": "anotheruser",
+				"email":     "valid@example.com",
+				"password":  "AnotherPassword123!",
+				"username":  "anotheruser",
 			},
 			expectedStatus: http.StatusConflict,
 		},
@@ -303,9 +303,9 @@ func TestConcurrentLogins(t *testing.T) {
 	// Register a user
 	registerPayload := map[string]interface{}{
 		"tenant_id": ts.TenantID,
-		"email":    "concurrent@example.com",
-		"password": "Password123!",
-		"username": "concurrentuser",
+		"email":     "concurrent@example.com",
+		"password":  "Password123!",
+		"username":  "concurrentuser",
 	}
 	resp := makeRequest(t, ts.Server, "POST", "/api/v1/auth/register", registerPayload, nil)
 	resp.Body.Close()
@@ -350,9 +350,9 @@ func TestSessionManagement(t *testing.T) {
 	// Register and login
 	registerPayload := map[string]interface{}{
 		"tenant_id": ts.TenantID,
-		"email":    "session@example.com",
-		"password": "Password123!",
-		"username": "sessionuser",
+		"email":     "session@example.com",
+		"password":  "Password123!",
+		"username":  "sessionuser",
 	}
 	resp := makeRequest(t, ts.Server, "POST", "/api/v1/auth/register", registerPayload, nil)
 	resp.Body.Close()

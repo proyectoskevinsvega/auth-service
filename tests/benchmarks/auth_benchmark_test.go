@@ -67,6 +67,7 @@ func BenchmarkLogin(b *testing.B) {
 		roleRepo,
 		new(mocks.MockBackupCodeRepository),
 		new(mocks.MockTOTPService),
+		new(mocks.MockTenantRepository),
 	)
 
 	ctx := context.Background()
@@ -79,7 +80,7 @@ func BenchmarkLogin(b *testing.B) {
 	}
 
 	existingUser := &domain.User{
-		ID:               uuid.New().String(),
+		ID:               uuid.Must(uuid.NewV7()).String(),
 		TenantID:         "test-tenant",
 		Username:         "benchuser",
 		Email:            "bench@example.com",
@@ -166,6 +167,7 @@ func BenchmarkRegister(b *testing.B) {
 		roleRepo,
 		new(mocks.MockBackupCodeRepository),
 		new(mocks.MockTOTPService),
+		new(mocks.MockTenantRepository),
 	)
 
 	ctx := context.Background()

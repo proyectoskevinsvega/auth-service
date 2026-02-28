@@ -40,14 +40,14 @@ func TestListUserSessions_Success(t *testing.T) {
 	m := setupSessionUseCase(t)
 	ctx := context.Background()
 
-	userID := uuid.New().String()
+	userID := uuid.Must(uuid.NewV7()).String()
 	tenantID := "test-tenant"
-	currentJTI := uuid.New().String()
-	otherJTI := uuid.New().String()
+	currentJTI := uuid.Must(uuid.NewV7()).String()
+	otherJTI := uuid.Must(uuid.NewV7()).String()
 
 	sessions := []*domain.Session{
 		{
-			ID:        uuid.New().String(),
+			ID:        uuid.Must(uuid.NewV7()).String(),
 			TenantID:  tenantID,
 			UserID:    userID,
 			JTI:       currentJTI,
@@ -59,7 +59,7 @@ func TestListUserSessions_Success(t *testing.T) {
 			Revoked:   false,
 		},
 		{
-			ID:        uuid.New().String(),
+			ID:        uuid.Must(uuid.NewV7()).String(),
 			TenantID:  tenantID,
 			UserID:    userID,
 			JTI:       otherJTI,
@@ -102,9 +102,9 @@ func TestListUserSessions_RepositoryError(t *testing.T) {
 	m := setupSessionUseCase(t)
 	ctx := context.Background()
 
-	userID := uuid.New().String()
+	userID := uuid.Must(uuid.NewV7()).String()
 	tenantID := "test-tenant"
-	currentJTI := uuid.New().String()
+	currentJTI := uuid.Must(uuid.NewV7()).String()
 
 	// Mock expectations
 	m.sessionRepo.On("GetByUserID", ctx, tenantID, userID).Return(nil, domain.ErrSessionExpired)
@@ -125,15 +125,15 @@ func TestRevokeSession_Success(t *testing.T) {
 	m := setupSessionUseCase(t)
 	ctx := context.Background()
 
-	userID := uuid.New().String()
+	userID := uuid.Must(uuid.NewV7()).String()
 	tenantID := "test-tenant"
-	sessionID := uuid.New().String()
+	sessionID := uuid.Must(uuid.NewV7()).String()
 
 	session := &domain.Session{
 		ID:        sessionID,
 		TenantID:  tenantID,
 		UserID:    userID,
-		JTI:       uuid.New().String(),
+		JTI:       uuid.Must(uuid.NewV7()).String(),
 		Device:    "Desktop",
 		IPAddress: "192.168.1.1",
 		Revoked:   false,
@@ -156,9 +156,9 @@ func TestRevokeSession_SessionNotFound(t *testing.T) {
 	m := setupSessionUseCase(t)
 	ctx := context.Background()
 
-	userID := uuid.New().String()
+	userID := uuid.Must(uuid.NewV7()).String()
 	tenantID := "test-tenant"
-	sessionID := uuid.New().String()
+	sessionID := uuid.Must(uuid.NewV7()).String()
 
 	// Mock expectations
 	m.sessionRepo.On("GetByID", ctx, tenantID, sessionID).Return(nil, domain.ErrSessionNotFound)
@@ -177,16 +177,16 @@ func TestRevokeSession_WrongUser(t *testing.T) {
 	m := setupSessionUseCase(t)
 	ctx := context.Background()
 
-	userID := uuid.New().String()
+	userID := uuid.Must(uuid.NewV7()).String()
 	tenantID := "test-tenant"
-	otherUserID := uuid.New().String()
-	sessionID := uuid.New().String()
+	otherUserID := uuid.Must(uuid.NewV7()).String()
+	sessionID := uuid.Must(uuid.NewV7()).String()
 
 	session := &domain.Session{
 		ID:        sessionID,
 		TenantID:  tenantID,
 		UserID:    otherUserID, // Sesión pertenece a otro usuario
-		JTI:       uuid.New().String(),
+		JTI:       uuid.Must(uuid.NewV7()).String(),
 		Device:    "Desktop",
 		IPAddress: "192.168.1.1",
 		Revoked:   false,
@@ -212,9 +212,9 @@ func TestRevokeSession_DatabaseError(t *testing.T) {
 	m := setupSessionUseCase(t)
 	ctx := context.Background()
 
-	userID := uuid.New().String()
+	userID := uuid.Must(uuid.NewV7()).String()
 	tenantID := "test-tenant"
-	sessionID := uuid.New().String()
+	sessionID := uuid.Must(uuid.NewV7()).String()
 
 	// Mock expectations - error genérico de base de datos
 	m.sessionRepo.On("GetByID", ctx, tenantID, sessionID).Return(nil, fmt.Errorf("database connection error"))
@@ -236,15 +236,15 @@ func TestRevokeSession_RevokeError(t *testing.T) {
 	m := setupSessionUseCase(t)
 	ctx := context.Background()
 
-	userID := uuid.New().String()
+	userID := uuid.Must(uuid.NewV7()).String()
 	tenantID := "test-tenant"
-	sessionID := uuid.New().String()
+	sessionID := uuid.Must(uuid.NewV7()).String()
 
 	session := &domain.Session{
 		ID:        sessionID,
 		TenantID:  tenantID,
 		UserID:    userID,
-		JTI:       uuid.New().String(),
+		JTI:       uuid.Must(uuid.NewV7()).String(),
 		Device:    "Desktop",
 		IPAddress: "192.168.1.1",
 		Revoked:   false,
@@ -268,13 +268,13 @@ func TestRevokeAllSessions_Success(t *testing.T) {
 	m := setupSessionUseCase(t)
 	ctx := context.Background()
 
-	userID := uuid.New().String()
+	userID := uuid.Must(uuid.NewV7()).String()
 	tenantID := "test-tenant"
-	currentJTI := uuid.New().String()
+	currentJTI := uuid.Must(uuid.NewV7()).String()
 
 	sessions := []*domain.Session{
 		{
-			ID:       uuid.New().String(),
+			ID:       uuid.Must(uuid.NewV7()).String(),
 			TenantID: tenantID,
 			UserID:   userID,
 			JTI:      currentJTI, // Sesión actual - no debe ser revocada
@@ -282,18 +282,18 @@ func TestRevokeAllSessions_Success(t *testing.T) {
 			Revoked:  false,
 		},
 		{
-			ID:       uuid.New().String(),
+			ID:       uuid.Must(uuid.NewV7()).String(),
 			TenantID: tenantID,
 			UserID:   userID,
-			JTI:      uuid.New().String(),
+			JTI:      uuid.Must(uuid.NewV7()).String(),
 			Device:   "Mobile",
 			Revoked:  false,
 		},
 		{
-			ID:       uuid.New().String(),
+			ID:       uuid.Must(uuid.NewV7()).String(),
 			TenantID: tenantID,
 			UserID:   userID,
-			JTI:      uuid.New().String(),
+			JTI:      uuid.Must(uuid.NewV7()).String(),
 			Device:   "Tablet",
 			Revoked:  false,
 		},
@@ -320,13 +320,13 @@ func TestRevokeAllSessions_OnlyCurrentSession(t *testing.T) {
 	m := setupSessionUseCase(t)
 	ctx := context.Background()
 
-	userID := uuid.New().String()
+	userID := uuid.Must(uuid.NewV7()).String()
 	tenantID := "test-tenant"
-	currentJTI := uuid.New().String()
+	currentJTI := uuid.Must(uuid.NewV7()).String()
 
 	sessions := []*domain.Session{
 		{
-			ID:       uuid.New().String(),
+			ID:       uuid.Must(uuid.NewV7()).String(),
 			TenantID: tenantID,
 			UserID:   userID,
 			JTI:      currentJTI,
@@ -355,13 +355,13 @@ func TestRevokeAllSessions_PartialFailure(t *testing.T) {
 	m := setupSessionUseCase(t)
 	ctx := context.Background()
 
-	userID := uuid.New().String()
+	userID := uuid.Must(uuid.NewV7()).String()
 	tenantID := "test-tenant"
-	currentJTI := uuid.New().String()
+	currentJTI := uuid.Must(uuid.NewV7()).String()
 
 	sessions := []*domain.Session{
 		{
-			ID:       uuid.New().String(),
+			ID:       uuid.Must(uuid.NewV7()).String(),
 			TenantID: tenantID,
 			UserID:   userID,
 			JTI:      currentJTI,
@@ -369,18 +369,18 @@ func TestRevokeAllSessions_PartialFailure(t *testing.T) {
 			Revoked:  false,
 		},
 		{
-			ID:       uuid.New().String(),
+			ID:       uuid.Must(uuid.NewV7()).String(),
 			TenantID: tenantID,
 			UserID:   userID,
-			JTI:      uuid.New().String(),
+			JTI:      uuid.Must(uuid.NewV7()).String(),
 			Device:   "Mobile",
 			Revoked:  false,
 		},
 		{
-			ID:       uuid.New().String(),
+			ID:       uuid.Must(uuid.NewV7()).String(),
 			TenantID: tenantID,
 			UserID:   userID,
-			JTI:      uuid.New().String(),
+			JTI:      uuid.Must(uuid.NewV7()).String(),
 			Device:   "Tablet",
 			Revoked:  false,
 		},

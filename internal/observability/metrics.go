@@ -10,38 +10,38 @@ import (
 // Metrics contains all Prometheus metrics for the auth service
 type Metrics struct {
 	// HTTP Metrics
-	HTTPRequestsTotal          *prometheus.CounterVec
-	HTTPRequestDuration        *prometheus.HistogramVec
-	HTTPRequestsInFlight       prometheus.Gauge
-	HTTPResponseSizeBytes      *prometheus.HistogramVec
+	HTTPRequestsTotal     *prometheus.CounterVec
+	HTTPRequestDuration   *prometheus.HistogramVec
+	HTTPRequestsInFlight  prometheus.Gauge
+	HTTPResponseSizeBytes *prometheus.HistogramVec
 
 	// Authentication Metrics
-	AuthLoginTotal             *prometheus.CounterVec
-	AuthLoginDuration          *prometheus.HistogramVec
-	AuthRegisterTotal          *prometheus.CounterVec
-	AuthRegisterDuration       *prometheus.HistogramVec
-	AuthLogoutTotal            *prometheus.CounterVec
-	AuthTokenValidationTotal   *prometheus.CounterVec
-	AuthTokenRefreshTotal      *prometheus.CounterVec
-	AuthPasswordResetTotal     *prometheus.CounterVec
-	AuthOAuthLoginTotal        *prometheus.CounterVec
+	AuthLoginTotal           *prometheus.CounterVec
+	AuthLoginDuration        *prometheus.HistogramVec
+	AuthRegisterTotal        *prometheus.CounterVec
+	AuthRegisterDuration     *prometheus.HistogramVec
+	AuthLogoutTotal          *prometheus.CounterVec
+	AuthTokenValidationTotal *prometheus.CounterVec
+	AuthTokenRefreshTotal    *prometheus.CounterVec
+	AuthPasswordResetTotal   *prometheus.CounterVec
+	AuthOAuthLoginTotal      *prometheus.CounterVec
 
 	// 2FA Metrics
-	Auth2FAEnableTotal         *prometheus.CounterVec
-	Auth2FAVerifyTotal         *prometheus.CounterVec
-	Auth2FADisableTotal        *prometheus.CounterVec
+	Auth2FAEnableTotal  *prometheus.CounterVec
+	Auth2FAVerifyTotal  *prometheus.CounterVec
+	Auth2FADisableTotal *prometheus.CounterVec
 
 	// Session Metrics
-	SessionsActive             prometheus.Gauge
-	SessionsCreatedTotal       prometheus.Counter
-	SessionsRevokedTotal       *prometheus.CounterVec
+	SessionsActive       prometheus.Gauge
+	SessionsCreatedTotal prometheus.Counter
+	SessionsRevokedTotal *prometheus.CounterVec
 
 	// Token Metrics
-	TokensCacheHitTotal        prometheus.Counter
-	TokensCacheMissTotal       prometheus.Counter
-	TokensBlacklistedTotal     prometheus.Counter
-	TokensGeneratedTotal       *prometheus.CounterVec
-	JWKSHitsTotal              prometheus.Counter
+	TokensCacheHitTotal    prometheus.Counter
+	TokensCacheMissTotal   prometheus.Counter
+	TokensBlacklistedTotal prometheus.Counter
+	TokensGeneratedTotal   *prometheus.CounterVec
+	JWKSHitsTotal          prometheus.Counter
 
 	// B2B & gRPC Metrics
 	GRPCRequestsTotal *prometheus.CounterVec
@@ -49,27 +49,27 @@ type Metrics struct {
 	RevocationsTotal  *prometheus.CounterVec
 
 	// Rate Limiting Metrics
-	RateLimitExceededTotal     *prometheus.CounterVec
+	RateLimitExceededTotal *prometheus.CounterVec
 
 	// Database Metrics
-	DBConnectionsActive        prometheus.Gauge
-	DBConnectionsIdle          prometheus.Gauge
-	DBQueryDuration            *prometheus.HistogramVec
-	DBQueriesTotal             *prometheus.CounterVec
+	DBConnectionsActive prometheus.Gauge
+	DBConnectionsIdle   prometheus.Gauge
+	DBQueryDuration     *prometheus.HistogramVec
+	DBQueriesTotal      *prometheus.CounterVec
 
 	// Redis Metrics
-	RedisCommandsTotal         *prometheus.CounterVec
-	RedisCommandDuration       *prometheus.HistogramVec
-	RedisConnectionErrors      prometheus.Counter
+	RedisCommandsTotal    *prometheus.CounterVec
+	RedisCommandDuration  *prometheus.HistogramVec
+	RedisConnectionErrors prometheus.Counter
 
 	// Email Metrics
-	EmailsSentTotal            *prometheus.CounterVec
-	EmailSendDuration          *prometheus.HistogramVec
+	EmailsSentTotal   *prometheus.CounterVec
+	EmailSendDuration *prometheus.HistogramVec
 
 	// Business Metrics
-	UsersTotal                 prometheus.Gauge
-	UsersActiveTotal           prometheus.Gauge
-	UsersRegisteredLast24h     prometheus.Gauge
+	UsersTotal             prometheus.Gauge
+	UsersActiveTotal       prometheus.Gauge
+	UsersRegisteredLast24h prometheus.Gauge
 }
 
 // NewMetrics creates and registers all Prometheus metrics

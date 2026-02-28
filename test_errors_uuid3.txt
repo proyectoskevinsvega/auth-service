@@ -1,0 +1,579 @@
+?   	github.com/vertercloud/auth-service/cmd/auth-service	[no test files]
+?   	github.com/vertercloud/auth-service/docs	[no test files]
+?   	github.com/vertercloud/auth-service/internal/adapters/crypto	[no test files]
+?   	github.com/vertercloud/auth-service/internal/adapters/geolocation	[no test files]
+?   	github.com/vertercloud/auth-service/internal/adapters/grpc	[no test files]
+?   	github.com/vertercloud/auth-service/internal/adapters/grpc/proto	[no test files]
+?   	github.com/vertercloud/auth-service/internal/adapters/http	[no test files]
+?   	github.com/vertercloud/auth-service/internal/adapters/notification	[no test files]
+?   	github.com/vertercloud/auth-service/internal/adapters/oauth	[no test files]
+?   	github.com/vertercloud/auth-service/internal/adapters/postgres	[no test files]
+?   	github.com/vertercloud/auth-service/internal/adapters/redis	[no test files]
+?   	github.com/vertercloud/auth-service/internal/adapters/threatintel	[no test files]
+?   	github.com/vertercloud/auth-service/internal/config	[no test files]
+?   	github.com/vertercloud/auth-service/internal/domain	[no test files]
+?   	github.com/vertercloud/auth-service/internal/logger	[no test files]
+?   	github.com/vertercloud/auth-service/internal/observability	[no test files]
+?   	github.com/vertercloud/auth-service/internal/observability/telemetry	[no test files]
+?   	github.com/vertercloud/auth-service/internal/ports	[no test files]
+--- FAIL: TestTokenUseCase_ValidateToken_Success_CacheMiss (0.00s)
+panic: 
+	assert: mock: I don't know what to return because the method call was unexpected.
+		Either do Mock.On("GetByID").Return(...) first, or remove the GetByID() call.
+		This method was unexpected:
+			GetByID(context.backgroundCtx,string,string)
+			0: context.backgroundCtx{emptyCtx:context.emptyCtx{}}
+			1: ""
+			2: "019ca2a5-59ce-7190-a073-c372d1a580d9"
+		at: [D:/archivos-kevins/desarrollo/backend-server/backend/auth-service/tests/mocks/session_repository_mock.go:21 D:/archivos-kevins/desarrollo/backend-server/backend/auth-service/internal/usecase/token_usecase.go:91 D:/archivos-kevins/desarrollo/backend-server/backend/auth-service/internal/usecase/token_usecase_test.go:147] [recovered, repanicked]
+
+goroutine 110 [running]:
+testing.tRunner.func1.2({0x7ff7ea14c520, 0xc000095f50})
+	C:/Program Files/Go/src/testing/testing.go:1872 +0x239
+testing.tRunner.func1()
+	C:/Program Files/Go/src/testing/testing.go:1875 +0x35b
+panic({0x7ff7ea14c520?, 0xc000095f50?})
+	C:/Program Files/Go/src/runtime/panic.go:783 +0x132
+github.com/stretchr/testify/mock.(*Mock).fail(0xc0000f2d20, {0x7ff7ea20f293?, 0x4?}, {0xc00003f480?, 0x3?, 0x3?})
+	C:/Users/progr/go/pkg/mod/github.com/stretchr/testify@v1.11.1/mock/mock.go:359 +0x125
+github.com/stretchr/testify/mock.(*Mock).MethodCalled(0xc0000f2d20, {0x7ff7ea32593b, 0x7}, {0xc00046b950, 0x3, 0x3})
+	C:/Users/progr/go/pkg/mod/github.com/stretchr/testify@v1.11.1/mock/mock.go:527 +0x77b
+github.com/stretchr/testify/mock.(*Mock).Called(0xc0000f2d20, {0xc00046b950, 0x3, 0x3})
+	C:/Users/progr/go/pkg/mod/github.com/stretchr/testify@v1.11.1/mock/mock.go:491 +0x125
+github.com/vertercloud/auth-service/tests/mocks.(*MockSessionRepository).GetByID(0xc0000f2d20, {0x7ff7ea29c518, 0x7ff7ea5d2240}, {0x0, 0x0}, {0xc0000df290, 0x24})
+	D:/archivos-kevins/desarrollo/backend-server/backend/auth-service/tests/mocks/session_repository_mock.go:21 +0x131
+github.com/vertercloud/auth-service/internal/usecase.(*TokenUseCase).ValidateToken(0xc0000e83c0, {0x7ff7ea29c518, 0x7ff7ea5d2240}, {0x7ff7ea1f210c, 0xf})
+	D:/archivos-kevins/desarrollo/backend-server/backend/auth-service/internal/usecase/token_usecase.go:91 +0x16b
+github.com/vertercloud/auth-service/internal/usecase.TestTokenUseCase_ValidateToken_Success_CacheMiss(0xc00035efc0)
+	D:/archivos-kevins/desarrollo/backend-server/backend/auth-service/internal/usecase/token_usecase_test.go:147 +0x62f
+testing.tRunner(0xc00035efc0, 0x7ff7ea21dae8)
+	C:/Program Files/Go/src/testing/testing.go:1934 +0xc3
+created by testing.(*T).Run in goroutine 1
+	C:/Program Files/Go/src/testing/testing.go:1997 +0x44b
+FAIL	github.com/vertercloud/auth-service/internal/usecase	2.703s
+?   	github.com/vertercloud/auth-service/internal/worker	[no test files]
+?   	github.com/vertercloud/auth-service/internal/worker/asynq	[no test files]
+?   	github.com/vertercloud/auth-service/pkg/errors	[no test files]
+?   	github.com/vertercloud/auth-service/pkg/health	[no test files]
+?   	github.com/vertercloud/auth-service/pkg/middleware	[no test files]
+ok  	github.com/vertercloud/auth-service/tests/benchmarks	(cached) [no tests to run]
+[setup] .env.test cargado desde ../../.env.test
+[migration] warning: 001_initial_schema.up.sql might have failed: ERROR: relation "idx_auth_users_username" already exists (SQLSTATE 42P07)
+[migration] warning: 003_add_email_verifications.up.sql might have failed: ERROR: relation "idx_email_verifications_user_id" already exists (SQLSTATE 42P07)
+[migration] warning: 004_fix_oauth_constraint.up.sql might have failed: ERROR: relation "idx_auth_users_oauth_unique" already exists (SQLSTATE 42P07)
+[migration] warning: 005_add_geo_coordinates.up.sql might have failed: ERROR: column "last_login_latitude" of relation "auth_users" already exists (SQLSTATE 42701)
+[migration] warning: 006_add_account_lockout.up.sql might have failed: ERROR: column "failed_login_attempts" of relation "auth_users" already exists (SQLSTATE 42701)
+[migration] warning: 007_add_password_expiration.up.sql might have failed: ERROR: column "password_changed_at" of relation "auth_users" already exists (SQLSTATE 42701)
+[migration] warning: 008_add_forced_password_reset.up.sql might have failed: ERROR: column "password_reset_required" of relation "auth_users" already exists (SQLSTATE 42701)
+[migration] warning: 009_rbac_abac.up.sql might have failed: ERROR: there is no unique or exclusion constraint matching the ON CONFLICT specification (SQLSTATE 42P10)
+[migration] warning: 010_webauthn_credentials.up.sql might have failed: ERROR: trigger "update_auth_webauthn_credentials_modtime" for relation "auth_webauthn_credentials" already exists (SQLSTATE 42710)
+[migration] warning: 011_multi_tenancy.up.sql might have failed: ERROR: relation "idx_auth_tenants_slug" already exists (SQLSTATE 42P07)
+[migration] warning: 012_oauth_clients.up.sql might have failed: ERROR: relation "idx_auth_clients_tenant_id" already exists (SQLSTATE 42P07)
+[migration] warning: 013_add_2fa_backup_codes.up.sql might have failed: ERROR: relation "idx_auth_2fa_backup_codes_user_id" already exists (SQLSTATE 42P07)
+[migration] warning: 014_add_webhook_subscriptions.up.sql might have failed: ERROR: relation "idx_webhooks_tenant_active" already exists (SQLSTATE 42P07)
+{"level":"error","error":"referer not supplied","message":"CSRF validation failed"}
+2026/02/28 00:07:51 [PC_GAMER/zCXoGSyRJM-000001] "POST http://127.0.0.1:63450/api/v1/auth/register HTTP/1.1" from 127.0.0.1:63451 - 403 50B in 30.3008ms
+{"level":"error","error":"referer not supplied","message":"CSRF validation failed"}
+2026/02/28 00:07:51 [PC_GAMER/zCXoGSyRJM-000002] "POST http://127.0.0.1:63450/api/v1/auth/login HTTP/1.1" from 127.0.0.1:63451 - 403 50B in 0s
+2026/02/28 00:07:51 [PC_GAMER/zCXoGSyRJM-000003] "GET http://127.0.0.1:63450/api/v1/auth/me HTTP/1.1" from 127.0.0.1:63451 - 401 62B in 0s
+{"level":"error","error":"referer not supplied","message":"CSRF validation failed"}
+2026/02/28 00:07:52 [PC_GAMER/zCXoGSyRJM-000004] "POST http://127.0.0.1:63450/api/v1/auth/refresh HTTP/1.1" from 127.0.0.1:63451 - 403 50B in 0s
+2026/02/28 00:07:52 [PC_GAMER/zCXoGSyRJM-000005] "GET http://127.0.0.1:63450/api/v1/auth/me HTTP/1.1" from 127.0.0.1:63451 - 401 62B in 0s
+{"level":"error","error":"referer not supplied","message":"CSRF validation failed"}
+2026/02/28 00:07:52 [PC_GAMER/zCXoGSyRJM-000006] "POST http://127.0.0.1:63450/api/v1/auth/logout HTTP/1.1" from 127.0.0.1:63452 - 403 50B in 0s
+2026/02/28 00:07:52 [PC_GAMER/zCXoGSyRJM-000007] "GET http://127.0.0.1:63450/api/v1/auth/me HTTP/1.1" from 127.0.0.1:63453 - 401 62B in 0s
+--- FAIL: TestCompleteAuthFlow_WithSetup (2.36s)
+    --- FAIL: TestCompleteAuthFlow_WithSetup/Register (0.03s)
+        auth_flow_test.go:32: 
+            	Error Trace:	D:/archivos-kevins/desarrollo/backend-server/backend/auth-service/tests/integration/auth_flow_test.go:32
+            	Error:      	Not equal: 
+            	            	expected: 201
+            	            	actual  : 403
+            	Test:       	TestCompleteAuthFlow_WithSetup/Register
+            	Messages:   	register should succeed
+        auth_flow_test.go:40: 
+            	Error Trace:	D:/archivos-kevins/desarrollo/backend-server/backend/auth-service/tests/integration/auth_flow_test.go:40
+            	Error:      	map[string]interface {}{"code":"FORBIDDEN", "error":"invalid csrf token"} does not contain "id"
+            	Test:       	TestCompleteAuthFlow_WithSetup/Register
+        auth_flow_test.go:41: 
+            	Error Trace:	D:/archivos-kevins/desarrollo/backend-server/backend/auth-service/tests/integration/auth_flow_test.go:41
+            	Error:      	map[string]interface {}{"code":"FORBIDDEN", "error":"invalid csrf token"} does not contain "email"
+            	Test:       	TestCompleteAuthFlow_WithSetup/Register
+        auth_flow_test.go:42: 
+            	Error Trace:	D:/archivos-kevins/desarrollo/backend-server/backend/auth-service/tests/integration/auth_flow_test.go:42
+            	Error:      	map[string]interface {}{"code":"FORBIDDEN", "error":"invalid csrf token"} does not contain "username"
+            	Test:       	TestCompleteAuthFlow_WithSetup/Register
+        auth_flow_test.go:43: 
+            	Error Trace:	D:/archivos-kevins/desarrollo/backend-server/backend/auth-service/tests/integration/auth_flow_test.go:43
+            	Error:      	Not equal: 
+            	            	expected: string("testuser@example.com")
+            	            	actual  : <nil>(<nil>)
+            	Test:       	TestCompleteAuthFlow_WithSetup/Register
+        auth_flow_test.go:44: 
+            	Error Trace:	D:/archivos-kevins/desarrollo/backend-server/backend/auth-service/tests/integration/auth_flow_test.go:44
+            	Error:      	Not equal: 
+            	            	expected: string("testuser")
+            	            	actual  : <nil>(<nil>)
+            	Test:       	TestCompleteAuthFlow_WithSetup/Register
+    --- FAIL: TestCompleteAuthFlow_WithSetup/Login (0.00s)
+        auth_flow_test.go:59: 
+            	Error Trace:	D:/archivos-kevins/desarrollo/backend-server/backend/auth-service/tests/integration/auth_flow_test.go:59
+            	Error:      	Not equal: 
+            	            	expected: 200
+            	            	actual  : 403
+            	Test:       	TestCompleteAuthFlow_WithSetup/Login
+            	Messages:   	login should succeed
+        auth_flow_test.go:67: 
+            	Error Trace:	D:/archivos-kevins/desarrollo/backend-server/backend/auth-service/tests/integration/auth_flow_test.go:67
+            	Error:      	map[string]interface {}{"code":"FORBIDDEN", "error":"invalid csrf token"} does not contain "access_token"
+            	Test:       	TestCompleteAuthFlow_WithSetup/Login
+    --- FAIL: TestCompleteAuthFlow_WithSetup/GetMe (0.00s)
+        auth_flow_test.go:87: 
+            	Error Trace:	D:/archivos-kevins/desarrollo/backend-server/backend/auth-service/tests/integration/auth_flow_test.go:87
+            	Error:      	Not equal: 
+            	            	expected: 200
+            	            	actual  : 401
+            	Test:       	TestCompleteAuthFlow_WithSetup/GetMe
+            	Messages:   	GetMe should succeed with valid token
+        auth_flow_test.go:94: 
+            	Error Trace:	D:/archivos-kevins/desarrollo/backend-server/backend/auth-service/tests/integration/auth_flow_test.go:94
+            	Error:      	Not equal: 
+            	            	expected: string("testuser@example.com")
+            	            	actual  : <nil>(<nil>)
+            	Test:       	TestCompleteAuthFlow_WithSetup/GetMe
+        auth_flow_test.go:95: 
+            	Error Trace:	D:/archivos-kevins/desarrollo/backend-server/backend/auth-service/tests/integration/auth_flow_test.go:95
+            	Error:      	Not equal: 
+            	            	expected: string("testuser")
+            	            	actual  : <nil>(<nil>)
+            	Test:       	TestCompleteAuthFlow_WithSetup/GetMe
+    --- FAIL: TestCompleteAuthFlow_WithSetup/RefreshToken (1.00s)
+        auth_flow_test.go:104: Refreshing token: 
+        auth_flow_test.go:113: 
+            	Error Trace:	D:/archivos-kevins/desarrollo/backend-server/backend/auth-service/tests/integration/auth_flow_test.go:113
+            	Error:      	Not equal: 
+            	            	expected: 200
+            	            	actual  : 403
+            	Test:       	TestCompleteAuthFlow_WithSetup/RefreshToken
+            	Messages:   	token refresh should succeed
+        auth_flow_test.go:120: 
+            	Error Trace:	D:/archivos-kevins/desarrollo/backend-server/backend/auth-service/tests/integration/auth_flow_test.go:120
+            	Error:      	map[string]interface {}{"code":"FORBIDDEN", "error":"invalid csrf token"} does not contain "access_token"
+            	Test:       	TestCompleteAuthFlow_WithSetup/RefreshToken
+    --- FAIL: TestCompleteAuthFlow_WithSetup/GetMeWithNewToken (0.00s)
+        auth_flow_test.go:135: 
+            	Error Trace:	D:/archivos-kevins/desarrollo/backend-server/backend/auth-service/tests/integration/auth_flow_test.go:135
+            	Error:      	Not equal: 
+            	            	expected: 200
+            	            	actual  : 401
+            	Test:       	TestCompleteAuthFlow_WithSetup/GetMeWithNewToken
+            	Messages:   	GetMe should succeed with refreshed token
+    --- FAIL: TestCompleteAuthFlow_WithSetup/Logout (0.00s)
+        auth_flow_test.go:147: 
+            	Error Trace:	D:/archivos-kevins/desarrollo/backend-server/backend/auth-service/tests/integration/auth_flow_test.go:147
+            	Error:      	Not equal: 
+            	            	expected: 200
+            	            	actual  : 403
+            	Test:       	TestCompleteAuthFlow_WithSetup/Logout
+            	Messages:   	logout should succeed
+[migration] warning: 001_initial_schema.up.sql might have failed: ERROR: relation "idx_auth_users_username" already exists (SQLSTATE 42P07)
+[migration] warning: 003_add_email_verifications.up.sql might have failed: ERROR: relation "idx_email_verifications_user_id" already exists (SQLSTATE 42P07)
+[migration] warning: 004_fix_oauth_constraint.up.sql might have failed: ERROR: relation "idx_auth_users_oauth_unique" already exists (SQLSTATE 42P07)
+[migration] warning: 005_add_geo_coordinates.up.sql might have failed: ERROR: column "last_login_latitude" of relation "auth_users" already exists (SQLSTATE 42701)
+[migration] warning: 006_add_account_lockout.up.sql might have failed: ERROR: column "failed_login_attempts" of relation "auth_users" already exists (SQLSTATE 42701)
+[migration] warning: 007_add_password_expiration.up.sql might have failed: ERROR: column "password_changed_at" of relation "auth_users" already exists (SQLSTATE 42701)
+[migration] warning: 008_add_forced_password_reset.up.sql might have failed: ERROR: column "password_reset_required" of relation "auth_users" already exists (SQLSTATE 42701)
+[migration] warning: 009_rbac_abac.up.sql might have failed: ERROR: there is no unique or exclusion constraint matching the ON CONFLICT specification (SQLSTATE 42P10)
+[migration] warning: 010_webauthn_credentials.up.sql might have failed: ERROR: trigger "update_auth_webauthn_credentials_modtime" for relation "auth_webauthn_credentials" already exists (SQLSTATE 42710)
+[migration] warning: 011_multi_tenancy.up.sql might have failed: ERROR: relation "idx_auth_tenants_slug" already exists (SQLSTATE 42P07)
+[migration] warning: 012_oauth_clients.up.sql might have failed: ERROR: relation "idx_auth_clients_tenant_id" already exists (SQLSTATE 42P07)
+[migration] warning: 013_add_2fa_backup_codes.up.sql might have failed: ERROR: relation "idx_auth_2fa_backup_codes_user_id" already exists (SQLSTATE 42P07)
+[migration] warning: 014_add_webhook_subscriptions.up.sql might have failed: ERROR: relation "idx_webhooks_tenant_active" already exists (SQLSTATE 42P07)
+{"level":"error","error":"referer not supplied","message":"CSRF validation failed"}
+2026/02/28 00:07:53 [PC_GAMER/zCXoGSyRJM-000008] "POST http://127.0.0.1:63456/api/v1/auth/register HTTP/1.1" from 127.0.0.1:63457 - 403 50B in 0s
+--- FAIL: TestLoginWithInvalidCredentials_WithSetup (1.21s)
+    auth_flow_test.go:177: 
+        	Error Trace:	D:/archivos-kevins/desarrollo/backend-server/backend/auth-service/tests/integration/auth_flow_test.go:177
+        	Error:      	Not equal: 
+        	            	expected: 201
+        	            	actual  : 403
+        	Test:       	TestLoginWithInvalidCredentials_WithSetup
+[migration] warning: 001_initial_schema.up.sql might have failed: ERROR: relation "idx_auth_users_username" already exists (SQLSTATE 42P07)
+[migration] warning: 003_add_email_verifications.up.sql might have failed: ERROR: relation "idx_email_verifications_user_id" already exists (SQLSTATE 42P07)
+[migration] warning: 004_fix_oauth_constraint.up.sql might have failed: ERROR: relation "idx_auth_users_oauth_unique" already exists (SQLSTATE 42P07)
+[migration] warning: 005_add_geo_coordinates.up.sql might have failed: ERROR: column "last_login_latitude" of relation "auth_users" already exists (SQLSTATE 42701)
+[migration] warning: 006_add_account_lockout.up.sql might have failed: ERROR: column "failed_login_attempts" of relation "auth_users" already exists (SQLSTATE 42701)
+[migration] warning: 007_add_password_expiration.up.sql might have failed: ERROR: column "password_changed_at" of relation "auth_users" already exists (SQLSTATE 42701)
+[migration] warning: 008_add_forced_password_reset.up.sql might have failed: ERROR: column "password_reset_required" of relation "auth_users" already exists (SQLSTATE 42701)
+[migration] warning: 009_rbac_abac.up.sql might have failed: ERROR: there is no unique or exclusion constraint matching the ON CONFLICT specification (SQLSTATE 42P10)
+[migration] warning: 010_webauthn_credentials.up.sql might have failed: ERROR: trigger "update_auth_webauthn_credentials_modtime" for relation "auth_webauthn_credentials" already exists (SQLSTATE 42710)
+[migration] warning: 011_multi_tenancy.up.sql might have failed: ERROR: relation "idx_auth_tenants_slug" already exists (SQLSTATE 42P07)
+[migration] warning: 012_oauth_clients.up.sql might have failed: ERROR: relation "idx_auth_clients_tenant_id" already exists (SQLSTATE 42P07)
+[migration] warning: 013_add_2fa_backup_codes.up.sql might have failed: ERROR: relation "idx_auth_2fa_backup_codes_user_id" already exists (SQLSTATE 42P07)
+[migration] warning: 014_add_webhook_subscriptions.up.sql might have failed: ERROR: relation "idx_webhooks_tenant_active" already exists (SQLSTATE 42P07)
+{"level":"error","error":"referer not supplied","message":"CSRF validation failed"}
+2026/02/28 00:07:54 [PC_GAMER/zCXoGSyRJM-000009] "POST http://127.0.0.1:63460/api/v1/auth/register HTTP/1.1" from 127.0.0.1:63461 - 403 50B in 0s
+{"level":"error","error":"referer not supplied","message":"CSRF validation failed"}
+2026/02/28 00:07:54 [PC_GAMER/zCXoGSyRJM-000010] "POST http://127.0.0.1:63460/api/v1/auth/register HTTP/1.1" from 127.0.0.1:63462 - 403 50B in 0s
+{"level":"error","error":"referer not supplied","message":"CSRF validation failed"}
+2026/02/28 00:07:54 [PC_GAMER/zCXoGSyRJM-000011] "POST http://127.0.0.1:63460/api/v1/auth/register HTTP/1.1" from 127.0.0.1:63463 - 403 50B in 0s
+{"level":"error","error":"referer not supplied","message":"CSRF validation failed"}
+2026/02/28 00:07:54 [PC_GAMER/zCXoGSyRJM-000012] "POST http://127.0.0.1:63460/api/v1/auth/register HTTP/1.1" from 127.0.0.1:63464 - 403 50B in 646.9µs
+{"level":"error","error":"referer not supplied","message":"CSRF validation failed"}
+2026/02/28 00:07:54 [PC_GAMER/zCXoGSyRJM-000013] "POST http://127.0.0.1:63460/api/v1/auth/register HTTP/1.1" from 127.0.0.1:63465 - 403 50B in 0s
+--- FAIL: TestRegisterValidation (1.50s)
+    --- FAIL: TestRegisterValidation/Valid_registration (0.00s)
+        auth_flow_test.go:293: 
+            	Error Trace:	D:/archivos-kevins/desarrollo/backend-server/backend/auth-service/tests/integration/auth_flow_test.go:293
+            	Error:      	Not equal: 
+            	            	expected: 201
+            	            	actual  : 403
+            	Test:       	TestRegisterValidation/Valid_registration
+    --- FAIL: TestRegisterValidation/Invalid_email_format (0.00s)
+        auth_flow_test.go:293: 
+            	Error Trace:	D:/archivos-kevins/desarrollo/backend-server/backend/auth-service/tests/integration/auth_flow_test.go:293
+            	Error:      	Not equal: 
+            	            	expected: 400
+            	            	actual  : 403
+            	Test:       	TestRegisterValidation/Invalid_email_format
+    --- FAIL: TestRegisterValidation/Weak_password (0.00s)
+        auth_flow_test.go:293: 
+            	Error Trace:	D:/archivos-kevins/desarrollo/backend-server/backend/auth-service/tests/integration/auth_flow_test.go:293
+            	Error:      	Not equal: 
+            	            	expected: 400
+            	            	actual  : 403
+            	Test:       	TestRegisterValidation/Weak_password
+    --- FAIL: TestRegisterValidation/Missing_username (0.00s)
+        auth_flow_test.go:293: 
+            	Error Trace:	D:/archivos-kevins/desarrollo/backend-server/backend/auth-service/tests/integration/auth_flow_test.go:293
+            	Error:      	Not equal: 
+            	            	expected: 400
+            	            	actual  : 403
+            	Test:       	TestRegisterValidation/Missing_username
+    --- FAIL: TestRegisterValidation/Duplicate_email (0.00s)
+        auth_flow_test.go:293: 
+            	Error Trace:	D:/archivos-kevins/desarrollo/backend-server/backend/auth-service/tests/integration/auth_flow_test.go:293
+            	Error:      	Not equal: 
+            	            	expected: 409
+            	            	actual  : 403
+            	Test:       	TestRegisterValidation/Duplicate_email
+[migration] warning: 001_initial_schema.up.sql might have failed: ERROR: relation "idx_auth_users_username" already exists (SQLSTATE 42P07)
+[migration] warning: 003_add_email_verifications.up.sql might have failed: ERROR: relation "idx_email_verifications_user_id" already exists (SQLSTATE 42P07)
+[migration] warning: 004_fix_oauth_constraint.up.sql might have failed: ERROR: relation "idx_auth_users_oauth_unique" already exists (SQLSTATE 42P07)
+[migration] warning: 005_add_geo_coordinates.up.sql might have failed: ERROR: column "last_login_latitude" of relation "auth_users" already exists (SQLSTATE 42701)
+[migration] warning: 006_add_account_lockout.up.sql might have failed: ERROR: column "failed_login_attempts" of relation "auth_users" already exists (SQLSTATE 42701)
+[migration] warning: 007_add_password_expiration.up.sql might have failed: ERROR: column "password_changed_at" of relation "auth_users" already exists (SQLSTATE 42701)
+[migration] warning: 008_add_forced_password_reset.up.sql might have failed: ERROR: column "password_reset_required" of relation "auth_users" already exists (SQLSTATE 42701)
+[migration] warning: 009_rbac_abac.up.sql might have failed: ERROR: there is no unique or exclusion constraint matching the ON CONFLICT specification (SQLSTATE 42P10)
+[migration] warning: 010_webauthn_credentials.up.sql might have failed: ERROR: trigger "update_auth_webauthn_credentials_modtime" for relation "auth_webauthn_credentials" already exists (SQLSTATE 42710)
+[migration] warning: 011_multi_tenancy.up.sql might have failed: ERROR: relation "idx_auth_tenants_slug" already exists (SQLSTATE 42P07)
+[migration] warning: 012_oauth_clients.up.sql might have failed: ERROR: relation "idx_auth_clients_tenant_id" already exists (SQLSTATE 42P07)
+[migration] warning: 013_add_2fa_backup_codes.up.sql might have failed: ERROR: relation "idx_auth_2fa_backup_codes_user_id" already exists (SQLSTATE 42P07)
+[migration] warning: 014_add_webhook_subscriptions.up.sql might have failed: ERROR: relation "idx_webhooks_tenant_active" already exists (SQLSTATE 42P07)
+{"level":"error","error":"referer not supplied","message":"CSRF validation failed"}
+2026/02/28 00:07:56 [PC_GAMER/zCXoGSyRJM-000014] "POST http://127.0.0.1:63468/api/v1/auth/register HTTP/1.1" from 127.0.0.1:63469 - 403 50B in 0s
+--- FAIL: TestConcurrentLogins (1.69s)
+    auth_flow_test.go:312: 
+        	Error Trace:	D:/archivos-kevins/desarrollo/backend-server/backend/auth-service/tests/integration/auth_flow_test.go:312
+        	Error:      	Not equal: 
+        	            	expected: 201
+        	            	actual  : 403
+        	Test:       	TestConcurrentLogins
+[migration] warning: 001_initial_schema.up.sql might have failed: ERROR: relation "idx_auth_users_username" already exists (SQLSTATE 42P07)
+[migration] warning: 003_add_email_verifications.up.sql might have failed: ERROR: relation "idx_email_verifications_user_id" already exists (SQLSTATE 42P07)
+[migration] warning: 004_fix_oauth_constraint.up.sql might have failed: ERROR: relation "idx_auth_users_oauth_unique" already exists (SQLSTATE 42P07)
+[migration] warning: 005_add_geo_coordinates.up.sql might have failed: ERROR: column "last_login_latitude" of relation "auth_users" already exists (SQLSTATE 42701)
+[migration] warning: 006_add_account_lockout.up.sql might have failed: ERROR: column "failed_login_attempts" of relation "auth_users" already exists (SQLSTATE 42701)
+[migration] warning: 007_add_password_expiration.up.sql might have failed: ERROR: column "password_changed_at" of relation "auth_users" already exists (SQLSTATE 42701)
+[migration] warning: 008_add_forced_password_reset.up.sql might have failed: ERROR: column "password_reset_required" of relation "auth_users" already exists (SQLSTATE 42701)
+[migration] warning: 009_rbac_abac.up.sql might have failed: ERROR: there is no unique or exclusion constraint matching the ON CONFLICT specification (SQLSTATE 42P10)
+[migration] warning: 010_webauthn_credentials.up.sql might have failed: ERROR: trigger "update_auth_webauthn_credentials_modtime" for relation "auth_webauthn_credentials" already exists (SQLSTATE 42710)
+[migration] warning: 011_multi_tenancy.up.sql might have failed: ERROR: relation "idx_auth_tenants_slug" already exists (SQLSTATE 42P07)
+[migration] warning: 012_oauth_clients.up.sql might have failed: ERROR: relation "idx_auth_clients_tenant_id" already exists (SQLSTATE 42P07)
+[migration] warning: 013_add_2fa_backup_codes.up.sql might have failed: ERROR: relation "idx_auth_2fa_backup_codes_user_id" already exists (SQLSTATE 42P07)
+[migration] warning: 014_add_webhook_subscriptions.up.sql might have failed: ERROR: relation "idx_webhooks_tenant_active" already exists (SQLSTATE 42P07)
+{"level":"error","error":"referer not supplied","message":"CSRF validation failed"}
+2026/02/28 00:07:57 [PC_GAMER/zCXoGSyRJM-000015] "POST http://127.0.0.1:63472/api/v1/auth/register HTTP/1.1" from 127.0.0.1:63473 - 403 50B in 542.4µs
+--- FAIL: TestSessionManagement (1.25s)
+    auth_flow_test.go:359: 
+        	Error Trace:	D:/archivos-kevins/desarrollo/backend-server/backend/auth-service/tests/integration/auth_flow_test.go:359
+        	Error:      	Not equal: 
+        	            	expected: 201
+        	            	actual  : 403
+        	Test:       	TestSessionManagement
+[migration] warning: 001_initial_schema.up.sql might have failed: ERROR: relation "idx_auth_users_username" already exists (SQLSTATE 42P07)
+[migration] warning: 003_add_email_verifications.up.sql might have failed: ERROR: relation "idx_email_verifications_user_id" already exists (SQLSTATE 42P07)
+[migration] warning: 004_fix_oauth_constraint.up.sql might have failed: ERROR: relation "idx_auth_users_oauth_unique" already exists (SQLSTATE 42P07)
+[migration] warning: 005_add_geo_coordinates.up.sql might have failed: ERROR: column "last_login_latitude" of relation "auth_users" already exists (SQLSTATE 42701)
+[migration] warning: 006_add_account_lockout.up.sql might have failed: ERROR: column "failed_login_attempts" of relation "auth_users" already exists (SQLSTATE 42701)
+[migration] warning: 007_add_password_expiration.up.sql might have failed: ERROR: column "password_changed_at" of relation "auth_users" already exists (SQLSTATE 42701)
+[migration] warning: 008_add_forced_password_reset.up.sql might have failed: ERROR: column "password_reset_required" of relation "auth_users" already exists (SQLSTATE 42701)
+[migration] warning: 009_rbac_abac.up.sql might have failed: ERROR: there is no unique or exclusion constraint matching the ON CONFLICT specification (SQLSTATE 42P10)
+[migration] warning: 010_webauthn_credentials.up.sql might have failed: ERROR: trigger "update_auth_webauthn_credentials_modtime" for relation "auth_webauthn_credentials" already exists (SQLSTATE 42710)
+[migration] warning: 011_multi_tenancy.up.sql might have failed: ERROR: relation "idx_auth_tenants_slug" already exists (SQLSTATE 42P07)
+[migration] warning: 012_oauth_clients.up.sql might have failed: ERROR: relation "idx_auth_clients_tenant_id" already exists (SQLSTATE 42P07)
+[migration] warning: 013_add_2fa_backup_codes.up.sql might have failed: ERROR: relation "idx_auth_2fa_backup_codes_user_id" already exists (SQLSTATE 42P07)
+[migration] warning: 014_add_webhook_subscriptions.up.sql might have failed: ERROR: relation "idx_webhooks_tenant_active" already exists (SQLSTATE 42P07)
+2026/02/28 00:07:59 [PC_GAMER/zCXoGSyRJM-000016] "GET http://127.0.0.1:63476/api/v1/auth/oauth/google/callback HTTP/1.1" from 127.0.0.1:63477 - 400 60B in 0s
+2026/02/28 00:07:59 [PC_GAMER/zCXoGSyRJM-000017] "GET http://127.0.0.1:63476/api/v1/auth/oauth/github/callback HTTP/1.1" from 127.0.0.1:63478 - 400 60B in 0s
+[migration] warning: 001_initial_schema.up.sql might have failed: ERROR: relation "idx_auth_users_username" already exists (SQLSTATE 42P07)
+[migration] warning: 003_add_email_verifications.up.sql might have failed: ERROR: relation "idx_email_verifications_user_id" already exists (SQLSTATE 42P07)
+[migration] warning: 004_fix_oauth_constraint.up.sql might have failed: ERROR: relation "idx_auth_users_oauth_unique" already exists (SQLSTATE 42P07)
+[migration] warning: 005_add_geo_coordinates.up.sql might have failed: ERROR: column "last_login_latitude" of relation "auth_users" already exists (SQLSTATE 42701)
+[migration] warning: 006_add_account_lockout.up.sql might have failed: ERROR: column "failed_login_attempts" of relation "auth_users" already exists (SQLSTATE 42701)
+[migration] warning: 007_add_password_expiration.up.sql might have failed: ERROR: column "password_changed_at" of relation "auth_users" already exists (SQLSTATE 42701)
+[migration] warning: 008_add_forced_password_reset.up.sql might have failed: ERROR: column "password_reset_required" of relation "auth_users" already exists (SQLSTATE 42701)
+[migration] warning: 009_rbac_abac.up.sql might have failed: ERROR: there is no unique or exclusion constraint matching the ON CONFLICT specification (SQLSTATE 42P10)
+[migration] warning: 010_webauthn_credentials.up.sql might have failed: ERROR: trigger "update_auth_webauthn_credentials_modtime" for relation "auth_webauthn_credentials" already exists (SQLSTATE 42710)
+[migration] warning: 011_multi_tenancy.up.sql might have failed: ERROR: relation "idx_auth_tenants_slug" already exists (SQLSTATE 42P07)
+[migration] warning: 012_oauth_clients.up.sql might have failed: ERROR: relation "idx_auth_clients_tenant_id" already exists (SQLSTATE 42P07)
+[migration] warning: 013_add_2fa_backup_codes.up.sql might have failed: ERROR: relation "idx_auth_2fa_backup_codes_user_id" already exists (SQLSTATE 42P07)
+[migration] warning: 014_add_webhook_subscriptions.up.sql might have failed: ERROR: relation "idx_webhooks_tenant_active" already exists (SQLSTATE 42P07)
+2026/02/28 00:08:00 [PC_GAMER/zCXoGSyRJM-000018] "GET http://127.0.0.1:63481/api/v1/auth/oauth/google/callback HTTP/1.1" from 127.0.0.1:63482 - 400 60B in 0s
+2026/02/28 00:08:00 [PC_GAMER/zCXoGSyRJM-000019] "GET http://127.0.0.1:63481/api/v1/auth/oauth/github/callback HTTP/1.1" from 127.0.0.1:63483 - 400 60B in 619.8µs
+[migration] warning: 001_initial_schema.up.sql might have failed: ERROR: relation "idx_auth_users_username" already exists (SQLSTATE 42P07)
+[migration] warning: 003_add_email_verifications.up.sql might have failed: ERROR: relation "idx_email_verifications_user_id" already exists (SQLSTATE 42P07)
+[migration] warning: 004_fix_oauth_constraint.up.sql might have failed: ERROR: relation "idx_auth_users_oauth_unique" already exists (SQLSTATE 42P07)
+[migration] warning: 005_add_geo_coordinates.up.sql might have failed: ERROR: column "last_login_latitude" of relation "auth_users" already exists (SQLSTATE 42701)
+[migration] warning: 006_add_account_lockout.up.sql might have failed: ERROR: column "failed_login_attempts" of relation "auth_users" already exists (SQLSTATE 42701)
+[migration] warning: 007_add_password_expiration.up.sql might have failed: ERROR: column "password_changed_at" of relation "auth_users" already exists (SQLSTATE 42701)
+[migration] warning: 008_add_forced_password_reset.up.sql might have failed: ERROR: column "password_reset_required" of relation "auth_users" already exists (SQLSTATE 42701)
+[migration] warning: 009_rbac_abac.up.sql might have failed: ERROR: there is no unique or exclusion constraint matching the ON CONFLICT specification (SQLSTATE 42P10)
+[migration] warning: 010_webauthn_credentials.up.sql might have failed: ERROR: trigger "update_auth_webauthn_credentials_modtime" for relation "auth_webauthn_credentials" already exists (SQLSTATE 42710)
+[migration] warning: 011_multi_tenancy.up.sql might have failed: ERROR: relation "idx_auth_tenants_slug" already exists (SQLSTATE 42P07)
+[migration] warning: 012_oauth_clients.up.sql might have failed: ERROR: relation "idx_auth_clients_tenant_id" already exists (SQLSTATE 42P07)
+[migration] warning: 013_add_2fa_backup_codes.up.sql might have failed: ERROR: relation "idx_auth_2fa_backup_codes_user_id" already exists (SQLSTATE 42P07)
+[migration] warning: 014_add_webhook_subscriptions.up.sql might have failed: ERROR: relation "idx_webhooks_tenant_active" already exists (SQLSTATE 42P07)
+{"level":"error","error":"OAuth provider not found","message":"google oauth callback failed"}
+{"level":"error","error":"OAuth provider not found","message":"unhandled error"}
+2026/02/28 00:08:01 [PC_GAMER/zCXoGSyRJM-000020] "GET http://127.0.0.1:63486/api/v1/auth/oauth/google/callback?code=invalid_code_12345 HTTP/1.1" from 127.0.0.1:63487 - 500 58B in 603.5µs
+{"level":"error","error":"OAuth provider not found","message":"github oauth callback failed"}
+{"level":"error","error":"OAuth provider not found","message":"unhandled error"}
+2026/02/28 00:08:01 [PC_GAMER/zCXoGSyRJM-000021] "GET http://127.0.0.1:63486/api/v1/auth/oauth/github/callback?code=invalid_code_12345 HTTP/1.1" from 127.0.0.1:63488 - 500 58B in 0s
+[migration] warning: 001_initial_schema.up.sql might have failed: ERROR: relation "idx_auth_users_username" already exists (SQLSTATE 42P07)
+[migration] warning: 003_add_email_verifications.up.sql might have failed: ERROR: relation "idx_email_verifications_user_id" already exists (SQLSTATE 42P07)
+[migration] warning: 004_fix_oauth_constraint.up.sql might have failed: ERROR: relation "idx_auth_users_oauth_unique" already exists (SQLSTATE 42P07)
+[migration] warning: 005_add_geo_coordinates.up.sql might have failed: ERROR: column "last_login_latitude" of relation "auth_users" already exists (SQLSTATE 42701)
+[migration] warning: 006_add_account_lockout.up.sql might have failed: ERROR: column "failed_login_attempts" of relation "auth_users" already exists (SQLSTATE 42701)
+[migration] warning: 007_add_password_expiration.up.sql might have failed: ERROR: column "password_changed_at" of relation "auth_users" already exists (SQLSTATE 42701)
+[migration] warning: 008_add_forced_password_reset.up.sql might have failed: ERROR: column "password_reset_required" of relation "auth_users" already exists (SQLSTATE 42701)
+[migration] warning: 009_rbac_abac.up.sql might have failed: ERROR: there is no unique or exclusion constraint matching the ON CONFLICT specification (SQLSTATE 42P10)
+[migration] warning: 010_webauthn_credentials.up.sql might have failed: ERROR: trigger "update_auth_webauthn_credentials_modtime" for relation "auth_webauthn_credentials" already exists (SQLSTATE 42710)
+[migration] warning: 011_multi_tenancy.up.sql might have failed: ERROR: relation "idx_auth_tenants_slug" already exists (SQLSTATE 42P07)
+[migration] warning: 012_oauth_clients.up.sql might have failed: ERROR: relation "idx_auth_clients_tenant_id" already exists (SQLSTATE 42P07)
+[migration] warning: 013_add_2fa_backup_codes.up.sql might have failed: ERROR: relation "idx_auth_2fa_backup_codes_user_id" already exists (SQLSTATE 42P07)
+[migration] warning: 014_add_webhook_subscriptions.up.sql might have failed: ERROR: relation "idx_webhooks_tenant_active" already exists (SQLSTATE 42P07)
+{"level":"error","error":"OAuth provider not found","message":"google oauth callback failed"}
+{"level":"error","error":"OAuth provider not found","message":"unhandled error"}
+2026/02/28 00:08:02 [PC_GAMER/zCXoGSyRJM-000022] "GET http://127.0.0.1:63491/api/v1/auth/oauth/google/callback?code=test_code HTTP/1.1" from 127.0.0.1:63492 - 500 58B in 0s
+{"level":"error","error":"OAuth provider not found","message":"github oauth callback failed"}
+{"level":"error","error":"OAuth provider not found","message":"unhandled error"}
+2026/02/28 00:08:02 [PC_GAMER/zCXoGSyRJM-000023] "GET http://127.0.0.1:63491/api/v1/auth/oauth/github/callback?code=test_code HTTP/1.1" from 127.0.0.1:63493 - 500 58B in 0s
+[migration] warning: 001_initial_schema.up.sql might have failed: ERROR: relation "idx_auth_users_username" already exists (SQLSTATE 42P07)
+[migration] warning: 003_add_email_verifications.up.sql might have failed: ERROR: relation "idx_email_verifications_user_id" already exists (SQLSTATE 42P07)
+[migration] warning: 004_fix_oauth_constraint.up.sql might have failed: ERROR: relation "idx_auth_users_oauth_unique" already exists (SQLSTATE 42P07)
+[migration] warning: 005_add_geo_coordinates.up.sql might have failed: ERROR: column "last_login_latitude" of relation "auth_users" already exists (SQLSTATE 42701)
+[migration] warning: 006_add_account_lockout.up.sql might have failed: ERROR: column "failed_login_attempts" of relation "auth_users" already exists (SQLSTATE 42701)
+[migration] warning: 007_add_password_expiration.up.sql might have failed: ERROR: column "password_changed_at" of relation "auth_users" already exists (SQLSTATE 42701)
+[migration] warning: 008_add_forced_password_reset.up.sql might have failed: ERROR: column "password_reset_required" of relation "auth_users" already exists (SQLSTATE 42701)
+[migration] warning: 009_rbac_abac.up.sql might have failed: ERROR: there is no unique or exclusion constraint matching the ON CONFLICT specification (SQLSTATE 42P10)
+[migration] warning: 010_webauthn_credentials.up.sql might have failed: ERROR: trigger "update_auth_webauthn_credentials_modtime" for relation "auth_webauthn_credentials" already exists (SQLSTATE 42710)
+[migration] warning: 011_multi_tenancy.up.sql might have failed: ERROR: relation "idx_auth_tenants_slug" already exists (SQLSTATE 42P07)
+[migration] warning: 012_oauth_clients.up.sql might have failed: ERROR: relation "idx_auth_clients_tenant_id" already exists (SQLSTATE 42P07)
+[migration] warning: 013_add_2fa_backup_codes.up.sql might have failed: ERROR: relation "idx_auth_2fa_backup_codes_user_id" already exists (SQLSTATE 42P07)
+[migration] warning: 014_add_webhook_subscriptions.up.sql might have failed: ERROR: relation "idx_webhooks_tenant_active" already exists (SQLSTATE 42P07)
+{"level":"error","error":"referer not supplied","message":"CSRF validation failed"}
+2026/02/28 00:08:03 [PC_GAMER/zCXoGSyRJM-000024] "POST http://127.0.0.1:63496/api/v1/auth/register HTTP/1.1" from 127.0.0.1:63497 - 403 50B in 0s
+--- FAIL: TestPasswordResetFlow (1.23s)
+    password_reset_test.go:31: 
+        	Error Trace:	D:/archivos-kevins/desarrollo/backend-server/backend/auth-service/tests/integration/password_reset_test.go:31
+        	Error:      	Not equal: 
+        	            	expected: 201
+        	            	actual  : 403
+        	Test:       	TestPasswordResetFlow
+[migration] warning: 001_initial_schema.up.sql might have failed: ERROR: relation "idx_auth_users_username" already exists (SQLSTATE 42P07)
+[migration] warning: 003_add_email_verifications.up.sql might have failed: ERROR: relation "idx_email_verifications_user_id" already exists (SQLSTATE 42P07)
+[migration] warning: 004_fix_oauth_constraint.up.sql might have failed: ERROR: relation "idx_auth_users_oauth_unique" already exists (SQLSTATE 42P07)
+[migration] warning: 005_add_geo_coordinates.up.sql might have failed: ERROR: column "last_login_latitude" of relation "auth_users" already exists (SQLSTATE 42701)
+[migration] warning: 006_add_account_lockout.up.sql might have failed: ERROR: column "failed_login_attempts" of relation "auth_users" already exists (SQLSTATE 42701)
+[migration] warning: 007_add_password_expiration.up.sql might have failed: ERROR: column "password_changed_at" of relation "auth_users" already exists (SQLSTATE 42701)
+[migration] warning: 008_add_forced_password_reset.up.sql might have failed: ERROR: column "password_reset_required" of relation "auth_users" already exists (SQLSTATE 42701)
+[migration] warning: 009_rbac_abac.up.sql might have failed: ERROR: there is no unique or exclusion constraint matching the ON CONFLICT specification (SQLSTATE 42P10)
+[migration] warning: 010_webauthn_credentials.up.sql might have failed: ERROR: trigger "update_auth_webauthn_credentials_modtime" for relation "auth_webauthn_credentials" already exists (SQLSTATE 42710)
+[migration] warning: 011_multi_tenancy.up.sql might have failed: ERROR: relation "idx_auth_tenants_slug" already exists (SQLSTATE 42P07)
+[migration] warning: 012_oauth_clients.up.sql might have failed: ERROR: relation "idx_auth_clients_tenant_id" already exists (SQLSTATE 42P07)
+[migration] warning: 013_add_2fa_backup_codes.up.sql might have failed: ERROR: relation "idx_auth_2fa_backup_codes_user_id" already exists (SQLSTATE 42P07)
+[migration] warning: 014_add_webhook_subscriptions.up.sql might have failed: ERROR: relation "idx_webhooks_tenant_active" already exists (SQLSTATE 42P07)
+{"level":"error","error":"referer not supplied","message":"CSRF validation failed"}
+2026/02/28 00:08:05 [PC_GAMER/zCXoGSyRJM-000025] "POST http://127.0.0.1:63501/api/v1/auth/forgot-password HTTP/1.1" from 127.0.0.1:63502 - 403 50B in 0s
+{"level":"error","error":"referer not supplied","message":"CSRF validation failed"}
+2026/02/28 00:08:05 [PC_GAMER/zCXoGSyRJM-000026] "POST http://127.0.0.1:63501/api/v1/auth/forgot-password HTTP/1.1" from 127.0.0.1:63503 - 403 50B in 0s
+--- FAIL: TestPasswordResetInvalidEmail (1.46s)
+    --- FAIL: TestPasswordResetInvalidEmail/Non-existent_email (0.00s)
+        password_reset_test.go:153: 
+            	Error Trace:	D:/archivos-kevins/desarrollo/backend-server/backend/auth-service/tests/integration/password_reset_test.go:153
+            	Error:      	Not equal: 
+            	            	expected: 200
+            	            	actual  : 403
+            	Test:       	TestPasswordResetInvalidEmail/Non-existent_email
+    --- FAIL: TestPasswordResetInvalidEmail/Empty_email (0.00s)
+        password_reset_test.go:153: 
+            	Error Trace:	D:/archivos-kevins/desarrollo/backend-server/backend/auth-service/tests/integration/password_reset_test.go:153
+            	Error:      	Not equal: 
+            	            	expected: 400
+            	            	actual  : 403
+            	Test:       	TestPasswordResetInvalidEmail/Empty_email
+[migration] warning: 001_initial_schema.up.sql might have failed: ERROR: relation "idx_auth_users_username" already exists (SQLSTATE 42P07)
+[migration] warning: 003_add_email_verifications.up.sql might have failed: ERROR: relation "idx_email_verifications_user_id" already exists (SQLSTATE 42P07)
+[migration] warning: 004_fix_oauth_constraint.up.sql might have failed: ERROR: relation "idx_auth_users_oauth_unique" already exists (SQLSTATE 42P07)
+[migration] warning: 005_add_geo_coordinates.up.sql might have failed: ERROR: column "last_login_latitude" of relation "auth_users" already exists (SQLSTATE 42701)
+[migration] warning: 006_add_account_lockout.up.sql might have failed: ERROR: column "failed_login_attempts" of relation "auth_users" already exists (SQLSTATE 42701)
+[migration] warning: 007_add_password_expiration.up.sql might have failed: ERROR: column "password_changed_at" of relation "auth_users" already exists (SQLSTATE 42701)
+[migration] warning: 008_add_forced_password_reset.up.sql might have failed: ERROR: column "password_reset_required" of relation "auth_users" already exists (SQLSTATE 42701)
+[migration] warning: 009_rbac_abac.up.sql might have failed: ERROR: there is no unique or exclusion constraint matching the ON CONFLICT specification (SQLSTATE 42P10)
+[migration] warning: 010_webauthn_credentials.up.sql might have failed: ERROR: trigger "update_auth_webauthn_credentials_modtime" for relation "auth_webauthn_credentials" already exists (SQLSTATE 42710)
+[migration] warning: 011_multi_tenancy.up.sql might have failed: ERROR: relation "idx_auth_tenants_slug" already exists (SQLSTATE 42P07)
+[migration] warning: 012_oauth_clients.up.sql might have failed: ERROR: relation "idx_auth_clients_tenant_id" already exists (SQLSTATE 42P07)
+[migration] warning: 013_add_2fa_backup_codes.up.sql might have failed: ERROR: relation "idx_auth_2fa_backup_codes_user_id" already exists (SQLSTATE 42P07)
+[migration] warning: 014_add_webhook_subscriptions.up.sql might have failed: ERROR: relation "idx_webhooks_tenant_active" already exists (SQLSTATE 42P07)
+{"level":"error","error":"referer not supplied","message":"CSRF validation failed"}
+2026/02/28 00:08:06 [PC_GAMER/zCXoGSyRJM-000027] "POST http://127.0.0.1:63506/api/v1/auth/reset-password HTTP/1.1" from 127.0.0.1:63507 - 403 50B in 0s
+{"level":"error","error":"referer not supplied","message":"CSRF validation failed"}
+2026/02/28 00:08:06 [PC_GAMER/zCXoGSyRJM-000028] "POST http://127.0.0.1:63506/api/v1/auth/reset-password HTTP/1.1" from 127.0.0.1:63508 - 403 50B in 0s
+--- FAIL: TestPasswordResetInvalidToken (1.05s)
+    --- FAIL: TestPasswordResetInvalidToken/Empty_token (0.00s)
+        password_reset_test.go:194: 
+            	Error Trace:	D:/archivos-kevins/desarrollo/backend-server/backend/auth-service/tests/integration/password_reset_test.go:194
+            	Error:      	Not equal: 
+            	            	expected: 400
+            	            	actual  : 403
+            	Test:       	TestPasswordResetInvalidToken/Empty_token
+    --- FAIL: TestPasswordResetInvalidToken/Empty_password (0.00s)
+        password_reset_test.go:194: 
+            	Error Trace:	D:/archivos-kevins/desarrollo/backend-server/backend/auth-service/tests/integration/password_reset_test.go:194
+            	Error:      	Not equal: 
+            	            	expected: 400
+            	            	actual  : 403
+            	Test:       	TestPasswordResetInvalidToken/Empty_password
+[migration] warning: 001_initial_schema.up.sql might have failed: ERROR: relation "idx_auth_users_username" already exists (SQLSTATE 42P07)
+[migration] warning: 003_add_email_verifications.up.sql might have failed: ERROR: relation "idx_email_verifications_user_id" already exists (SQLSTATE 42P07)
+[migration] warning: 004_fix_oauth_constraint.up.sql might have failed: ERROR: relation "idx_auth_users_oauth_unique" already exists (SQLSTATE 42P07)
+[migration] warning: 005_add_geo_coordinates.up.sql might have failed: ERROR: column "last_login_latitude" of relation "auth_users" already exists (SQLSTATE 42701)
+[migration] warning: 006_add_account_lockout.up.sql might have failed: ERROR: column "failed_login_attempts" of relation "auth_users" already exists (SQLSTATE 42701)
+[migration] warning: 007_add_password_expiration.up.sql might have failed: ERROR: column "password_changed_at" of relation "auth_users" already exists (SQLSTATE 42701)
+[migration] warning: 008_add_forced_password_reset.up.sql might have failed: ERROR: column "password_reset_required" of relation "auth_users" already exists (SQLSTATE 42701)
+[migration] warning: 009_rbac_abac.up.sql might have failed: ERROR: there is no unique or exclusion constraint matching the ON CONFLICT specification (SQLSTATE 42P10)
+[migration] warning: 010_webauthn_credentials.up.sql might have failed: ERROR: trigger "update_auth_webauthn_credentials_modtime" for relation "auth_webauthn_credentials" already exists (SQLSTATE 42710)
+[migration] warning: 011_multi_tenancy.up.sql might have failed: ERROR: relation "idx_auth_tenants_slug" already exists (SQLSTATE 42P07)
+[migration] warning: 012_oauth_clients.up.sql might have failed: ERROR: relation "idx_auth_clients_tenant_id" already exists (SQLSTATE 42P07)
+[migration] warning: 013_add_2fa_backup_codes.up.sql might have failed: ERROR: relation "idx_auth_2fa_backup_codes_user_id" already exists (SQLSTATE 42P07)
+[migration] warning: 014_add_webhook_subscriptions.up.sql might have failed: ERROR: relation "idx_webhooks_tenant_active" already exists (SQLSTATE 42P07)
+{"level":"error","error":"referer not supplied","message":"CSRF validation failed"}
+2026/02/28 00:08:07 [PC_GAMER/zCXoGSyRJM-000029] "POST http://127.0.0.1:63511/api/v1/auth/register HTTP/1.1" from 127.0.0.1:63512 - 403 50B in 0s
+--- FAIL: TestPasswordResetRevokesExistingSessions (1.24s)
+    password_reset_test.go:215: 
+        	Error Trace:	D:/archivos-kevins/desarrollo/backend-server/backend/auth-service/tests/integration/password_reset_test.go:215
+        	Error:      	Not equal: 
+        	            	expected: 201
+        	            	actual  : 403
+        	Test:       	TestPasswordResetRevokesExistingSessions
+[migration] warning: 001_initial_schema.up.sql might have failed: ERROR: relation "idx_auth_users_username" already exists (SQLSTATE 42P07)
+[migration] warning: 003_add_email_verifications.up.sql might have failed: ERROR: relation "idx_email_verifications_user_id" already exists (SQLSTATE 42P07)
+[migration] warning: 004_fix_oauth_constraint.up.sql might have failed: ERROR: relation "idx_auth_users_oauth_unique" already exists (SQLSTATE 42P07)
+[migration] warning: 005_add_geo_coordinates.up.sql might have failed: ERROR: column "last_login_latitude" of relation "auth_users" already exists (SQLSTATE 42701)
+[migration] warning: 006_add_account_lockout.up.sql might have failed: ERROR: column "failed_login_attempts" of relation "auth_users" already exists (SQLSTATE 42701)
+[migration] warning: 007_add_password_expiration.up.sql might have failed: ERROR: column "password_changed_at" of relation "auth_users" already exists (SQLSTATE 42701)
+[migration] warning: 008_add_forced_password_reset.up.sql might have failed: ERROR: column "password_reset_required" of relation "auth_users" already exists (SQLSTATE 42701)
+[migration] warning: 009_rbac_abac.up.sql might have failed: ERROR: there is no unique or exclusion constraint matching the ON CONFLICT specification (SQLSTATE 42P10)
+[migration] warning: 010_webauthn_credentials.up.sql might have failed: ERROR: trigger "update_auth_webauthn_credentials_modtime" for relation "auth_webauthn_credentials" already exists (SQLSTATE 42710)
+[migration] warning: 011_multi_tenancy.up.sql might have failed: ERROR: relation "idx_auth_tenants_slug" already exists (SQLSTATE 42P07)
+[migration] warning: 012_oauth_clients.up.sql might have failed: ERROR: relation "idx_auth_clients_tenant_id" already exists (SQLSTATE 42P07)
+[migration] warning: 013_add_2fa_backup_codes.up.sql might have failed: ERROR: relation "idx_auth_2fa_backup_codes_user_id" already exists (SQLSTATE 42P07)
+[migration] warning: 014_add_webhook_subscriptions.up.sql might have failed: ERROR: relation "idx_webhooks_tenant_active" already exists (SQLSTATE 42P07)
+{"level":"error","error":"referer not supplied","message":"CSRF validation failed"}
+2026/02/28 00:08:08 [PC_GAMER/zCXoGSyRJM-000030] "POST http://127.0.0.1:63515/api/v1/auth/register HTTP/1.1" from 127.0.0.1:63516 - 403 50B in 0s
+--- FAIL: TestLoginRateLimiting (1.22s)
+    rate_limiting_test.go:25: 
+        	Error Trace:	D:/archivos-kevins/desarrollo/backend-server/backend/auth-service/tests/integration/rate_limiting_test.go:25
+        	Error:      	Not equal: 
+        	            	expected: 201
+        	            	actual  : 403
+        	Test:       	TestLoginRateLimiting
+[migration] warning: 001_initial_schema.up.sql might have failed: ERROR: relation "idx_auth_users_username" already exists (SQLSTATE 42P07)
+[migration] warning: 003_add_email_verifications.up.sql might have failed: ERROR: relation "idx_email_verifications_user_id" already exists (SQLSTATE 42P07)
+[migration] warning: 004_fix_oauth_constraint.up.sql might have failed: ERROR: relation "idx_auth_users_oauth_unique" already exists (SQLSTATE 42P07)
+[migration] warning: 005_add_geo_coordinates.up.sql might have failed: ERROR: column "last_login_latitude" of relation "auth_users" already exists (SQLSTATE 42701)
+[migration] warning: 006_add_account_lockout.up.sql might have failed: ERROR: column "failed_login_attempts" of relation "auth_users" already exists (SQLSTATE 42701)
+[migration] warning: 007_add_password_expiration.up.sql might have failed: ERROR: column "password_changed_at" of relation "auth_users" already exists (SQLSTATE 42701)
+[migration] warning: 008_add_forced_password_reset.up.sql might have failed: ERROR: column "password_reset_required" of relation "auth_users" already exists (SQLSTATE 42701)
+[migration] warning: 009_rbac_abac.up.sql might have failed: ERROR: there is no unique or exclusion constraint matching the ON CONFLICT specification (SQLSTATE 42P10)
+[migration] warning: 010_webauthn_credentials.up.sql might have failed: ERROR: trigger "update_auth_webauthn_credentials_modtime" for relation "auth_webauthn_credentials" already exists (SQLSTATE 42710)
+[migration] warning: 011_multi_tenancy.up.sql might have failed: ERROR: relation "idx_auth_tenants_slug" already exists (SQLSTATE 42P07)
+[migration] warning: 012_oauth_clients.up.sql might have failed: ERROR: relation "idx_auth_clients_tenant_id" already exists (SQLSTATE 42P07)
+[migration] warning: 013_add_2fa_backup_codes.up.sql might have failed: ERROR: relation "idx_auth_2fa_backup_codes_user_id" already exists (SQLSTATE 42P07)
+[migration] warning: 014_add_webhook_subscriptions.up.sql might have failed: ERROR: relation "idx_webhooks_tenant_active" already exists (SQLSTATE 42P07)
+{"level":"error","error":"referer not supplied","message":"CSRF validation failed"}
+2026/02/28 00:08:09 [PC_GAMER/zCXoGSyRJM-000031] "POST http://127.0.0.1:63519/api/v1/auth/register HTTP/1.1" from 127.0.0.1:63520 - 403 50B in 0s
+{"level":"error","error":"referer not supplied","message":"CSRF validation failed"}
+2026/02/28 00:08:09 [PC_GAMER/zCXoGSyRJM-000032] "POST http://127.0.0.1:63519/api/v1/auth/register HTTP/1.1" from 127.0.0.1:63521 - 403 50B in 0s
+{"level":"error","error":"referer not supplied","message":"CSRF validation failed"}
+2026/02/28 00:08:09 [PC_GAMER/zCXoGSyRJM-000033] "POST http://127.0.0.1:63519/api/v1/auth/register HTTP/1.1" from 127.0.0.1:63522 - 403 50B in 0s
+{"level":"error","error":"referer not supplied","message":"CSRF validation failed"}
+2026/02/28 00:08:09 [PC_GAMER/zCXoGSyRJM-000034] "POST http://127.0.0.1:63519/api/v1/auth/register HTTP/1.1" from 127.0.0.1:63523 - 403 50B in 0s
+--- FAIL: TestRegisterRateLimiting (1.18s)
+    --- FAIL: TestRegisterRateLimiting/ExceedRegisterRateLimit (0.00s)
+        rate_limiting_test.go:105: 
+            	Error Trace:	D:/archivos-kevins/desarrollo/backend-server/backend/auth-service/tests/integration/rate_limiting_test.go:105
+            	Error:      	Not equal: 
+            	            	expected: 429
+            	            	actual  : 403
+            	Test:       	TestRegisterRateLimiting/ExceedRegisterRateLimit
+            	Messages:   	should be rate limited after max registration attempts
+[migration] warning: 001_initial_schema.up.sql might have failed: ERROR: relation "idx_auth_users_username" already exists (SQLSTATE 42P07)
+[migration] warning: 003_add_email_verifications.up.sql might have failed: ERROR: relation "idx_email_verifications_user_id" already exists (SQLSTATE 42P07)
+[migration] warning: 004_fix_oauth_constraint.up.sql might have failed: ERROR: relation "idx_auth_users_oauth_unique" already exists (SQLSTATE 42P07)
+[migration] warning: 005_add_geo_coordinates.up.sql might have failed: ERROR: column "last_login_latitude" of relation "auth_users" already exists (SQLSTATE 42701)
+[migration] warning: 006_add_account_lockout.up.sql might have failed: ERROR: column "failed_login_attempts" of relation "auth_users" already exists (SQLSTATE 42701)
+[migration] warning: 007_add_password_expiration.up.sql might have failed: ERROR: column "password_changed_at" of relation "auth_users" already exists (SQLSTATE 42701)
+[migration] warning: 008_add_forced_password_reset.up.sql might have failed: ERROR: column "password_reset_required" of relation "auth_users" already exists (SQLSTATE 42701)
+[migration] warning: 009_rbac_abac.up.sql might have failed: ERROR: there is no unique or exclusion constraint matching the ON CONFLICT specification (SQLSTATE 42P10)
+[migration] warning: 010_webauthn_credentials.up.sql might have failed: ERROR: trigger "update_auth_webauthn_credentials_modtime" for relation "auth_webauthn_credentials" already exists (SQLSTATE 42710)
+[migration] warning: 011_multi_tenancy.up.sql might have failed: ERROR: relation "idx_auth_tenants_slug" already exists (SQLSTATE 42P07)
+[migration] warning: 012_oauth_clients.up.sql might have failed: ERROR: relation "idx_auth_clients_tenant_id" already exists (SQLSTATE 42P07)
+[migration] warning: 013_add_2fa_backup_codes.up.sql might have failed: ERROR: relation "idx_auth_2fa_backup_codes_user_id" already exists (SQLSTATE 42P07)
+[migration] warning: 014_add_webhook_subscriptions.up.sql might have failed: ERROR: relation "idx_webhooks_tenant_active" already exists (SQLSTATE 42P07)
+{"level":"error","error":"referer not supplied","message":"CSRF validation failed"}
+2026/02/28 00:08:11 [PC_GAMER/zCXoGSyRJM-000035] "POST http://127.0.0.1:63526/api/v1/auth/register HTTP/1.1" from 127.0.0.1:63527 - 403 50B in 0s
+--- FAIL: TestRateLimitReset (1.52s)
+    rate_limiting_test.go:123: 
+        	Error Trace:	D:/archivos-kevins/desarrollo/backend-server/backend/auth-service/tests/integration/rate_limiting_test.go:123
+        	Error:      	Not equal: 
+        	            	expected: 201
+        	            	actual  : 403
+        	Test:       	TestRateLimitReset
+[migration] warning: 001_initial_schema.up.sql might have failed: ERROR: relation "idx_auth_users_username" already exists (SQLSTATE 42P07)
+[migration] warning: 003_add_email_verifications.up.sql might have failed: ERROR: relation "idx_email_verifications_user_id" already exists (SQLSTATE 42P07)
+[migration] warning: 004_fix_oauth_constraint.up.sql might have failed: ERROR: relation "idx_auth_users_oauth_unique" already exists (SQLSTATE 42P07)
+[migration] warning: 005_add_geo_coordinates.up.sql might have failed: ERROR: column "last_login_latitude" of relation "auth_users" already exists (SQLSTATE 42701)
+[migration] warning: 006_add_account_lockout.up.sql might have failed: ERROR: column "failed_login_attempts" of relation "auth_users" already exists (SQLSTATE 42701)
+[migration] warning: 007_add_password_expiration.up.sql might have failed: ERROR: column "password_changed_at" of relation "auth_users" already exists (SQLSTATE 42701)
+[migration] warning: 008_add_forced_password_reset.up.sql might have failed: ERROR: column "password_reset_required" of relation "auth_users" already exists (SQLSTATE 42701)
+[migration] warning: 009_rbac_abac.up.sql might have failed: ERROR: there is no unique or exclusion constraint matching the ON CONFLICT specification (SQLSTATE 42P10)
+[migration] warning: 010_webauthn_credentials.up.sql might have failed: ERROR: trigger "update_auth_webauthn_credentials_modtime" for relation "auth_webauthn_credentials" already exists (SQLSTATE 42710)
+[migration] warning: 011_multi_tenancy.up.sql might have failed: ERROR: relation "idx_auth_tenants_slug" already exists (SQLSTATE 42P07)
+[migration] warning: 012_oauth_clients.up.sql might have failed: ERROR: relation "idx_auth_clients_tenant_id" already exists (SQLSTATE 42P07)
+[migration] warning: 013_add_2fa_backup_codes.up.sql might have failed: ERROR: relation "idx_auth_2fa_backup_codes_user_id" already exists (SQLSTATE 42P07)
+[migration] warning: 014_add_webhook_subscriptions.up.sql might have failed: ERROR: relation "idx_webhooks_tenant_active" already exists (SQLSTATE 42P07)
+{"level":"error","error":"referer not supplied","message":"CSRF validation failed"}
+2026/02/28 00:08:12 [PC_GAMER/zCXoGSyRJM-000036] "POST http://127.0.0.1:63530/api/v1/auth/register HTTP/1.1" from 127.0.0.1:63531 - 403 50B in 0s
+--- FAIL: TestRateLimitPerUser (1.09s)
+    rate_limiting_test.go:169: 
+        	Error Trace:	D:/archivos-kevins/desarrollo/backend-server/backend/auth-service/tests/integration/rate_limiting_test.go:169
+        	Error:      	Not equal: 
+        	            	expected: 201
+        	            	actual  : 403
+        	Test:       	TestRateLimitPerUser
+FAIL
+FAIL	github.com/vertercloud/auth-service/tests/integration	23.746s
+?   	github.com/vertercloud/auth-service/tests/mocks	[no test files]
+FAIL

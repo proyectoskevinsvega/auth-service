@@ -28,12 +28,13 @@ func TestAuthUseCase_Login_Lockout(t *testing.T) {
 		MaxDuration:      time.Hour,
 	}
 
-	userID := uuid.New().String()
+	userID := uuid.Must(uuid.NewV7()).String()
 	userEmail := "test@example.com"
 	password := "SecurePass123!"
 	passwordHash := "$argon2id$hashed"
 
 	input := LoginInput{
+		TenantID:   "test-tenant",
 		Identifier: userEmail,
 		Password:   password,
 		IPAddress:  "1.1.1.1",
@@ -42,10 +43,11 @@ func TestAuthUseCase_Login_Lockout(t *testing.T) {
 
 	t.Run("Should lock account after multiple failed attempts", func(t *testing.T) {
 		user := &domain.User{
-			ID:           userID,
-			Email:        userEmail,
-			PasswordHash: passwordHash,
-			Active:       true,
+			EmailVerified: true,
+			ID:            userID,
+			Email:         userEmail,
+			PasswordHash:  passwordHash,
+			Active:        true,
 		}
 
 		// Mock common expectations
@@ -88,6 +90,7 @@ func TestAuthUseCase_Login_Lockout(t *testing.T) {
 		m := setupAuthUseCase(t) // Fresh mocks
 
 		user := &domain.User{
+			EmailVerified:       true,
 			ID:                  userID,
 			Email:               userEmail,
 			PasswordHash:        passwordHash,

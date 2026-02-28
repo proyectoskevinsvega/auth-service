@@ -9,11 +9,11 @@ import (
 )
 
 type Config struct {
-	URL                string
-	MaxConns           int
-	MinConns           int
-	MaxConnLifetime    time.Duration
-	MaxConnIdleTime    time.Duration
+	URL             string
+	MaxConns        int
+	MinConns        int
+	MaxConnLifetime time.Duration
+	MaxConnIdleTime time.Duration
 }
 
 func NewClient(ctx context.Context, cfg Config) (*pgxpool.Pool, error) {
