@@ -1,0 +1,33 @@
+[Unit]
+Description=Auth Service — auth.bravexcolombia.com
+Documentation=https://github.com/tu-repo/auth-service
+After=network.target redis.service postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=bravex
+Group=bravex
+
+WorkingDirectory=/opt/bravex/auth-service
+
+# El binario lee las env vars desde el EnvironmentFile
+ExecStart=/opt/bravex/bin/auth-service
+ExecStop=/bin/kill -SIGTERM $MAINPID
+
+EnvironmentFile=/opt/bravex/auth-service/.env.production
+
+Restart=on-failure
+RestartSec=5s
+StartLimitIntervalSec=60
+StartLimitBurst=3
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=auth-service
+
+PrivateTmp=true
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

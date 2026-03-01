@@ -89,3 +89,5 @@ frontend/client/curl.md
 bin/auth-service
 bin/auth-service.exe
 bin/.env
+.env.production
+error.txt
