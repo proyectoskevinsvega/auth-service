@@ -1,21 +1,30 @@
+# sudo nano /etc/systemd/system/auth-service.service
+# sudo systemctl daemon-reload
+# sudo systemctl enable auth-service
+# sudo systemctl start auth-service
+# sudo systemctl status auth-service
+# sudo journalctl -u auth-service -f
+
 [Unit]
 Description=Auth Service — auth.bravexcolombia.com
-Documentation=https://github.com/tu-repo/auth-service
+Documentation=https://github.com/proyectoskevinsvega/auth-service
 After=network.target redis.service postgresql.service
 Wants=network-online.target
 
 [Service]
+LimitNOFILE=65535
 Type=simple
-User=bravex
-Group=bravex
+User=ubuntu
+Group=ubuntu
 
-WorkingDirectory=/opt/bravex/auth-service
+WorkingDirectory=/home/ubuntu/backend-vertercloud/auth-service
+ExecStart=/home/ubuntu/backend-vertercloud/auth-service/bin/auth-service
 
 # El binario lee las env vars desde el EnvironmentFile
-ExecStart=/opt/bravex/bin/auth-service
-ExecStop=/bin/kill -SIGTERM $MAINPID
 
-EnvironmentFile=/opt/bravex/auth-service/.env.production
+EnvironmentFile=-/home/ubuntu/backend-vertercloud/auth-service/.env
+
+ExecStop=/bin/kill -SIGTERM $MAINPID
 
 Restart=on-failure
 RestartSec=5s
