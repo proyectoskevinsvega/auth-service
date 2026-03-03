@@ -1444,7 +1444,7 @@ func (h *Handler) ResendVerificationEmail(w http.ResponseWriter, r *http.Request
 // @Failure      500 {object} ErrorResponse
 // @Router       /auth/.well-known/jwks.json [get]
 func (h *Handler) GetJWKS(w http.ResponseWriter, r *http.Request) {
-	jwk, err := h.jwtService.GetPublicKeyJWKS()
+	jwks, err := h.jwtService.GetPublicKeyJWKS()
 	if err != nil {
 		h.logger.Error().Err(err).Msg("failed to get JWKS")
 		respondWithError(w, http.StatusInternalServerError, "failed to get JWKS", "INTERNAL_ERROR")
@@ -1454,17 +1454,7 @@ func (h *Handler) GetJWKS(w http.ResponseWriter, r *http.Request) {
 	// Record B2B Telemetry
 	h.metrics.RecordJWKSHit()
 
-	respondWithJSON(w, http.StatusOK, JWKSResponse{
-		Keys: []JWKResponse{
-			{
-				Kty: jwk["kty"].(string),
-				Use: jwk["use"].(string),
-				Alg: jwk["alg"].(string),
-				N:   jwk["n"].(string),
-				E:   jwk["e"].(string),
-			},
-		},
-	})
+	respondWithJSON(w, http.StatusOK, jwks)
 }
 
 // @Router       /health [get]
