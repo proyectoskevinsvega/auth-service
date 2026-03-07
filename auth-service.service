@@ -2,6 +2,7 @@
 # sudo systemctl daemon-reload
 # sudo systemctl enable auth-service
 # sudo systemctl start auth-service
+# sudo systemctl restart auth-service
 # sudo systemctl status auth-service
 # sudo journalctl -u auth-service -f
 
