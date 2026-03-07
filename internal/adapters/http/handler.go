@@ -166,6 +166,10 @@ func (h *Handler) SetupRoutes(telemetryEnabled bool, disableCSRF bool) http.Hand
 		}
 	}
 
+	// Endpoints públicos que no requieren CSRF (OIDC, JWKS)
+	r.Get("/api/v1/auth/.well-known/jwks.json", h.GetJWKS)
+	r.Get("/api/v1/.well-known/openid-configuration", h.GetOIDCConfiguration)
+
 	r.Route("/api/v1", func(r chi.Router) {
 		r.Use(csrfMiddleware)
 
@@ -195,8 +199,7 @@ func (h *Handler) SetupRoutes(telemetryEnabled bool, disableCSRF bool) http.Hand
 		r.Get("/auth/oauth/github", h.GitHubOAuthStart)
 		r.Get("/auth/oauth/github/callback", h.GitHubOAuthCallback)
 
-		// Public key endpoint
-		r.Get("/auth/.well-known/jwks.json", h.GetJWKS)
+		// OAuth routes
 
 		// Protected routes
 		r.Group(func(r chi.Router) {
@@ -224,9 +227,6 @@ func (h *Handler) SetupRoutes(telemetryEnabled bool, disableCSRF bool) http.Hand
 			r.Post("/auth/webauthn/register/begin", h.WebAuthnRegisterBegin)
 			r.Post("/auth/webauthn/register/finish", h.WebAuthnRegisterFinish)
 		})
-
-		// OIDC Discovery (.well-known)
-		r.Get("/.well-known/openid-configuration", h.GetOIDCConfiguration)
 
 		// Admin routes (Protected by AuthMiddleware and Admin role)
 		r.Group(func(r chi.Router) {
