@@ -155,7 +155,7 @@ func (h *Handler) SetupRoutes(telemetryEnabled bool, disableCSRF bool) http.Hand
 			csrf.ErrorHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				reason := csrf.FailureReason(r)
 				h.logger.Error().Err(reason).Msg("CSRF validation failed")
-				respondWithError(w, http.StatusForbidden, "invalid csrf token", "FORBIDDEN")
+				WriteForbidden(w, "invalid csrf token")
 			})),
 		)
 		r.Use(csrfMiddleware)
@@ -315,13 +315,13 @@ func (h *Handler) GetCSRFToken(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 	var req RegisterRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respondWithError(w, http.StatusBadRequest, "invalid request body", "BAD_REQUEST")
+		WriteBadRequest(w, "invalid request body")
 		return
 	}
 
 	// Validate input
 	if req.Username == "" || req.Email == "" || req.Password == "" {
-		respondWithError(w, http.StatusBadRequest, "username, email and password are required", "BAD_REQUEST")
+		WriteBadRequest(w, "username, email and password are required")
 		return
 	}
 
@@ -450,12 +450,12 @@ func (h *Handler) clearTokenCookies(w http.ResponseWriter) {
 func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	var req LoginRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respondWithError(w, http.StatusBadRequest, "invalid request body", "BAD_REQUEST")
+		WriteBadRequest(w, "invalid request body")
 		return
 	}
 
 	if req.Identifier == "" || req.Password == "" {
-		respondWithError(w, http.StatusBadRequest, "identifier and password are required", "BAD_REQUEST")
+		WriteBadRequest(w, "identifier and password are required")
 		return
 	}
 
@@ -513,7 +513,7 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 	var req RefreshTokenRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respondWithError(w, http.StatusBadRequest, "invalid request body", "BAD_REQUEST")
+		WriteBadRequest(w, "invalid request body")
 		return
 	}
 
@@ -526,7 +526,7 @@ func (h *Handler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if req.RefreshToken == "" {
-		respondWithError(w, http.StatusBadRequest, "refresh_token is required", "BAD_REQUEST")
+		WriteBadRequest(w, "refresh_token is required")
 		return
 	}
 
@@ -560,7 +560,7 @@ func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 	// Extract token from context
 	token, ok := GetTokenFromContext(r.Context())
 	if !ok {
-		respondWithError(w, http.StatusUnauthorized, "unauthorized", "UNAUTHORIZED")
+		WriteUnauthorized(w, "unauthorized")
 		return
 	}
 
@@ -570,7 +570,7 @@ func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 
 	if err := h.tokenUC.RevokeToken(r.Context(), tokenString); err != nil {
 		h.logger.Error().Err(err).Str("jti", token.JTI).Msg("failed to revoke token")
-		respondWithError(w, http.StatusInternalServerError, "failed to logout", "INTERNAL_ERROR")
+		WriteInternalError(w, "failed to logout")
 		return
 	}
 
@@ -595,12 +595,12 @@ func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) ForgotPassword(w http.ResponseWriter, r *http.Request) {
 	var req ForgotPasswordRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respondWithError(w, http.StatusBadRequest, "invalid request body", "BAD_REQUEST")
+		WriteBadRequest(w, "invalid request body")
 		return
 	}
 
 	if req.Email == "" {
-		respondWithError(w, http.StatusBadRequest, "email is required", "BAD_REQUEST")
+		WriteBadRequest(w, "email is required")
 		return
 	}
 
@@ -634,12 +634,12 @@ func (h *Handler) ForgotPassword(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) ResetPassword(w http.ResponseWriter, r *http.Request) {
 	var req ResetPasswordRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respondWithError(w, http.StatusBadRequest, "invalid request body", "BAD_REQUEST")
+		WriteBadRequest(w, "invalid request body")
 		return
 	}
 
 	if req.Token == "" || req.NewPassword == "" {
-		respondWithError(w, http.StatusBadRequest, "token and new_password are required", "BAD_REQUEST")
+		WriteBadRequest(w, "token and new_password are required")
 		return
 	}
 
@@ -672,12 +672,12 @@ func (h *Handler) ResetPassword(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) ResetPasswordWithCode(w http.ResponseWriter, r *http.Request) {
 	var req ResetPasswordWithCodeRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respondWithError(w, http.StatusBadRequest, "invalid request body", "BAD_REQUEST")
+		WriteBadRequest(w, "invalid request body")
 		return
 	}
 
 	if req.Email == "" || req.Code == "" || req.NewPassword == "" {
-		respondWithError(w, http.StatusBadRequest, "email, code and new_password are required", "BAD_REQUEST")
+		WriteBadRequest(w, "email, code and new_password are required")
 		return
 	}
 
@@ -710,7 +710,7 @@ func (h *Handler) ResetPasswordWithCode(w http.ResponseWriter, r *http.Request) 
 func (h *Handler) GetMe(w http.ResponseWriter, r *http.Request) {
 	userID, ok := GetUserIDFromContext(r.Context())
 	if !ok {
-		respondWithError(w, http.StatusUnauthorized, "unauthorized", "UNAUTHORIZED")
+		WriteUnauthorized(w, "unauthorized")
 		return
 	}
 
@@ -718,7 +718,7 @@ func (h *Handler) GetMe(w http.ResponseWriter, r *http.Request) {
 	user, err := h.userRepo.GetByID(r.Context(), tenantID, userID)
 	if err != nil {
 		h.logger.Error().Err(err).Str("user_id", userID).Msg("failed to get user")
-		respondWithError(w, http.StatusInternalServerError, "failed to get user", "INTERNAL_ERROR")
+		WriteInternalError(w, "failed to get user")
 		return
 	}
 
@@ -750,13 +750,13 @@ func (h *Handler) GetMe(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) UpdateMe(w http.ResponseWriter, r *http.Request) {
 	userID, ok := GetUserIDFromContext(r.Context())
 	if !ok {
-		respondWithError(w, http.StatusUnauthorized, "unauthorized", "UNAUTHORIZED")
+		WriteUnauthorized(w, "unauthorized")
 		return
 	}
 
 	var req UpdateUserRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respondWithError(w, http.StatusBadRequest, "invalid request body", "BAD_REQUEST")
+		WriteBadRequest(w, "invalid request body")
 		return
 	}
 
@@ -765,7 +765,7 @@ func (h *Handler) UpdateMe(w http.ResponseWriter, r *http.Request) {
 	user, err := h.userRepo.GetByID(r.Context(), tenantID, userID)
 	if err != nil {
 		h.logger.Error().Err(err).Str("user_id", userID).Msg("failed to get user")
-		respondWithError(w, http.StatusInternalServerError, "failed to get user", "INTERNAL_ERROR")
+		WriteInternalError(w, "failed to get user")
 		return
 	}
 
@@ -774,7 +774,7 @@ func (h *Handler) UpdateMe(w http.ResponseWriter, r *http.Request) {
 		// Check if email already exists
 		existingUser, _ := h.userRepo.GetByEmail(r.Context(), tenantID, req.Email)
 		if existingUser != nil {
-			respondWithError(w, http.StatusConflict, "email already exists", "EMAIL_EXISTS")
+			WriteEmailExists(w, "email already exists")
 			return
 		}
 		user.Email = req.Email
@@ -784,13 +784,13 @@ func (h *Handler) UpdateMe(w http.ResponseWriter, r *http.Request) {
 	if req.Username != "" && req.Username != user.Username {
 		// Validate username
 		if err := domain.ValidateUsername(req.Username); err != nil {
-			respondWithError(w, http.StatusBadRequest, err.Error(), "INVALID_USERNAME")
+			WriteBadRequest(w, err.Error())
 			return
 		}
 		// Check if username already exists
 		existingUser, _ := h.userRepo.GetByUsername(r.Context(), tenantID, req.Username)
 		if existingUser != nil {
-			respondWithError(w, http.StatusConflict, "username already exists", "USERNAME_EXISTS")
+			WriteUsernameExists(w, "username already exists")
 			return
 		}
 		user.Username = req.Username
@@ -800,7 +800,7 @@ func (h *Handler) UpdateMe(w http.ResponseWriter, r *http.Request) {
 
 	if err := h.userRepo.Update(r.Context(), user); err != nil {
 		h.logger.Error().Err(err).Str("user_id", userID).Msg("failed to update user")
-		respondWithError(w, http.StatusInternalServerError, "failed to update user", "INTERNAL_ERROR")
+		WriteInternalError(w, "failed to update user")
 		return
 	}
 
@@ -826,7 +826,7 @@ func (h *Handler) UpdateMe(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) GoogleOAuthStart(w http.ResponseWriter, r *http.Request) {
 	provider, ok := h.oauthProviders["google"]
 	if !ok || provider == nil {
-		respondWithError(w, http.StatusServiceUnavailable, "Google OAuth not configured", "OAUTH_DISABLED")
+		WriteOAuthDisabled(w, "Google OAuth not configured")
 		return
 	}
 	authURL := provider.GetAuthURL("")
@@ -848,7 +848,7 @@ func (h *Handler) GoogleOAuthStart(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) GoogleOAuthCallback(w http.ResponseWriter, r *http.Request) {
 	code := r.URL.Query().Get("code")
 	if code == "" {
-		respondWithError(w, http.StatusBadRequest, "missing authorization code", "BAD_REQUEST")
+		WriteBadRequest(w, "missing authorization code")
 		return
 	}
 
@@ -903,7 +903,7 @@ func (h *Handler) GoogleOAuthCallback(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) GitHubOAuthStart(w http.ResponseWriter, r *http.Request) {
 	provider, ok := h.oauthProviders["github"]
 	if !ok || provider == nil {
-		respondWithError(w, http.StatusServiceUnavailable, "GitHub OAuth not configured", "OAUTH_DISABLED")
+		WriteOAuthDisabled(w, "GitHub OAuth not configured")
 		return
 	}
 	authURL := provider.GetAuthURL("")
@@ -925,7 +925,7 @@ func (h *Handler) GitHubOAuthStart(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) GitHubOAuthCallback(w http.ResponseWriter, r *http.Request) {
 	code := r.URL.Query().Get("code")
 	if code == "" {
-		respondWithError(w, http.StatusBadRequest, "missing authorization code", "BAD_REQUEST")
+		WriteBadRequest(w, "missing authorization code")
 		return
 	}
 
@@ -983,13 +983,13 @@ func (h *Handler) GitHubOAuthCallback(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) ListSessions(w http.ResponseWriter, r *http.Request) {
 	userID, ok := GetUserIDFromContext(r.Context())
 	if !ok {
-		respondWithError(w, http.StatusUnauthorized, "unauthorized", "UNAUTHORIZED")
+		WriteUnauthorized(w, "unauthorized")
 		return
 	}
 
 	token, ok := GetTokenFromContext(r.Context())
 	if !ok {
-		respondWithError(w, http.StatusUnauthorized, "unauthorized", "UNAUTHORIZED")
+		WriteUnauthorized(w, "unauthorized")
 		return
 	}
 
@@ -997,7 +997,7 @@ func (h *Handler) ListSessions(w http.ResponseWriter, r *http.Request) {
 	sessions, err := h.sessionUC.ListUserSessions(r.Context(), tenantID, userID, token.JTI)
 	if err != nil {
 		h.logger.Error().Err(err).Str("user_id", userID).Msg("failed to list sessions")
-		respondWithError(w, http.StatusInternalServerError, "failed to list sessions", "INTERNAL_ERROR")
+		WriteInternalError(w, "failed to list sessions")
 		return
 	}
 
@@ -1038,24 +1038,24 @@ func (h *Handler) ListSessions(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) RevokeSession(w http.ResponseWriter, r *http.Request) {
 	userID, ok := GetUserIDFromContext(r.Context())
 	if !ok {
-		respondWithError(w, http.StatusUnauthorized, "unauthorized", "UNAUTHORIZED")
+		WriteUnauthorized(w, "unauthorized")
 		return
 	}
 
 	sessionID := chi.URLParam(r, "id")
 	if sessionID == "" {
-		respondWithError(w, http.StatusBadRequest, "session id is required", "BAD_REQUEST")
+		WriteBadRequest(w, "session id is required")
 		return
 	}
 
 	tenantID, _ := GetTenantIDFromContext(r.Context())
 	if err := h.sessionUC.RevokeSession(r.Context(), tenantID, userID, sessionID); err != nil {
 		if err == domain.ErrSessionNotFound {
-			respondWithError(w, http.StatusNotFound, "session not found", "SESSION_NOT_FOUND")
+			WriteSessionNotFound(w, "session not found")
 			return
 		}
 		h.logger.Error().Err(err).Str("session_id", sessionID).Msg("failed to revoke session")
-		respondWithError(w, http.StatusInternalServerError, "failed to revoke session", "INTERNAL_ERROR")
+		WriteInternalError(w, "failed to revoke session")
 		return
 	}
 
@@ -1078,13 +1078,13 @@ func (h *Handler) RevokeSession(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) RevokeAllSessions(w http.ResponseWriter, r *http.Request) {
 	userID, ok := GetUserIDFromContext(r.Context())
 	if !ok {
-		respondWithError(w, http.StatusUnauthorized, "unauthorized", "UNAUTHORIZED")
+		WriteUnauthorized(w, "unauthorized")
 		return
 	}
 
 	token, ok := GetTokenFromContext(r.Context())
 	if !ok {
-		respondWithError(w, http.StatusUnauthorized, "unauthorized", "UNAUTHORIZED")
+		WriteUnauthorized(w, "unauthorized")
 		return
 	}
 
@@ -1092,7 +1092,7 @@ func (h *Handler) RevokeAllSessions(w http.ResponseWriter, r *http.Request) {
 	revokedCount, err := h.sessionUC.RevokeAllSessions(r.Context(), tenantID, userID, token.JTI)
 	if err != nil {
 		h.logger.Error().Err(err).Str("user_id", userID).Msg("failed to revoke all sessions")
-		respondWithError(w, http.StatusInternalServerError, "failed to revoke sessions", "INTERNAL_ERROR")
+		WriteInternalError(w, "failed to revoke sessions")
 		return
 	}
 
@@ -1117,7 +1117,7 @@ func (h *Handler) RevokeAllSessions(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) Enable2FA(w http.ResponseWriter, r *http.Request) {
 	userID, ok := GetUserIDFromContext(r.Context())
 	if !ok {
-		respondWithError(w, http.StatusUnauthorized, "unauthorized", "UNAUTHORIZED")
+		WriteUnauthorized(w, "unauthorized")
 		return
 	}
 
@@ -1126,10 +1126,10 @@ func (h *Handler) Enable2FA(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		h.logger.Error().Err(err).Str("user_id", userID).Msg("failed to enable 2FA")
 		if err.Error() == "2FA already enabled" {
-			respondWithError(w, http.StatusBadRequest, "2FA already enabled", "2FA_ALREADY_ENABLED")
+			Write2FAAlreadyEnabled(w, "2FA already enabled")
 			return
 		}
-		respondWithError(w, http.StatusInternalServerError, "failed to enable 2FA", "INTERNAL_ERROR")
+		WriteInternalError(w, "failed to enable 2FA")
 		return
 	}
 
@@ -1155,29 +1155,29 @@ func (h *Handler) Enable2FA(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) Verify2FA(w http.ResponseWriter, r *http.Request) {
 	userID, ok := GetUserIDFromContext(r.Context())
 	if !ok {
-		respondWithError(w, http.StatusUnauthorized, "unauthorized", "UNAUTHORIZED")
+		WriteUnauthorized(w, "unauthorized")
 		return
 	}
 
 	var req Verify2FARequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respondWithError(w, http.StatusBadRequest, "invalid request body", "BAD_REQUEST")
+		WriteBadRequest(w, "invalid request body")
 		return
 	}
 
 	if req.Code == "" {
-		respondWithError(w, http.StatusBadRequest, "code is required", "BAD_REQUEST")
+		WriteBadRequest(w, "code is required")
 		return
 	}
 
 	tenantID, _ := GetTenantIDFromContext(r.Context())
 	if err := h.twofaUC.Verify2FA(r.Context(), tenantID, userID, req.Code); err != nil {
 		if err == domain.ErrInvalidCredentials {
-			respondWithError(w, http.StatusBadRequest, "invalid 2FA code", "INVALID_2FA_CODE")
+			WriteInvalid2FACode(w, "invalid 2FA code")
 			return
 		}
 		h.logger.Error().Err(err).Str("user_id", userID).Msg("failed to verify 2FA")
-		respondWithError(w, http.StatusInternalServerError, "failed to verify 2FA", "INTERNAL_ERROR")
+		WriteInternalError(w, "failed to verify 2FA")
 		return
 	}
 
@@ -1202,33 +1202,33 @@ func (h *Handler) Verify2FA(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) Disable2FA(w http.ResponseWriter, r *http.Request) {
 	userID, ok := GetUserIDFromContext(r.Context())
 	if !ok {
-		respondWithError(w, http.StatusUnauthorized, "unauthorized", "UNAUTHORIZED")
+		WriteUnauthorized(w, "unauthorized")
 		return
 	}
 
 	var req Disable2FARequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respondWithError(w, http.StatusBadRequest, "invalid request body", "BAD_REQUEST")
+		WriteBadRequest(w, "invalid request body")
 		return
 	}
 
 	if req.Code == "" {
-		respondWithError(w, http.StatusBadRequest, "code is required", "BAD_REQUEST")
+		WriteBadRequest(w, "code is required")
 		return
 	}
 
 	tenantID, _ := GetTenantIDFromContext(r.Context())
 	if err := h.twofaUC.Disable2FA(r.Context(), tenantID, userID, req.Code); err != nil {
 		if err == domain.ErrInvalidCredentials {
-			respondWithError(w, http.StatusBadRequest, "invalid 2FA code", "INVALID_2FA_CODE")
+			WriteInvalid2FACode(w, "invalid 2FA code")
 			return
 		}
 		h.logger.Error().Err(err).Str("user_id", userID).Msg("failed to disable 2FA")
 		if err.Error() == "2FA not enabled" {
-			respondWithError(w, http.StatusBadRequest, "2FA not enabled", "2FA_NOT_ENABLED")
+			Write2FANotEnabled(w, "2FA not enabled")
 			return
 		}
-		respondWithError(w, http.StatusInternalServerError, "failed to disable 2FA", "INTERNAL_ERROR")
+		WriteInternalError(w, "failed to disable 2FA")
 		return
 	}
 
@@ -1252,7 +1252,7 @@ func (h *Handler) Disable2FA(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) RegenerateBackupCodes(w http.ResponseWriter, r *http.Request) {
 	userID, ok := GetUserIDFromContext(r.Context())
 	if !ok {
-		respondWithError(w, http.StatusUnauthorized, "unauthorized", "UNAUTHORIZED")
+		WriteUnauthorized(w, "unauthorized")
 		return
 	}
 
@@ -1261,10 +1261,10 @@ func (h *Handler) RegenerateBackupCodes(w http.ResponseWriter, r *http.Request) 
 	if err != nil {
 		h.logger.Error().Err(err).Str("user_id", userID).Msg("failed to regenerate backup codes")
 		if err == domain.Err2FANotEnabled {
-			respondWithError(w, http.StatusBadRequest, "2FA not enabled", "2FA_NOT_ENABLED")
+			Write2FANotEnabled(w, "2FA not enabled")
 			return
 		}
-		respondWithError(w, http.StatusInternalServerError, "failed to regenerate backup codes", "INTERNAL_ERROR")
+		WriteInternalError(w, "failed to regenerate backup codes")
 		return
 	}
 
@@ -1290,12 +1290,12 @@ func (h *Handler) VerifyEmail(w http.ResponseWriter, r *http.Request) {
 	var req VerifyEmailRequest
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respondWithError(w, http.StatusBadRequest, "invalid request body", "INVALID_REQUEST")
+		WriteBadRequest(w, "invalid request body")
 		return
 	}
 
 	if req.Code == "" {
-		respondWithError(w, http.StatusBadRequest, "code is required", "MISSING_CODE")
+		WriteBadRequest(w, "code is required")
 		return
 	}
 
@@ -1336,7 +1336,7 @@ func (h *Handler) VerifyEmail(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) VerifyEmailGET(w http.ResponseWriter, r *http.Request) {
 	token := r.URL.Query().Get("token")
 	if token == "" {
-		respondWithError(w, http.StatusBadRequest, "token is required", "MISSING_TOKEN")
+		WriteBadRequest(w, "token is required")
 		return
 	}
 
@@ -1397,12 +1397,12 @@ func (h *Handler) ResendVerificationEmail(w http.ResponseWriter, r *http.Request
 	var req ResendVerificationRequest
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respondWithError(w, http.StatusBadRequest, "invalid request body", "INVALID_REQUEST")
+		WriteBadRequest(w, "invalid request body")
 		return
 	}
 
 	if req.Email == "" || req.TenantID == "" {
-		respondWithError(w, http.StatusBadRequest, "tenant_id and email are required", "MISSING_FIELDS")
+		WriteBadRequest(w, "tenant_id and email are required")
 		return
 	}
 
@@ -1449,7 +1449,7 @@ func (h *Handler) GetJWKS(w http.ResponseWriter, r *http.Request) {
 	jwks, err := h.jwtService.GetPublicKeyJWKS()
 	if err != nil {
 		h.logger.Error().Err(err).Msg("failed to get JWKS")
-		respondWithError(w, http.StatusInternalServerError, "failed to get JWKS", "INTERNAL_ERROR")
+		WriteInternalError(w, "failed to get JWKS")
 		return
 	}
 
@@ -1490,7 +1490,7 @@ func (h *Handler) AdminForcePasswordReset(w http.ResponseWriter, r *http.Request
 	// 1. Get user ID from URL
 	targetUserID := chi.URLParam(r, "id")
 	if targetUserID == "" {
-		respondWithError(w, http.StatusBadRequest, "user id is required", "BAD_REQUEST")
+		WriteBadRequest(w, "user id is required")
 		return
 	}
 
@@ -1544,7 +1544,7 @@ func (h *Handler) GetOIDCConfiguration(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) GetUserInfo(w http.ResponseWriter, r *http.Request) {
 	userID, ok := GetUserIDFromContext(r.Context())
 	if !ok {
-		respondWithError(w, http.StatusUnauthorized, "unauthorized", "UNAUTHORIZED")
+		WriteUnauthorized(w, "unauthorized")
 		return
 	}
 
@@ -1571,65 +1571,58 @@ func respondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
 	json.NewEncoder(w).Encode(payload)
 }
 
-func respondWithError(w http.ResponseWriter, code int, message, errorCode string) {
-	respondWithJSON(w, code, ErrorResponse{
-		Error: message,
-		Code:  errorCode,
-	})
-}
-
 func (h *Handler) handleAuthError(w http.ResponseWriter, err error) {
 	if errors.Is(err, domain.ErrInvalidCredentials) {
-		respondWithError(w, http.StatusUnauthorized, "invalid credentials", "INVALID_CREDENTIALS")
+		WriteInvalidCredentials(w, "invalid credentials")
 	} else if errors.Is(err, domain.ErrAccountLocked) {
-		respondWithError(w, http.StatusForbidden, "account is locked due to too many failed attempts", "ACCOUNT_LOCKED")
+		WriteAccountLocked(w, "account is locked due to too many failed attempts")
 	} else if errors.Is(err, domain.ErrPasswordExpired) {
-		respondWithError(w, http.StatusForbidden, "password has expired", "PASSWORD_EXPIRED")
+		WritePasswordExpired(w, "password has expired")
 	} else if errors.Is(err, domain.ErrPasswordResetRequired) {
-		respondWithError(w, http.StatusForbidden, "password reset is required by admin", "PASSWORD_RESET_REQUIRED")
+		WritePasswordResetRequired(w, "password reset is required by admin")
 	} else if errors.Is(err, domain.ErrUserNotFound) {
-		respondWithError(w, http.StatusNotFound, "user not found", "USER_NOT_FOUND")
+		WriteNotFound(w, "user not found")
 	} else if errors.Is(err, domain.ErrEmailAlreadyExists) {
-		respondWithError(w, http.StatusConflict, "email already exists", "EMAIL_EXISTS")
+		WriteEmailExists(w, "email already exists")
 	} else if errors.Is(err, domain.ErrUsernameAlreadyExists) {
-		respondWithError(w, http.StatusConflict, "username already exists", "USERNAME_EXISTS")
+		WriteUsernameExists(w, "username already exists")
 	} else if errors.Is(err, domain.ErrInvalidEmail) {
-		respondWithError(w, http.StatusBadRequest, "invalid email format", "INVALID_EMAIL")
+		WriteBadRequest(w, "invalid email format")
 	} else if errors.Is(err, domain.ErrInvalidUsername) {
-		respondWithError(w, http.StatusBadRequest, "invalid username format", "INVALID_USERNAME")
+		WriteBadRequest(w, "invalid username format")
 	} else if errors.Is(err, domain.ErrInvalidPassword) {
-		respondWithError(w, http.StatusBadRequest, "invalid password", "INVALID_PASSWORD")
+		WriteBadRequest(w, "invalid password")
 	} else if errors.Is(err, domain.ErrWeakPassword) {
-		respondWithError(w, http.StatusBadRequest, "password is too weak", "WEAK_PASSWORD")
+		WriteBadRequest(w, "password is too weak")
 	} else if errors.Is(err, domain.ErrEmailNotVerified) {
-		respondWithError(w, http.StatusForbidden, "email address is not verified", "EMAIL_NOT_VERIFIED")
+		WriteForbidden(w, "email address is not verified")
 	} else if errors.Is(err, domain.ErrRateLimitExceeded) {
-		respondWithError(w, http.StatusTooManyRequests, "rate limit exceeded", "RATE_LIMIT")
+		WriteError(w, http.StatusTooManyRequests, ErrorBadRequest, "rate limit exceeded")
 	} else if errors.Is(err, domain.ErrTokenExpired) {
-		respondWithError(w, http.StatusUnauthorized, "token expired", "TOKEN_EXPIRED")
+		WriteInvalidToken(w, "token expired")
 	} else if errors.Is(err, domain.ErrTokenRevoked) {
-		respondWithError(w, http.StatusUnauthorized, "token revoked", "TOKEN_REVOKED")
+		WriteInvalidToken(w, "token revoked")
 	} else if errors.Is(err, domain.ErrInvalidResetToken) {
-		respondWithError(w, http.StatusBadRequest, "invalid or expired reset token", "INVALID_RESET_TOKEN")
+		WriteBadRequest(w, "invalid or expired reset token")
 	} else if errors.Is(err, domain.Err2FARequired) {
-		respondWithError(w, http.StatusUnauthorized, "2FA code required", "2FA_REQUIRED")
+		WriteUnauthorized(w, "2FA code required")
 	} else if errors.Is(err, domain.ErrVerificationTokenNotFound) {
-		respondWithError(w, http.StatusNotFound, "verification token not found", "TOKEN_NOT_FOUND")
+		WriteNotFound(w, "verification token not found")
 	} else if errors.Is(err, domain.ErrVerificationTokenExpired) {
-		respondWithError(w, http.StatusBadRequest, "verification token expired", "TOKEN_EXPIRED")
+		WriteBadRequest(w, "verification token expired")
 	} else if errors.Is(err, domain.ErrVerificationTokenUsed) {
-		respondWithError(w, http.StatusBadRequest, "verification token already used", "TOKEN_USED")
+		WriteBadRequest(w, "verification token already used")
 	} else if errors.Is(err, domain.ErrEmailAlreadyVerified) {
-		respondWithError(w, http.StatusConflict, "email already verified", "EMAIL_VERIFIED")
+		WriteConflict(w, "email already verified")
 	} else {
 		// Check if it's a validation error with a descriptive message
 		errMsg := err.Error()
 		if strings.Contains(errMsg, "password") || strings.Contains(errMsg, "username") || strings.Contains(errMsg, "email") {
 			// It's a validation error, return the descriptive message
-			respondWithError(w, http.StatusBadRequest, errMsg, "VALIDATION_ERROR")
+			WriteValidationError(w, errMsg)
 		} else {
 			h.logger.Error().Err(err).Msg("unhandled error")
-			respondWithError(w, http.StatusInternalServerError, "internal server error", "INTERNAL_ERROR")
+			WriteInternalError(w, "internal server error")
 		}
 	}
 }
@@ -1655,7 +1648,7 @@ func (h *Handler) ListRoles(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) CreateRole(w http.ResponseWriter, r *http.Request) {
 	var req CreateRoleRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respondWithError(w, http.StatusBadRequest, "invalid request body", "INVALID_BODY")
+		WriteBadRequest(w, "invalid request body")
 		return
 	}
 
@@ -1687,7 +1680,7 @@ func (h *Handler) ListPermissions(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) CreatePermission(w http.ResponseWriter, r *http.Request) {
 	var req CreatePermissionRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respondWithError(w, http.StatusBadRequest, "invalid request body", "INVALID_BODY")
+		WriteBadRequest(w, "invalid request body")
 		return
 	}
 
@@ -1706,7 +1699,7 @@ func (h *Handler) AddPermissionToRole(w http.ResponseWriter, r *http.Request) {
 		PermissionID string `json:"permission_id" validate:"required"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respondWithError(w, http.StatusBadRequest, "invalid request body", "INVALID_BODY")
+		WriteBadRequest(w, "invalid request body")
 		return
 	}
 
@@ -1725,7 +1718,7 @@ func (h *Handler) AssignRoleToUser(w http.ResponseWriter, r *http.Request) {
 		RoleID string `json:"role_id" validate:"required"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respondWithError(w, http.StatusBadRequest, "invalid request body", "INVALID_BODY")
+		WriteBadRequest(w, "invalid request body")
 		return
 	}
 
@@ -1745,7 +1738,7 @@ func (h *Handler) CreateWebhook(w http.ResponseWriter, r *http.Request) {
 
 	var req CreateWebhookRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respondWithError(w, http.StatusBadRequest, "invalid request body", "BAD_REQUEST")
+		WriteBadRequest(w, "invalid request body")
 		return
 	}
 
@@ -1759,7 +1752,7 @@ func (h *Handler) CreateWebhook(w http.ResponseWriter, r *http.Request) {
 
 	if err := h.webhookUC.CreateSubscription(r.Context(), sub); err != nil {
 		h.logger.Error().Err(err).Msg("failed to create webhook")
-		respondWithError(w, http.StatusInternalServerError, "failed to create webhook", "INTERNAL_ERROR")
+		WriteInternalError(w, "failed to create webhook")
 		return
 	}
 
@@ -1778,7 +1771,7 @@ func (h *Handler) ListWebhooks(w http.ResponseWriter, r *http.Request) {
 	subs, err := h.webhookUC.ListSubscriptions(r.Context(), tenantID)
 	if err != nil {
 		h.logger.Error().Err(err).Msg("failed to list webhooks")
-		respondWithError(w, http.StatusInternalServerError, "failed to list webhooks", "INTERNAL_ERROR")
+		WriteInternalError(w, "failed to list webhooks")
 		return
 	}
 
@@ -1802,7 +1795,7 @@ func (h *Handler) DeleteWebhook(w http.ResponseWriter, r *http.Request) {
 
 	if err := h.webhookUC.DeleteSubscription(r.Context(), tenantID, id); err != nil {
 		h.logger.Error().Err(err).Msg("failed to delete webhook")
-		respondWithError(w, http.StatusInternalServerError, "failed to delete webhook", "INTERNAL_ERROR")
+		WriteInternalError(w, "failed to delete webhook")
 		return
 	}
 
@@ -1856,7 +1849,7 @@ func extractDevice(userAgent string) string {
 func (h *Handler) WebAuthnRegisterBegin(w http.ResponseWriter, r *http.Request) {
 	userID, ok := GetUserIDFromContext(r.Context())
 	if !ok {
-		respondWithError(w, http.StatusUnauthorized, "unauthorized", "UNAUTHORIZED")
+		WriteUnauthorized(w, "unauthorized")
 		return
 	}
 
@@ -1864,7 +1857,7 @@ func (h *Handler) WebAuthnRegisterBegin(w http.ResponseWriter, r *http.Request) 
 	options, err := h.webauthnUC.BeginRegistration(r.Context(), tenantID, userID)
 	if err != nil {
 		h.logger.Error().Err(err).Str("user_id", userID).Msg("failed to begin webauthn registration")
-		respondWithError(w, http.StatusInternalServerError, "failed to begin registration", "INTERNAL_ERROR")
+		WriteInternalError(w, "failed to begin registration")
 		return
 	}
 
@@ -1884,13 +1877,13 @@ func (h *Handler) WebAuthnRegisterBegin(w http.ResponseWriter, r *http.Request) 
 func (h *Handler) WebAuthnRegisterFinish(w http.ResponseWriter, r *http.Request) {
 	userID, ok := GetUserIDFromContext(r.Context())
 	if !ok {
-		respondWithError(w, http.StatusUnauthorized, "unauthorized", "UNAUTHORIZED")
+		WriteUnauthorized(w, "unauthorized")
 		return
 	}
 
 	var req WebAuthnFinishRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respondWithError(w, http.StatusBadRequest, "invalid request body", "BAD_REQUEST")
+		WriteBadRequest(w, "invalid request body")
 		return
 	}
 
@@ -1901,7 +1894,7 @@ func (h *Handler) WebAuthnRegisterFinish(w http.ResponseWriter, r *http.Request)
 	tenantID, _ := GetTenantIDFromContext(r.Context())
 	if err := h.webauthnUC.FinishRegistration(r.Context(), tenantID, userID, req.Challenge, r); err != nil {
 		h.logger.Error().Err(err).Str("user_id", userID).Msg("failed to finish webauthn registration")
-		respondWithError(w, http.StatusBadRequest, err.Error(), "BAD_REQUEST")
+		WriteBadRequest(w, "failed to register security key")
 		return
 	}
 
@@ -1920,7 +1913,7 @@ func (h *Handler) WebAuthnRegisterFinish(w http.ResponseWriter, r *http.Request)
 func (h *Handler) WebAuthnLoginBegin(w http.ResponseWriter, r *http.Request) {
 	var req WebAuthnLoginBeginRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respondWithError(w, http.StatusBadRequest, "invalid request body", "BAD_REQUEST")
+		WriteBadRequest(w, "invalid request body")
 		return
 	}
 
@@ -1948,13 +1941,13 @@ func (h *Handler) WebAuthnLoginBegin(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) WebAuthnLoginFinish(w http.ResponseWriter, r *http.Request) {
 	identifier := r.URL.Query().Get("identifier")
 	if identifier == "" {
-		respondWithError(w, http.StatusBadRequest, "missing identifier", "BAD_REQUEST")
+		WriteBadRequest(w, "missing identifier")
 		return
 	}
 
 	var req WebAuthnFinishRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respondWithError(w, http.StatusBadRequest, "invalid request body", "BAD_REQUEST")
+		WriteBadRequest(w, "invalid request body")
 		return
 	}
 
@@ -2045,23 +2038,23 @@ func (h *Handler) IssueToken(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if grantType != "client_credentials" {
-		respondWithError(w, http.StatusBadRequest, "unsupported_grant_type", "Only client_credentials grant type is supported")
+		WriteBadRequest(w, "unsupported_grant_type")
 		return
 	}
 
 	if clientID == "" || clientSecret == "" {
-		respondWithError(w, http.StatusBadRequest, "invalid_request", "client_id and client_secret are required")
+		WriteBadRequest(w, "invalid_request")
 		return
 	}
 
 	response, err := h.tokenUC.IssueClientToken(r.Context(), clientID, clientSecret)
 	if err != nil {
 		if err == domain.ErrInvalidClient {
-			respondWithError(w, http.StatusUnauthorized, "invalid_client", "Invalid client credentials")
+			WriteUnauthorized(w, "Invalid client credentials")
 			return
 		}
 		h.logger.Error().Err(err).Msg("failed to issue client token")
-		respondWithError(w, http.StatusInternalServerError, "server_error", "Internal server error")
+		WriteInternalError(w, "Internal server error")
 		return
 	}
 
@@ -2099,20 +2092,20 @@ func (w *readCloserWrapper) Close() error { return nil }
 func (h *Handler) IssueClientCertificate(w http.ResponseWriter, r *http.Request) {
 	var req IssueCertificateRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respondWithError(w, http.StatusBadRequest, "Invalid request body", "INVALID_REQUEST")
+		WriteBadRequest(w, "Invalid request body")
 		return
 	}
 
 	// Validate request (manual validation for simplicity, or use a validator)
 	if req.ClientName == "" {
-		respondWithError(w, http.StatusBadRequest, "client_name is required", "VALIDATION_ERROR")
+		WriteBadRequest(w, "client_name is required")
 		return
 	}
 
 	resp, err := h.m2mUC.IssueCertificate(r.Context(), req.ClientName)
 	if err != nil {
 		h.logger.Error().Err(err).Str("client_name", req.ClientName).Msg("failed to issue certificate")
-		respondWithError(w, http.StatusInternalServerError, "Failed to issue certificate", "INTERNAL_ERROR")
+		WriteInternalError(w, "Failed to issue certificate")
 		return
 	}
 
@@ -2136,19 +2129,19 @@ func (h *Handler) IssueClientCertificate(w http.ResponseWriter, r *http.Request)
 func (h *Handler) SignClientCSR(w http.ResponseWriter, r *http.Request) {
 	var req SignCSRRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respondWithError(w, http.StatusBadRequest, "Invalid request body", "INVALID_REQUEST")
+		WriteBadRequest(w, "Invalid request body")
 		return
 	}
 
 	if req.CSR == "" {
-		respondWithError(w, http.StatusBadRequest, "csr is required", "VALIDATION_ERROR")
+		WriteBadRequest(w, "csr is required")
 		return
 	}
 
 	resp, err := h.m2mUC.SignClientCSR(r.Context(), req.CSR)
 	if err != nil {
 		h.logger.Error().Err(err).Msg("failed to sign CSR")
-		respondWithError(w, http.StatusInternalServerError, "Failed to sign CSR", "INTERNAL_ERROR")
+		WriteInternalError(w, "Failed to sign CSR")
 		return
 	}
 

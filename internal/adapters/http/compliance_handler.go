@@ -26,7 +26,7 @@ func (h *Handler) GenerateGDPRReport(w http.ResponseWriter, r *http.Request) {
 	report, err := h.complianceUC.GenerateGDPRReport(r.Context(), tenantID, userID)
 	if err != nil {
 		h.logger.Error().Err(err).Str("user_id", userID).Msg("failed to generate GDPR report")
-		respondWithError(w, http.StatusInternalServerError, "Failed to generate report", "INTERNAL_ERROR")
+		WriteInternalError(w, "Failed to generate report")
 		return
 	}
 
@@ -68,7 +68,7 @@ func (h *Handler) GenerateSOC2Report(w http.ResponseWriter, r *http.Request) {
 	report, err := h.complianceUC.GenerateSOC2Report(r.Context(), tenantID, startDate, endDate)
 	if err != nil {
 		h.logger.Error().Err(err).Msg("failed to generate SOC2 report")
-		respondWithError(w, http.StatusInternalServerError, "Failed to generate report", "INTERNAL_ERROR")
+		WriteInternalError(w, "Failed to generate report")
 		return
 	}
 
@@ -110,7 +110,7 @@ func (h *Handler) GenerateHIPAAReport(w http.ResponseWriter, r *http.Request) {
 	report, err := h.complianceUC.GenerateHIPAAReport(r.Context(), tenantID, startDate, endDate)
 	if err != nil {
 		h.logger.Error().Err(err).Msg("failed to generate HIPAA report")
-		respondWithError(w, http.StatusInternalServerError, "Failed to generate report", "INTERNAL_ERROR")
+		WriteInternalError(w, "Failed to generate report")
 		return
 	}
 
