@@ -110,7 +110,9 @@ func (h *Handler) SetupRoutes(telemetryEnabled bool, disableCSRF bool) http.Hand
 		r.Use(telemetry.HTTPMiddleware("auth-service"))
 	}
 
-	r.Use(middleware.Logger)
+	// Add visible access logging to stdout
+	r.Use(HTTPAccessLogger(h.logger))
+
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.Timeout(10 * time.Second))
 
