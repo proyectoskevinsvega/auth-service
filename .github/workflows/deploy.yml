@@ -59,11 +59,18 @@ jobs:
               cp "/home/ubuntu/backend-vertercloud/auth-service/.env" "$RELEASE_DIR/.env"
             fi
 
-            # Copiar keys del deployment anterior o de la raíz (CRÍTICO para Auth Service)
+            # Copiar keys del deployment anterior o de la raíz o de current (CRÍTICO para Auth Service)
             if [ -n "$PREVIOUS" ] && [ -d "$PREVIOUS/keys" ]; then
+              echo "Copiando keys desde el release anterior..."
               cp -r "$PREVIOUS/keys" "$RELEASE_DIR/keys"
             elif [ -d "/home/ubuntu/backend-vertercloud/auth-service/keys" ]; then
+              echo "Copiando keys desde la raíz..."
               cp -r "/home/ubuntu/backend-vertercloud/auth-service/keys" "$RELEASE_DIR/keys"
+            elif [ -d "/home/ubuntu/backend-vertercloud/auth-service/current/keys" ]; then
+              echo "Copiando keys desde current/keys..."
+              cp -r "/home/ubuntu/backend-vertercloud/auth-service/current/keys" "$RELEASE_DIR/keys"
+            else
+              echo "⚠️ ADVERTENCIA: No se encontró la carpeta 'keys'. El servicio podría fallar al arrancar."
             fi
 
             # Atomic switch
@@ -73,13 +80,15 @@ jobs:
             sudo systemctl daemon-reload
             sudo systemctl restart auth-service
 
-            # Health check
-            sleep 3
-            HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:8081/health) # Ajusta el puerto del auth-service
+            # Health check (Damos más tiempo para que conecte a DB/Redis)
+            echo "Esperando 10 segundos para el health check..."
+            sleep 10
+            HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:8081/health)
 
             if [ "$HTTP_STATUS" != "200" ]; then
               echo "❌ Health check failed (HTTP $HTTP_STATUS) - Auth Service down, rolling back"
               sudo systemctl status auth-service --no-pager
+              sudo journalctl -u auth-service -n 20 --no-pager
               
               if [ -n "$PREVIOUS" ] && [ -d "$PREVIOUS" ]; then
                 echo "Rolling back to $PREVIOUS..."
