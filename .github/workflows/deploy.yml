@@ -4,9 +4,6 @@ on:
   push:
     branches:
       - main
-    paths:
-      - "auth-service/**"
-      - ".github/workflows/deploy.yml"
 
 jobs:
   deploy:
@@ -21,12 +18,11 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.22" # Asegúrate de que coincida con el backend
-          cache-dependency-path: auth-service/go.sum
+          cache-dependency-path: go.sum
 
       # ── 3. Build Binary ──────────────────────────────────────────────────────
       - name: Build Auth Service
-        working-directory: ./auth-service
+        working-directory: ./
         run: |
           go mod download
           mkdir -p bin
@@ -40,9 +36,9 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           # Ajusta la ruta a los archivos estáticos o configs si es necesario (e.g. jwks.json)
-          source: "auth-service/bin/auth-service"
+          source: "bin/auth-service"
           target: "/home/ubuntu/backend-vertercloud/auth-service/releases/${{ github.sha }}"
-          strip_components: 1
+          strip_components: 0
 
       # ── 5. Switch symlink + restart + health check + rollback ────────────────
       - name: Activate release & health check
