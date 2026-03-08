@@ -26,15 +26,15 @@ jobs:
         run: |
           go mod download
           mkdir -p bin
-          cd cmd && go build -trimpath -ldflags="-s -w" -o ../bin/auth-service .
+          cd cmd/auth-service && go build -trimpath -ldflags="-s -w" -o ../../bin/auth-service .
 
       # ── 4. Upload Binaries and Config to VPS ─────────────────────────────────
       - name: Upload to VPS
         uses: appleboy/scp-action@v0.1.7
         with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.VPS_SSH_KEY }}
+          host: ${{ secrets.VPS_BACKEND_HOST }}
+          username: ${{ secrets.VPS_BACKEND_USER }}
+          key: ${{ secrets.VPS_BACKEND_SSH_KEY }}
           # Ajusta la ruta a los archivos estáticos o configs si es necesario (e.g. jwks.json)
           source: "bin/auth-service"
           target: "/home/ubuntu/backend-vertercloud/auth-service/releases/${{ github.sha }}"
@@ -44,9 +44,9 @@ jobs:
       - name: Activate release & health check
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.VPS_SSH_KEY }}
+          host: ${{ secrets.VPS_BACKEND_HOST }}
+          username: ${{ secrets.VPS_BACKEND_USER }}
+          key: ${{ secrets.VPS_BACKEND_SSH_KEY }}
           script: |
             RELEASE_DIR="/home/ubuntu/backend-vertercloud/auth-service/releases/${{ github.sha }}"
             CURRENT_DIR="/home/ubuntu/backend-vertercloud/auth-service/current"
