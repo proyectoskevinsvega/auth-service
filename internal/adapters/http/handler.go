@@ -13,7 +13,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
-	"github.com/go-chi/cors"
 	"github.com/gorilla/csrf"
 	"github.com/rs/zerolog"
 	httpSwagger "github.com/swaggo/http-swagger/v2"
@@ -116,18 +115,8 @@ func (h *Handler) SetupRoutes(telemetryEnabled bool, disableCSRF bool) http.Hand
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.Timeout(10 * time.Second))
 
-	// CORS
-	r.Use(cors.Handler(cors.Options{
-		AllowedOrigins:   h.allowedOrigins,
-		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
-		ExposedHeaders:   []string{"Link"},
-		AllowCredentials: true,
-		MaxAge:           300,
-	}))
-
-	// Security Headers
-	r.Use(SecurityHeaders(h.env))
+	// CORS y Security Headers son responsabilidad del API Gateway.
+	// El Auth Service SOLO gestiona CSRF (sesiones).
 
 	// Extract hosts for CSRF Trusted Origins
 	var trustedOrigins []string
@@ -171,7 +160,6 @@ func (h *Handler) SetupRoutes(telemetryEnabled bool, disableCSRF bool) http.Hand
 	r.Get("/api/v1/.well-known/openid-configuration", h.GetOIDCConfiguration)
 
 	r.Route("/api/v1", func(r chi.Router) {
-		r.Use(csrfMiddleware)
 
 		// Public routes
 		r.Get("/auth/csrf", h.GetCSRFToken)
