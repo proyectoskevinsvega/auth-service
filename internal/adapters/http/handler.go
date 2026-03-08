@@ -1609,6 +1609,14 @@ func (h *Handler) handleAuthError(w http.ResponseWriter, err error) {
 		WriteBadRequest(w, "verification token already used")
 	} else if errors.Is(err, domain.ErrEmailAlreadyVerified) {
 		WriteConflict(w, "email already verified")
+	} else if errors.Is(err, domain.ErrUserInactive) {
+		WriteForbidden(w, "user account is inactive")
+	} else if errors.Is(err, domain.ErrRefreshTokenInvalid) || errors.Is(err, domain.ErrRefreshTokenExpired) || errors.Is(err, domain.ErrRefreshTokenRevoked) || errors.Is(err, domain.ErrRefreshTokenRotated) {
+		WriteUnauthorized(w, "invalid refresh token")
+	} else if errors.Is(err, domain.ErrTokenStolen) {
+		WriteForbidden(w, "session theft detected")
+	} else if errors.Is(err, domain.ErrSessionExpired) {
+		WriteUnauthorized(w, "session expired")
 	} else {
 		// Check if it's a validation error with a descriptive message
 		errMsg := err.Error()
