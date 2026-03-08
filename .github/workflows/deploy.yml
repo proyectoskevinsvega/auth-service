@@ -59,6 +59,13 @@ jobs:
               cp "/home/ubuntu/backend-vertercloud/auth-service/.env" "$RELEASE_DIR/.env"
             fi
 
+            # Copiar keys del deployment anterior o de la raíz (CRÍTICO para Auth Service)
+            if [ -n "$PREVIOUS" ] && [ -d "$PREVIOUS/keys" ]; then
+              cp -r "$PREVIOUS/keys" "$RELEASE_DIR/keys"
+            elif [ -d "/home/ubuntu/backend-vertercloud/auth-service/keys" ]; then
+              cp -r "/home/ubuntu/backend-vertercloud/auth-service/keys" "$RELEASE_DIR/keys"
+            fi
+
             # Atomic switch
             ln -sfn "$RELEASE_DIR" "$CURRENT_DIR"
 
