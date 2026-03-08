@@ -129,6 +129,12 @@ func (uc *TokenUseCase) ValidateToken(ctx context.Context, tokenString string) (
 }
 
 func (uc *TokenUseCase) RefreshToken(ctx context.Context, tenantID, refreshTokenStr string) (*LoginResponse, error) {
+	// Auto-Translate Slug to UUID
+	tenant, err := uc.tenantRepo.GetBySlug(ctx, tenantID)
+	if err == nil && tenant != nil {
+		tenantID = tenant.ID
+	}
+
 	// Hash the refresh token
 	refreshTokenHash := hashToken(refreshTokenStr)
 
