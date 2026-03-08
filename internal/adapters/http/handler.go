@@ -169,6 +169,7 @@ func (h *Handler) SetupRoutes(telemetryEnabled bool, disableCSRF bool) http.Hand
 	r.Route("/api/v1", func(r chi.Router) {
 
 		// Public routes
+		r.Get("/auth/health", h.Health)
 		r.Get("/auth/csrf", h.GetCSRFToken)
 		r.Post("/auth/register", h.Register)
 		r.Post("/auth/tenants/register", h.tenantHandler.RegisterTenant) // Delegated to TenantHandler
