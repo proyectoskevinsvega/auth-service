@@ -11,6 +11,8 @@ Description=Auth Service — auth.bravexcolombia.com
 Documentation=https://github.com/proyectoskevinsvega/auth-service
 After=network.target redis.service postgresql.service
 Wants=network-online.target
+StartLimitIntervalSec=60
+StartLimitBurst=3
 
 [Service]
 LimitNOFILE=65535
@@ -18,19 +20,15 @@ Type=simple
 User=ubuntu
 Group=ubuntu
 
-WorkingDirectory=/home/ubuntu/backend-vertercloud/auth-service
-ExecStart=/home/ubuntu/backend-vertercloud/auth-service/bin/auth-service
+WorkingDirectory=/home/ubuntu/backend-vertercloud/auth-service/current
+ExecStart=/home/ubuntu/backend-vertercloud/auth-service/current/bin/auth-service
 
-# El binario lee las env vars desde el EnvironmentFile
-
-EnvironmentFile=-/home/ubuntu/backend-vertercloud/auth-service/.env
+EnvironmentFile=-/home/ubuntu/backend-vertercloud/auth-service/current/.env
 
 ExecStop=/bin/kill -SIGTERM $MAINPID
 
 Restart=on-failure
 RestartSec=5s
-StartLimitIntervalSec=60
-StartLimitBurst=3
 
 StandardOutput=journal
 StandardError=journal
@@ -40,4 +38,3 @@ PrivateTmp=true
 NoNewPrivileges=true
 
 [Install]
-WantedBy=multi-user.target

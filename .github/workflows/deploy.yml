@@ -1,0 +1,89 @@
+name: Deploy Auth Service to VPS
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "auth-service/**"
+      - ".github/workflows/deploy.yml"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      # ── 1. Checkout ──────────────────────────────────────────────────────────
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # ── 2. Setup Go ──────────────────────────────────────────────────────────
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.22" # Asegúrate de que coincida con el backend
+          cache-dependency-path: auth-service/go.sum
+
+      # ── 3. Build Binary ──────────────────────────────────────────────────────
+      - name: Build Auth Service
+        working-directory: ./auth-service
+        run: |
+          go mod download
+          mkdir -p bin
+          cd cmd && go build -trimpath -ldflags="-s -w" -o ../bin/auth-service .
+
+      # ── 4. Upload Binaries and Config to VPS ─────────────────────────────────
+      - name: Upload to VPS
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          # Ajusta la ruta a los archivos estáticos o configs si es necesario (e.g. jwks.json)
+          source: "auth-service/bin/auth-service"
+          target: "/home/ubuntu/backend-vertercloud/auth-service/releases/${{ github.sha }}"
+          strip_components: 1
+
+      # ── 5. Switch symlink + restart + health check + rollback ────────────────
+      - name: Activate release & health check
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            RELEASE_DIR="/home/ubuntu/backend-vertercloud/auth-service/releases/${{ github.sha }}"
+            CURRENT_DIR="/home/ubuntu/backend-vertercloud/auth-service/current"
+            PREVIOUS=$(readlink -f "$CURRENT_DIR" 2>/dev/null || echo "")
+
+            # Atomic switch
+            ln -sfn "$RELEASE_DIR" "$CURRENT_DIR"
+
+            # Copiar .env del deployment anterior si existe
+            if [ -n "$PREVIOUS" ] && [ -f "$PREVIOUS/auth-service/.env" ]; then
+              cp "$PREVIOUS/auth-service/.env" "$RELEASE_DIR/auth-service/.env"
+            fi
+
+            echo "Restarting Auth service..."
+            sudo systemctl restart auth-service
+
+            # Health check
+            sleep 3
+            HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:8081/health) # Ajusta el puerto del auth-service
+
+            if [ "$HTTP_STATUS" != "200" ]; then
+              echo "❌ Health check failed (HTTP $HTTP_STATUS) - Auth Service down, rolling back"
+              sudo systemctl status auth-service --no-pager
+              
+              if [ -n "$PREVIOUS" ] && [ -d "$PREVIOUS" ]; then
+                echo "Rolling back to $PREVIOUS..."
+                ln -sfn "$PREVIOUS" "$CURRENT_DIR"
+                sudo systemctl restart auth-service
+              fi
+              exit 1
+            fi
+
+            echo "✅ Deploy successful — Health check passed (HTTP $HTTP_STATUS) — Release: ${{ github.sha }}"
+
+            # Cleanup: conservar solo los últimos 5 releases
+            ls -1d /home/ubuntu/backend-vertercloud/auth-service/releases/* | head -n -5 | xargs -d '\n' rm -rf --
