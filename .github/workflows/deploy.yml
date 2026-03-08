@@ -50,17 +50,20 @@ jobs:
           script: |
             RELEASE_DIR="/home/ubuntu/backend-vertercloud/auth-service/releases/${{ github.sha }}"
             CURRENT_DIR="/home/ubuntu/backend-vertercloud/auth-service/current"
-            PREVIOUS=$(readlink -f "$CURRENT_DIR" 2>/dev/null || echo "")
+            if [ -L "$CURRENT_DIR" ]; then PREVIOUS=$(readlink -f "$CURRENT_DIR"); else PREVIOUS=""; fi
+
+            # Copiar .env del deployment anterior o de la raíz
+            if [ -n "$PREVIOUS" ] && [ -f "$PREVIOUS/.env" ]; then
+              cp "$PREVIOUS/.env" "$RELEASE_DIR/.env"
+            elif [ -f "/home/ubuntu/backend-vertercloud/auth-service/.env" ]; then
+              cp "/home/ubuntu/backend-vertercloud/auth-service/.env" "$RELEASE_DIR/.env"
+            fi
 
             # Atomic switch
             ln -sfn "$RELEASE_DIR" "$CURRENT_DIR"
 
-            # Copiar .env del deployment anterior si existe
-            if [ -n "$PREVIOUS" ] && [ -f "$PREVIOUS/auth-service/.env" ]; then
-              cp "$PREVIOUS/auth-service/.env" "$RELEASE_DIR/auth-service/.env"
-            fi
-
-            echo "Restarting Auth service..."
+            echo "Reloading systemd and restarting Auth service..."
+            sudo systemctl daemon-reload
             sudo systemctl restart auth-service
 
             # Health check
@@ -74,6 +77,7 @@ jobs:
               if [ -n "$PREVIOUS" ] && [ -d "$PREVIOUS" ]; then
                 echo "Rolling back to $PREVIOUS..."
                 ln -sfn "$PREVIOUS" "$CURRENT_DIR"
+                sudo systemctl daemon-reload
                 sudo systemctl restart auth-service
               fi
               exit 1
@@ -82,4 +86,4 @@ jobs:
             echo "✅ Deploy successful — Health check passed (HTTP $HTTP_STATUS) — Release: ${{ github.sha }}"
 
             # Cleanup: conservar solo los últimos 5 releases
-            ls -1d /home/ubuntu/backend-vertercloud/auth-service/releases/* | head -n -5 | xargs -d '\n' rm -rf --
+            ls -1d /home/ubuntu/backend-vertercloud/auth-service/releases/* | head -n -5 | xargs -r -d '\n' rm -rf --
