@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"time"
 
@@ -132,8 +133,14 @@ func (h *Handler) SetupRoutes(telemetryEnabled bool, disableCSRF bool) http.Hand
 	// CSRF Protection
 	var csrfMiddleware func(http.Handler) http.Handler
 	if !disableCSRF {
-		// In production this key should come from environment variables
-		csrfAuthKey := []byte("32-byte-long-auth-key-for-dev-use!")
+		// CSRF auth key should be set via CSRF_AUTH_KEY environment variable (min 32 bytes)
+		csrfAuthKeyStr := os.Getenv("CSRF_AUTH_KEY")
+		if len(csrfAuthKeyStr) < 32 {
+			// Fallback for development only - not secure for production
+			csrfAuthKeyStr = "32-byte-long-auth-key-for-dev-use!"
+			h.logger.Warn().Msg("CSRF_AUTH_KEY not set or too short — using insecure dev key")
+		}
+		csrfAuthKey := []byte(csrfAuthKeyStr)
 		csrfMiddleware = csrf.Protect(
 			csrfAuthKey,
 			csrf.Secure(h.env == "production"), // Set to false for local HTTP
