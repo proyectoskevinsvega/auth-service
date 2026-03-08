@@ -19,6 +19,7 @@ vendor/
 go.work
 
 # Environment files
+.env
 .env.local
 .env.*.local
 
@@ -26,6 +27,7 @@ go.work
 keys/
 *.pem
 *.key
+*.env
 
 # Database
 *.db
