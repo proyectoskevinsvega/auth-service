@@ -20,6 +20,7 @@ type TenantSettings struct {
 	AllowedCountries         []string `json:"allowed_countries"`
 	BlockedCountries         []string `json:"blocked_countries"`
 	EnforceSessionGeofencing bool     `json:"enforce_session_geofencing"`
+	DefaultRoleID            string   `json:"default_role_id"`
 }
 
 type NewTenantInput struct {
@@ -38,6 +39,7 @@ func NewTenant(input NewTenantInput) *Tenant {
 			AllowedCountries:         []string{},
 			BlockedCountries:         []string{},
 			EnforceSessionGeofencing: false,
+			DefaultRoleID:            "", // Se debe llenar vía Admin API o Base de datos
 		},
 		CreatedAt: now,
 		UpdatedAt: now,

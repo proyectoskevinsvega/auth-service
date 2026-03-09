@@ -456,6 +456,20 @@ func (uc *AuthUseCase) Register(ctx context.Context, input RegisterInput) (*doma
 		return nil, fmt.Errorf("failed to create user: %w", err)
 	}
 
+	// =========================================================================
+	// Asignación de rol por defecto (Default Role ID)
+	// =========================================================================
+	if tenant.Settings.DefaultRoleID != "" {
+		// Asignar el rol al usuario que acaba de registrarse
+		// ignorando errores silenciosamente para no abortar el registro si el rol no existe
+		_ = uc.roleRepo.AssignRoleToUser(ctx, input.TenantID, user.ID, tenant.Settings.DefaultRoleID)
+
+		// Recargar los roles del usuario (para asegurar que el JWT los lleve si hay login post-registro y por logs)
+		if roles, err := uc.roleRepo.GetUserRoles(ctx, input.TenantID, user.ID); err == nil {
+			user.Roles = roles
+		}
+	}
+
 	// Async operations (non-critical, fire-and-forget)
 	// These operations don't block the response for better performance
 	go func() {
