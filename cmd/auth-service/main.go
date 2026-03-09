@@ -58,6 +58,8 @@ import (
 	"github.com/hibiken/asynq"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
+	"github.com/nats-io/nats.go"
+	"github.com/nats-io/nats.go/jetstream"
 	"github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog"
 	cryptoadapter "github.com/vertercloud/auth-service/internal/adapters/crypto"
@@ -158,6 +160,7 @@ type dependencies struct {
 	asynqClient      *asynq.Client
 	asynqServer      *asynq.Server
 	webhookProcessor worker.TaskProcessor
+	natsConn         *nats.Conn
 }
 
 func initializeDependencies(cfg *config.Config, logger zerolog.Logger, telemetryConfig telemetry.Config) (*dependencies, func(), error) {
@@ -291,9 +294,37 @@ func initializeDependencies(cfg *config.Config, logger zerolog.Logger, telemetry
 	} else {
 		logger.Info().Msg("Email service disabled")
 	}
-	var redisNotifier ports.NotificationPublisher
-	if cfg.Notification.Enabled {
-		redisNotifier = notification.NewRedisPublisher(redisClient, cfg.Notification.RedisQueue)
+	// Initialize NATS connection
+	logger.Info().Msg("connecting to NATS...")
+	// Default to localhost if not provided in env for now, but ideally this should come from config
+	natsURL := os.Getenv("NATS_URL")
+	if natsURL == "" {
+		natsURL = nats.DefaultURL
+	}
+	nc, err := nats.Connect(natsURL)
+	if err != nil {
+		logger.Error().Err(err).Msg("failed to connect to NATS, user sync events will not be published")
+		nc = nil
+	} else {
+		logger.Info().Msg("connected to NATS successfully")
+	}
+
+	var notifier ports.NotificationPublisher
+	if nc != nil {
+		js, err := jetstream.New(nc)
+		if err != nil {
+			logger.Error().Err(err).Msg("failed to create JetStream context")
+			// Fallback to Redis if NATS JetStream fails to initialize
+			if cfg.Notification.Enabled {
+				notifier = notification.NewRedisPublisher(redisClient, cfg.Notification.RedisQueue)
+				logger.Info().Msg("Fallback: Redis notification publisher initialized")
+			}
+		} else {
+			notifier = notification.NewNATSPublisher(js)
+			logger.Info().Msg("NATS JetStream notification publisher initialized")
+		}
+	} else if cfg.Notification.Enabled {
+		notifier = notification.NewRedisPublisher(redisClient, cfg.Notification.RedisQueue)
 		logger.Info().Msg("Redis notification publisher initialized")
 	} else {
 		logger.Info().Msg("Notification service disabled")
@@ -362,7 +393,7 @@ func initializeDependencies(cfg *config.Config, logger zerolog.Logger, telemetry
 		tenantRepo,
 		clientRepo,
 		passwordHasher,
-		redisNotifier,
+		notifier,
 		cfg,
 	)
 
@@ -379,7 +410,7 @@ func initializeDependencies(cfg *config.Config, logger zerolog.Logger, telemetry
 		sessionStore,
 		geoService,
 		emailService,
-		redisNotifier,
+		notifier,
 		oauthProviders,
 		cfg,
 		riskService,
@@ -408,7 +439,7 @@ func initializeDependencies(cfg *config.Config, logger zerolog.Logger, telemetry
 		userRepo,
 		emailVerificationRepo,
 		emailService,
-		redisNotifier, // Added notifier
+		notifier, // Added notifier
 		logger,
 		cfg.Server.BaseDomain,
 		cfg.Server.Environment,
@@ -514,10 +545,9 @@ func initializeDependencies(cfg *config.Config, logger zerolog.Logger, telemetry
 			}
 		}
 
-		if err := redisClient.Close(); err != nil {
-			logger.Error().Err(err).Msg("failed to close Redis connection")
-		} else {
-			logger.Info().Msg("Redis connection closed")
+		if nc != nil {
+			nc.Close()
+			logger.Info().Msg("NATS connection closed")
 		}
 
 		dbPool.Close()
@@ -530,6 +560,7 @@ func initializeDependencies(cfg *config.Config, logger zerolog.Logger, telemetry
 		asynqClient:      asynqClient,
 		asynqServer:      asynqServer,
 		webhookProcessor: webhookProcessor,
+		natsConn:         nc,
 	}, cleanup, nil
 }
 
