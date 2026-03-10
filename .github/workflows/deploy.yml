@@ -25,8 +25,7 @@ jobs:
         working-directory: ./
         run: |
           go mod download
-          mkdir -p bin
-          cd cmd/auth-service && go build -trimpath -ldflags="-s -w" -o ../../bin/auth-service .
+          cd cmd/auth-service && go build -trimpath -ldflags="-s -w" -o ../../auth-service .
 
       # ── 4. Upload Binaries and Config to VPS ─────────────────────────────────
       - name: Upload to VPS
@@ -36,7 +35,7 @@ jobs:
           username: ${{ secrets.VPS_BACKEND_USER }}
           key: ${{ secrets.VPS_BACKEND_SSH_KEY }}
           # Ajusta la ruta a los archivos estáticos o configs si es necesario (e.g. jwks.json)
-          source: "bin/auth-service"
+          source: "auth-service"
           target: "/home/ubuntu/backend-vertercloud/auth-service/releases/${{ github.sha }}"
           strip_components: 0
 
@@ -101,5 +100,5 @@ jobs:
 
             echo "✅ Deploy successful — Health check passed (HTTP $HTTP_STATUS) — Release: ${{ github.sha }}"
 
-            # Cleanup: conservar solo los últimos 5 releases
-            ls -1d /home/ubuntu/backend-vertercloud/auth-service/releases/* | head -n -5 | xargs -r -d '\n' rm -rf --
+            # Cleanup: conservar solo los últimos 5 releases ordenados por fecha de modificación
+            ls -1dt /home/ubuntu/backend-vertercloud/auth-service/releases/* | tail -n +6 | xargs -r -d '\n' rm -rf --
