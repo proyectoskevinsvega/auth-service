@@ -25,6 +25,7 @@ const (
 	EventLoginFailed            EventType = "auth_login_failed"
 	EventAccountLocked          EventType = "auth_account_locked"
 	EventEmailVerified          EventType = "auth_email_verified"
+	EventTenantCreated          EventType = "auth_tenant_created"
 )
 
 type Event struct {

@@ -15,6 +15,7 @@ type TenantUseCase struct {
 	roleRepo       ports.RoleRepository
 	passwordHasher ports.PasswordHasher
 	config         *config.Config
+	notifier       ports.NotificationPublisher
 }
 
 func NewTenantUseCase(
@@ -23,6 +24,7 @@ func NewTenantUseCase(
 	roleRepo ports.RoleRepository,
 	passwordHasher ports.PasswordHasher,
 	cfg *config.Config,
+	notifier ports.NotificationPublisher,
 ) *TenantUseCase {
 	return &TenantUseCase{
 		tenantRepo:     tenantRepo,
@@ -30,6 +32,7 @@ func NewTenantUseCase(
 		roleRepo:       roleRepo,
 		passwordHasher: passwordHasher,
 		config:         cfg,
+		notifier:       notifier,
 	}
 }
 
@@ -95,6 +98,21 @@ func (uc *TenantUseCase) Register(ctx context.Context, input RegisterTenantInput
 	// 5. Vincular al usuario con el rol de admin
 	if err := uc.roleRepo.AssignRoleToUser(ctx, tenant.ID, user.ID, adminRole.ID); err != nil {
 		fmt.Printf("warning: failed to assign admin role to user %s: %v\n", user.ID, err)
+	}
+
+	// 6. Publicar evento tenant.created para otros servicios (push notification, etc.)
+	if uc.notifier != nil {
+		event := domain.NewEvent(tenant.ID, domain.EventTenantCreated, user.ID, user.Email, map[string]interface{}{
+			"tenant_slug":   tenant.Slug,
+			"tenant_name":   tenant.Name,
+			"admin_user_id": user.ID,
+		})
+		// Publicar en background para no bloquear la respuesta
+		go func() {
+			if err := uc.notifier.Publish(context.Background(), event); err != nil {
+				fmt.Printf("warning: failed to publish tenant.created event: %v\n", err)
+			}
+		}()
 	}
 
 	return tenant, user, nil

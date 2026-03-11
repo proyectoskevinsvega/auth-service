@@ -55,11 +55,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/hibiken/asynq"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
-	"github.com/nats-io/nats.go"
-	"github.com/nats-io/nats.go/jetstream"
+	"github.com/rabbitmq/amqp091-go"
 	"github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog"
 	cryptoadapter "github.com/vertercloud/auth-service/internal/adapters/crypto"
@@ -67,17 +65,17 @@ import (
 	grpcadapter "github.com/vertercloud/auth-service/internal/adapters/grpc"
 	pb "github.com/vertercloud/auth-service/internal/adapters/grpc/proto"
 	httpadapter "github.com/vertercloud/auth-service/internal/adapters/http"
-	"github.com/vertercloud/auth-service/internal/adapters/notification"
+	notificationAdapter "github.com/vertercloud/auth-service/internal/adapters/notification"
 	oauthadapter "github.com/vertercloud/auth-service/internal/adapters/oauth"
 	postgresadapter "github.com/vertercloud/auth-service/internal/adapters/postgres"
 	redisadapter "github.com/vertercloud/auth-service/internal/adapters/redis"
 	threatinteladapter "github.com/vertercloud/auth-service/internal/adapters/threatintel"
+	workerAdapter "github.com/vertercloud/auth-service/internal/adapters/worker"
 	"github.com/vertercloud/auth-service/internal/config"
 	"github.com/vertercloud/auth-service/internal/observability"
 	"github.com/vertercloud/auth-service/internal/observability/telemetry"
 	"github.com/vertercloud/auth-service/internal/ports"
 	"github.com/vertercloud/auth-service/internal/usecase"
-	worker "github.com/vertercloud/auth-service/internal/worker/asynq"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 )
@@ -149,7 +147,7 @@ func main() {
 	grpcServer := startGRPCServer(cfg, deps.grpcServer, logger, telemetryConfig)
 
 	// Wait for shutdown signal
-	waitForShutdown(httpServer, grpcServer, deps.asynqClient, deps.asynqServer, deps.webhookProcessor, logger)
+	waitForShutdown(httpServer, grpcServer, deps.rabbitTaskWorker, logger)
 
 	logger.Info().Msg("auth service stopped gracefully")
 }
@@ -157,10 +155,8 @@ func main() {
 type dependencies struct {
 	httpHandler      *httpadapter.Handler
 	grpcServer       *grpcadapter.AuthServer
-	asynqClient      *asynq.Client
-	asynqServer      *asynq.Server
-	webhookProcessor worker.TaskProcessor
-	natsConn         *nats.Conn
+	rabbitConn       *amqp091.Connection
+	rabbitTaskWorker *workerAdapter.RabbitMQWorker // RabbitMQ task worker
 }
 
 func initializeDependencies(cfg *config.Config, logger zerolog.Logger, telemetryConfig telemetry.Config) (*dependencies, func(), error) {
@@ -254,32 +250,7 @@ func initializeDependencies(cfg *config.Config, logger zerolog.Logger, telemetry
 	totpService := cryptoadapter.NewTOTPService(cfg.JWT.Issuer)
 	tokenGenerator := cryptoadapter.NewSecureTokenGenerator()
 
-	// Initialize Asynq Client and Server
-	redisOpt := asynq.RedisClientOpt{
-		Addr:     cfg.Redis.Addrs[0],
-		Password: cfg.Redis.Password,
-		DB:       cfg.Redis.DB,
-	}
-	asynqClient := asynq.NewClient(redisOpt)
-	// Make sure to cleanly close the client during shutdown mapping
-
-	asynqServer := asynq.NewServer(
-		redisOpt,
-		asynq.Config{
-			Concurrency: 10,
-			Queues: map[string]int{
-				"default": 10,
-			},
-		},
-	)
-
-	// Initialize new Webhook Task infrastructure
-	webhookDistributor := worker.NewRedisTaskDistributor(asynqClient, logger)
-	webhookProcessor := worker.NewRedisTaskProcessor(asynqServer, logger)
-
-	// Note: We'll start Asynq worker server after HTTP and GRPC so the system is fully configured.
-
-	// Initialize Redis adapters
+	// Initialize Redis adapters for caching and sessions
 	tokenCache := redisadapter.NewTokenCache(redisClient)
 	blacklist := redisadapter.NewTokenBlacklist(redisClient)
 	rateLimiter := redisadapter.NewRateLimiter(redisClient)
@@ -289,45 +260,70 @@ func initializeDependencies(cfg *config.Config, logger zerolog.Logger, telemetry
 	// Initialize notification services
 	var emailService ports.EmailService
 	if cfg.Email.Enabled {
-		emailService = notification.NewResendEmailService(cfg.Email.ResendAPIKey, cfg.Email.From, cfg.Email.FromName)
+		emailService = notificationAdapter.NewResendEmailService(cfg.Email.ResendAPIKey, cfg.Email.From, cfg.Email.FromName)
 		logger.Info().Msg("Email service (Resend) initialized")
 	} else {
 		logger.Info().Msg("Email service disabled")
 	}
-	// Initialize NATS connection
-	logger.Info().Msg("connecting to NATS...")
-	// Default to localhost if not provided in env for now, but ideally this should come from config
-	natsURL := os.Getenv("NATS_URL")
-	if natsURL == "" {
-		natsURL = nats.DefaultURL
-	}
-	nc, err := nats.Connect(natsURL)
-	if err != nil {
-		logger.Error().Err(err).Msg("failed to connect to NATS, user sync events will not be published")
-		nc = nil
-	} else {
-		logger.Info().Msg("connected to NATS successfully")
+
+	// Initialize KAFKA for events (event sourcing)
+	logger.Info().Msg("connecting to Kafka for events...")
+	kafkaBrokers := []string{os.Getenv("KAFKA_BROKERS")}
+	if kafkaBrokers[0] == "" {
+		kafkaBrokers = []string{"localhost:9092"}
 	}
 
-	var notifier ports.NotificationPublisher
-	if nc != nil {
-		js, err := jetstream.New(nc)
-		if err != nil {
-			logger.Error().Err(err).Msg("failed to create JetStream context")
-			// Fallback to Redis if NATS JetStream fails to initialize
-			if cfg.Notification.Enabled {
-				notifier = notification.NewRedisPublisher(redisClient, cfg.Notification.RedisQueue)
-				logger.Info().Msg("Fallback: Redis notification publisher initialized")
-			}
-		} else {
-			notifier = notification.NewNATSPublisher(js)
-			logger.Info().Msg("NATS JetStream notification publisher initialized")
-		}
-	} else if cfg.Notification.Enabled {
-		notifier = notification.NewRedisPublisher(redisClient, cfg.Notification.RedisQueue)
-		logger.Info().Msg("Redis notification publisher initialized")
+	var eventPublisher ports.NotificationPublisher
+	if os.Getenv("KAFKA_BROKERS") != "" || os.Getenv("KAFKA_ENABLED") == "true" {
+		eventPublisher = notificationAdapter.NewKafkaPublisher(kafkaBrokers)
+		logger.Info().Strs("brokers", kafkaBrokers).Msg("Kafka event publisher initialized")
 	} else {
-		logger.Info().Msg("Notification service disabled")
+		logger.Warn().Msg("Kafka not configured, events will not be published")
+	}
+
+	// Initialize RABBITMQ for task queues (background jobs) - REEMPLAZA Asynq
+	logger.Info().Msg("connecting to RabbitMQ for task queues...")
+	rabbitmqURL := os.Getenv("RABBITMQ_URL")
+	if rabbitmqURL == "" {
+		rabbitmqURL = "amqp://guest:guest@localhost:5672/"
+	}
+	rabbitConn, err := amqp091.Dial(rabbitmqURL)
+	if err != nil {
+		logger.Error().Err(err).Msg("failed to connect to RabbitMQ, task queues will not work")
+	} else {
+		logger.Info().Msg("connected to RabbitMQ for task queues")
+	}
+	defer rabbitConn.Close()
+
+	// Create RabbitMQ channel for task queues
+	var rabbitTaskChannel *amqp091.Channel
+	var rabbitTaskWorker *workerAdapter.RabbitMQWorker
+	var webhookDistributor ports.TaskDistributor
+
+	if rabbitConn != nil {
+		rabbitTaskChannel, err = rabbitConn.Channel()
+		if err != nil {
+			logger.Error().Err(err).Msg("failed to create RabbitMQ task channel")
+		} else {
+			// Initialize RabbitMQ task worker
+			rabbitTaskWorker = workerAdapter.NewRabbitMQWorker(rabbitTaskChannel, "auth.tasks", logger)
+
+			// Initialize webhook processor
+			webhookProc := workerAdapter.NewWebhookProcessor(webhookRepo, logger)
+
+			// Register webhook handler
+			rabbitTaskWorker.RegisterHandler("webhook.send", func(ctx context.Context, task workerAdapter.Task) error {
+				tenantID, _ := task.Payload["tenant_id"].(string)
+				eventType, _ := task.Payload["event_type"].(string)
+				payload, _ := task.Payload["payload"].(map[string]interface{})
+				return webhookProc.ProcessWebhook(ctx, tenantID, eventType, payload)
+			})
+
+			// Initialize webhook distributor
+			webhookDistributor = notificationAdapter.NewRabbitMQWebhookDistributor(rabbitTaskChannel, logger)
+
+			logger.Info().Msg("RabbitMQ task queue system initialized")
+		}
 	}
 
 	// Initialize geolocation service (optional - can handle nil gracefully)
@@ -393,7 +389,7 @@ func initializeDependencies(cfg *config.Config, logger zerolog.Logger, telemetry
 		tenantRepo,
 		clientRepo,
 		passwordHasher,
-		notifier,
+		eventPublisher, // KAFKA para eventos
 		cfg,
 	)
 
@@ -410,7 +406,7 @@ func initializeDependencies(cfg *config.Config, logger zerolog.Logger, telemetry
 		sessionStore,
 		geoService,
 		emailService,
-		notifier,
+		eventPublisher, // KAFKA para eventos
 		oauthProviders,
 		cfg,
 		riskService,
@@ -439,21 +435,21 @@ func initializeDependencies(cfg *config.Config, logger zerolog.Logger, telemetry
 		userRepo,
 		emailVerificationRepo,
 		emailService,
-		notifier, // Added notifier
+		eventPublisher, // KAFKA para eventos
 		logger,
 		cfg.Server.BaseDomain,
 		cfg.Server.Environment,
-		rateLimiter, // Added Redis RateLimiter
-		cfg,         // Added Global Settings
+		rateLimiter,
+		cfg,
 	)
 	logger.Info().Msg("Email verification use case initialized")
 
 	webhookUC := usecase.NewWebhookUseCase(
 		webhookRepo,
-		webhookDistributor, // Pushing Webhooks tasks using Asynq Redis mechanism.
+		webhookDistributor, // RabbitMQ task distribution
 		logger,
 	)
-	logger.Info().Msg("Webhook use case initialized (Asynq Powered)")
+	logger.Info().Msg("Webhook use case initialized (RabbitMQ Powered)")
 
 	webauthnUC, err := usecase.NewWebAuthnUseCase(
 		userRepo,
@@ -489,8 +485,9 @@ func initializeDependencies(cfg *config.Config, logger zerolog.Logger, telemetry
 		roleRepo,
 		passwordHasher,
 		cfg,
+		eventPublisher, // KAFKA para eventos (tenant.created)
 	)
-	logger.Info().Msg("Tenant Onboarding use case initialized")
+	logger.Info().Msg("Tenant Onboarding use case initialized (Kafka events)")
 
 	// Initialize HTTP handler
 	httpHandler := httpadapter.NewHandler(
@@ -515,8 +512,7 @@ func initializeDependencies(cfg *config.Config, logger zerolog.Logger, telemetry
 		cfg.Server.BaseDomain,
 	)
 
-	// NOTE: Event dispatching is now handled by the Asynq Background Worker (started in waitForShutdown).
-	// The old Redis-polling EventWorker has been superseded.
+	// NOTE: Event dispatching is now handled by the RabbitMQ Background Worker.
 
 	// Initialize gRPC server
 	grpcServer := grpcadapter.NewAuthServer(
@@ -545,9 +541,9 @@ func initializeDependencies(cfg *config.Config, logger zerolog.Logger, telemetry
 			}
 		}
 
-		if nc != nil {
-			nc.Close()
-			logger.Info().Msg("NATS connection closed")
+		if rabbitConn != nil {
+			rabbitConn.Close()
+			logger.Info().Msg("RabbitMQ connection closed")
 		}
 
 		dbPool.Close()
@@ -557,10 +553,8 @@ func initializeDependencies(cfg *config.Config, logger zerolog.Logger, telemetry
 	return &dependencies{
 		httpHandler:      httpHandler,
 		grpcServer:       grpcServer,
-		asynqClient:      asynqClient,
-		asynqServer:      asynqServer,
-		webhookProcessor: webhookProcessor,
-		natsConn:         nc,
+		rabbitConn:       rabbitConn,
+		rabbitTaskWorker: rabbitTaskWorker,
 	}, cleanup, nil
 }
 
@@ -655,14 +649,16 @@ func startGRPCServer(cfg *config.Config, authServer *grpcadapter.AuthServer, log
 	return grpcServer
 }
 
-func waitForShutdown(httpServer *http.Server, grpcServer *grpc.Server, asynqClient *asynq.Client, asynqServer *asynq.Server, processor worker.TaskProcessor, logger zerolog.Logger) {
-	// Start all Asynq Webhook Background Workers
-	go func() {
-		logger.Info().Msg("starting Asynq webhook background workers...")
-		if err := processor.Start(); err != nil {
-			logger.Fatal().Err(err).Msg("failed to start Asynq workers")
-		}
-	}()
+func waitForShutdown(httpServer *http.Server, grpcServer *grpc.Server, rabbitTaskWorker *workerAdapter.RabbitMQWorker, logger zerolog.Logger) {
+	// Start RabbitMQ Background Workers
+	if rabbitTaskWorker != nil {
+		go func() {
+			logger.Info().Msg("starting RabbitMQ background task workers...")
+			if err := rabbitTaskWorker.Start(context.Background()); err != nil {
+				logger.Fatal().Err(err).Msg("failed to start RabbitMQ workers")
+			}
+		}()
+	}
 
 	// Watch for shutdown signal
 	quit := make(chan os.Signal, 1)
@@ -672,8 +668,11 @@ func waitForShutdown(httpServer *http.Server, grpcServer *grpc.Server, asynqClie
 	// Graceful shutdown procedure
 	logger.Info().Msg("shutting down servers and workers...")
 
-	asynqServer.Stop() // Prevents new tasks and awaits executing tasks
-	asynqClient.Close()
+	// Stop RabbitMQ workers
+	if rabbitTaskWorker != nil {
+		rabbitTaskWorker.Stop()
+		logger.Info().Msg("RabbitMQ workers stopped")
+	}
 
 	// Graceful HTTP shutdown
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)

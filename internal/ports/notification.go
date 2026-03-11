@@ -36,6 +36,11 @@ type WebhookSender interface {
 	Send(ctx context.Context, sub *domain.WebhookSubscription, payload *domain.WebhookPayload) error
 }
 
+// WebhookDistributor distributes webhook tasks to a queue for background processing
+type WebhookDistributor interface {
+	Distribute(ctx context.Context, tenantID string, eventType string, payload map[string]interface{}) error
+}
+
 // TaskDistributor is the interface for enqueuing background tasks.
 // Defined here (in ports) to avoid circular imports between usecase and worker packages.
 type TaskDistributor interface {
