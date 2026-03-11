@@ -306,7 +306,11 @@ func initializeDependencies(cfg *config.Config, logger zerolog.Logger, telemetry
 			logger.Error().Err(err).Msg("failed to create RabbitMQ task channel")
 		} else {
 			// Initialize RabbitMQ task worker
-			rabbitTaskWorker = workerAdapter.NewRabbitMQWorker(rabbitTaskChannel, "auth.tasks", logger)
+			taskQueue := os.Getenv("RABBITMQ_TASK_QUEUE")
+			if taskQueue == "" {
+				taskQueue = "auth.tasks"
+			}
+			rabbitTaskWorker = workerAdapter.NewRabbitMQWorker(rabbitTaskChannel, taskQueue, logger)
 
 			// Initialize webhook processor
 			webhookProc := workerAdapter.NewWebhookProcessor(webhookRepo, logger)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 
 	"github.com/segmentio/kafka-go"
 	"github.com/vertercloud/auth-service/internal/domain"
@@ -17,9 +18,14 @@ type KafkaPublisher struct {
 
 // NewKafkaPublisher creates a new Kafka publisher for events
 func NewKafkaPublisher(brokers []string) ports.NotificationPublisher {
+	topic := os.Getenv("KAFKA_TOPIC")
+	if topic == "" {
+		topic = "auth.events"
+	}
+	
 	writer := &kafka.Writer{
 		Addr:     kafka.TCP(brokers...),
-		Topic:    "auth.events",
+		Topic:    topic,
 		Balancer: &kafka.LeastBytes{},
 		RequiredAcks: kafka.RequireAll,
 	}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/hibiken/asynq"
@@ -21,9 +22,14 @@ type RabbitMQWebhookDistributor struct {
 
 // NewRabbitMQWebhookDistributor creates a new webhook distributor using RabbitMQ
 func NewRabbitMQWebhookDistributor(channel *amqp091.Channel, log zerolog.Logger) *RabbitMQWebhookDistributor {
+	queueName := os.Getenv("RABBITMQ_WEBHOOK_QUEUE")
+	if queueName == "" {
+		queueName = "auth.webhooks"
+	}
+
 	return &RabbitMQWebhookDistributor{
 		channel:   channel,
-		queueName: "auth.webhooks",
+		queueName: queueName,
 		log:       log.With().Str("component", "rabbitmq_webhook_distributor").Logger(),
 	}
 }
